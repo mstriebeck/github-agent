@@ -23,6 +23,29 @@
 
 ---
 
+## 🧪 Local Environment Setup
+
+### 1. Create and activate a virtual environment (recommended)
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 2. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Add `.venv/` to `.gitignore`
+
+```bash
+echo ".venv/" >> .gitignore
+```
+
+---
+
 ## 🏗️ High-Level Architecture
 
 ```
@@ -113,8 +136,16 @@ import logging
 def fetch_review_comments(repo_owner, repo_name, branch, commit_sha, github_token):
     headers = {"Authorization": f"token {github_token}"}
     url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/pulls"
+
     try:
-        prs = requests.get(url, headers=headers).json()
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        prs = response.json()
+
+        if not isinstance(prs, list):
+            logging.error(f"Unexpected API response: {prs}")
+            return []
+
     except Exception as e:
         logging.error(f"❌ Failed to fetch PRs: {e}")
         return []
@@ -124,11 +155,63 @@ def fetch_review_comments(repo_owner, repo_name, branch, commit_sha, github_toke
         if pr.get("head", {}).get("ref") == branch and pr.get("head", {}).get("sha") == commit_sha:
             try:
                 comments_url = pr["review_comments_url"]
-                comments = requests.get(comments_url, headers=headers).json()
+                comments_resp = requests.get(comments_url, headers=headers)
+                comments_resp.raise_for_status()
+                comments = comments_resp.json()
             except Exception as e:
                 logging.error(f"❌ Failed to fetch comments: {e}")
             break
     return comments
+```
+
+---
+
+## 🔍 Troubleshooting
+
+### 1. 404 Error from GitHub API
+
+If you see:
+
+```
+404 Client Error: Not Found for url: https://api.github.com/repos/<owner>/<repo>/pulls
+```
+
+Check the following:
+
+* `.env` has correct values:
+
+  ```env
+  REPO_OWNER=mstriebeck
+  REPO_NAME=pr-review-agent  # ✅ name only, not URL or .git suffix
+  ```
+* Your token has access to the repo. For private repos, GitHub may return 404 instead of 403 if access is denied.
+* Try running:
+
+  ```bash
+  curl -H "Authorization: token $GITHUB_TOKEN" \
+       https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/pulls
+  ```
+
+  * If you get `[]`, the repo is accessible but has no open PRs
+  * If you get `Not Found` or `Bad credentials`, check token permissions
+
+### 2. Token Creation
+
+Go to [https://github.com/settings/tokens](https://github.com/settings/tokens) and create a fine-grained or classic token with:
+
+**Fine-grained token setup:**
+
+* **Repository access**: Select the specific repository (e.g., `pr-review-agent`)
+* **Permissions**:
+
+  * `Pull requests`: ✅ Read-only
+  * `Contents`: ✅ Read-only
+* **Expiration**: Choose 30, 60, or 90 days, or "No expiration" if you’re running locally
+
+After creating the token, add it to your `.env` file:
+
+```env
+GITHUB_TOKEN=ghp_abc123...
 ```
 
 ---
@@ -141,3 +224,4 @@ def fetch_review_comments(repo_owner, repo_name, branch, commit_sha, github_toke
 * Multi-agent dispatch support
 * GitHub Action to collect and forward comment metadata to local agent
 * Enhanced logging with file output and severity control
+
