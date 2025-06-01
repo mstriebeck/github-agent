@@ -4,170 +4,140 @@
 
 ### Functional
 
-* Automatically receive GitHub PR review comments
+* Query GitHub for PR review comments tied to the current branch and commit
 * Forward them to a coding agent via a standardized interface (e.g., MCP)
 * Each comment should be addressed independently by the agent
-* Only process comments that match the local branch and commit of the workspace
 
 ### Technical
 
-* GitHub webhook listener for `pull_request_review_comment` events
-* Pluggable interface to deliver messages to a coding agent
+* Local client script that runs inside a Git repo
+* MCP-compatible message format
 * Contextual information like file path, line number, PR URL, branch, and commit
 
 ### Optional Enhancements
 
+* Logging and diagnostics
 * State tracking to avoid duplicate handling
 * Multi-turn response support for follow-up
-* Query GitHub for missed comments for a given branch/commit
+* Convert to webhook or GitHub Action once stable
 
 ---
 
 ## 🏗️ High-Level Architecture
 
 ```
-GitHub PR Review Comment
-       ↓ (Webhook)
-[Webhook Listener/API Server]
-       ↓ (Construct Message)
-     [Agent Message Sender (MCP/other)]
-       ↓ (Agent Processes)
-    [Response/Feedback Loop]
+Manual Trigger or CLI Tool
+       ↓
+[GitHub API Fetcher]
+       ↓ (Build Payload)
+     [Send to Agent (MCP)]
+       ↓ (Agent Responds)
+    [Optional Output Handling]
 ```
 
 ---
 
 ## 🧩 Components
 
-### 1. GitHub Webhook Listener (Python Flask)
+### 1. Local Client Script (Manual Runner)
 
 ```python
-from flask import Flask, request, jsonify
-import requests
 import os
 import subprocess
+import requests
+import logging
+from github_query import fetch_review_comments
 
-app = Flask(__name__)
+logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 AGENT_ENDPOINT = os.getenv("AGENT_ENDPOINT", "http://localhost:5001/mcp")
+REPO_OWNER = os.getenv("REPO_OWNER")
+REPO_NAME = os.getenv("REPO_NAME")
 
-@app.route("/github-webhook", methods=["POST"])
-def github_webhook():
-    data = request.json
+local_commit = subprocess.getoutput("git rev-parse HEAD").strip()
+local_branch = subprocess.getoutput("git rev-parse --abbrev-ref HEAD").strip()
 
-    if data.get("action") == "created" and "comment" in data:
-        comment = data["comment"]["body"]
-        path = data["comment"].get("path", "<unknown file>")
-        line = data["comment"].get("position", 0)
-        pr_url = data["pull_request"]["html_url"]
-        pr_commit = data["pull_request"]["head"]["sha"]
-        pr_branch = data["pull_request"]["head"]["ref"]
+logging.info(f"🔍 Branch: {local_branch}, Commit: {local_commit}")
 
-        # Check if local Git state matches
-        local_commit = subprocess.getoutput("git rev-parse HEAD").strip()
-        local_branch = subprocess.getoutput("git rev-parse --abbrev-ref HEAD").strip()
+def process_comments():
+    comments = fetch_review_comments(REPO_OWNER, REPO_NAME, local_branch, local_commit, GITHUB_TOKEN)
+    if not comments:
+        logging.info("✅ No comments for current branch/commit.")
+        return
 
-        if pr_commit != local_commit or pr_branch != local_branch:
-            return jsonify({"status": "skipped", "reason": "comment not for current workspace"})
+    message_list = []
+    for c in comments:
+        body = c["body"]
+        path = c.get("path", "<unknown file>")
+        line = c.get("position", 0)
+        pr_url = c["pull_request_url"].replace("api.github.com/repos", "github.com").replace("/pulls/", "/pull/")
 
-        agent_payload = {
-            "agent": "generic-agent",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": (
-                        f"Please address this GitHub PR review comment:\n\n"
-                        f"> {comment}\n\n"
-                        f"File: `{path}`, line {line}.\n"
-                        f"PR: {pr_url}\n"
-                        f"Branch: {pr_branch}, Commit: {pr_commit}"
-                    )
-                }
-            ]
-        }
+        logging.info(f"📌 Comment on {path}:{line}: {body.strip()[:80]}...")
 
+        message_list.append({
+            "role": "user",
+            "content": (
+                f"Please address this GitHub PR review comment:\n\n"
+                f"> {body}\n\n"
+                f"File: `{path}`, line {line}.\n"
+                f"PR: {pr_url}\n"
+                f"Branch: {local_branch}, Commit: {local_commit}"
+            )
+        })
+
+    agent_payload = {
+        "agent": "generic-agent",
+        "messages": message_list
+    }
+
+    try:
         res = requests.post(AGENT_ENDPOINT, json=agent_payload)
-        return jsonify({"status": "forwarded", "response": res.status_code})
+        logging.info(f"📤 Sent {len(message_list)} comment(s) to agent → status: {res.status_code}")
+        logging.debug(res.text)
+    except Exception as e:
+        logging.error(f"❌ Failed to send payload: {e}")
 
-    return jsonify({"status": "ignored"})
+if __name__ == "__main__":
+    process_comments()
 ```
 
 ---
 
-### 2. Optional GitHub Query Logic
-
-To catch up on missed comments:
+### 2. GitHub Query Logic
 
 ```python
+import requests
+import logging
+
 def fetch_review_comments(repo_owner, repo_name, branch, commit_sha, github_token):
     headers = {"Authorization": f"token {github_token}"}
     url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/pulls"
-    prs = requests.get(url, headers=headers).json()
+    try:
+        prs = requests.get(url, headers=headers).json()
+    except Exception as e:
+        logging.error(f"❌ Failed to fetch PRs: {e}")
+        return []
+
     comments = []
     for pr in prs:
-        if pr["head"]["ref"] == branch and pr["head"]["sha"] == commit_sha:
-            comments_url = pr["review_comments_url"]
-            comments = requests.get(comments_url, headers=headers).json()
+        if pr.get("head", {}).get("ref") == branch and pr.get("head", {}).get("sha") == commit_sha:
+            try:
+                comments_url = pr["review_comments_url"]
+                comments = requests.get(comments_url, headers=headers).json()
+            except Exception as e:
+                logging.error(f"❌ Failed to fetch comments: {e}")
             break
     return comments
-```
-
-This can be run manually or during agent startup.
-
----
-
-## 🚀 Setup & Deployment
-
-### 1. Agent Setup
-
-* Ensure your coding agent (AMP or other) listens for messages over HTTP (MCP or custom format)
-* Configure the agent endpoint via `AGENT_ENDPOINT`
-
-### 2. GitHub Webhook
-
-* Configure webhook to send PR review comments
-
-### 3. Local Dev
-
-```bash
-pip install flask requests
-export AGENT_ENDPOINT="http://localhost:5001/mcp"
-python webhook_agent.py
-```
-
----
-
-# AMP Integration (Specific Agent Layer)
-
-If using AMP:
-
-* `AGENT_ENDPOINT=http://localhost:5001/mcp`
-* Use "agent": "amp" in the message payload
-* Ensure AMP has access to the PR codebase
-
-Example MCP payload:
-
-```json
-{
-  "agent": "amp",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Please address this GitHub PR review comment: ..."
-    }
-  ]
-}
 ```
 
 ---
 
 ## ✅ Future Enhancements
 
-* Authenticated GitHub webhook
+* Convert manual script to webhook
+* Authenticated GitHub query
 * Persistent ID tracking
-* Queue/resend missed comments
 * Multi-agent dispatch support
-
----
-
-Let me know if you want this split into two scripts or formalized as a Python package/module for broader use.
+* GitHub Action to collect and forward comment metadata to local agent
+* Enhanced logging with file output and severity control
