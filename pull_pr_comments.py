@@ -6,10 +6,13 @@ from github_query import fetch_review_comments
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+#GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 AGENT_ENDPOINT = os.getenv("AGENT_ENDPOINT", "http://localhost:5001/mcp")
-REPO_OWNER = os.getenv("REPO_OWNER")
-REPO_NAME = os.getenv("REPO_NAME")
+#REPO_OWNER = os.getenv("REPO_OWNER")
+#REPO_NAME = os.getenv("REPO_NAME")
+GITHUB_TOKEN = "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"
+REPO_OWNER = "mstriebeck"
+REPO_NAME = "pr-review-agent"
 
 local_commit = subprocess.getoutput("git rev-parse HEAD").strip()
 local_branch = subprocess.getoutput("git rev-parse --abbrev-ref HEAD").strip()
