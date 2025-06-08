@@ -20,7 +20,7 @@ def fetch_review_comments(repo_owner, repo_name, branch, commit_sha, github_toke
 
     comments = []
     for pr in prs:
-        if pr.get("head", {}).get("ref") == branch and pr.get("head", {}).get("sha") == commit_sha:
+        if pr.get("head", {}).get("ref") == branch:# and pr.get("head", {}).get("sha") == commit_sha:
             try:
                 comments_url = pr["review_comments_url"]
                 comments_resp = requests.get(comments_url, headers=headers)

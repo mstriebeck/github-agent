@@ -1,4 +1,3 @@
-import os
 import subprocess
 import requests
 import logging
@@ -7,7 +6,8 @@ from github_query import fetch_review_comments
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
-GITHUB_TOKEN = ""
+GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
+
 #AGENT_ENDPOINT = os.getenv("AGENT_ENDPOINT", "http://localhost:5001/mcp")
 
 # Get repo information programmatically
@@ -49,6 +49,7 @@ def output_as_text(comments):
         path = c.get("path", "<unknown file>")
         line = c.get("position", 0)
         cid = c.get("id", "n/a")
+        original_line = c.get("original_line", line)  # For fallback positioning
         print(f"[comment_id: {cid}]\n- {path}:{line} → {body.strip()}\n")
 
     print("""
@@ -56,9 +57,11 @@ def output_as_text(comments):
 - Only address the above PR comments (do not refactor unrelated code).
 - After making changes, create a new commit summarizing what was done.
   The commit message should summarize all changes made to address the comments.
-- Then respond to each comment using the same format (without a newline in-between!):
-  [comment_id1: <id>]\nReply: <short one-line reply>
-  [comment_id2: <id>]\nReply: <short one-line reply>
+- Then respond to each comment using the same format (without a newline between responses!):
+  [comment_id: <id> - <path>:<line> - original_comment: "<original_comment_text>"]
+  Reply: <1-3 sentence reply>
+  
+  Note: Include the original_comment text so we can reference it if we need to post a general comment.
 """)
 
 def output_as_agent_messages(comments):
@@ -67,6 +70,7 @@ def output_as_agent_messages(comments):
         body = c["body"]
         path = c.get("path", "<unknown file>")
         line = c.get("position", 0)
+        original_line = c.get("original_line", line)
         pr_url = c["pull_request_url"].replace("api.github.com/repos", "github.com").replace("/pulls/", "/pull/")
         cid = c.get("id", "")
 
@@ -76,9 +80,13 @@ def output_as_agent_messages(comments):
                 f"[comment_id: {cid}]\n"
                 f"Please address this GitHub PR review comment:\n\n"
                 f"> {body}\n\n"
-                f"File: `{path}`, line {line}.\n"
+                f"File: `{path}`, line {line} (original line: {original_line}).\n"
                 f"PR: {pr_url}\n"
-                f"Branch: {local_branch}, Commit: {local_commit}"
+                f"Branch: {local_branch}, Commit: {local_commit}\n\n"
+                f"When replying, use this format:\n"
+                f"[comment_id: {cid} - {path}:{line} - original_comment: \"{body.replace('\"', '\\\"')}\"]\n"
+                f"Reply: <your response>\n\n"
+                f"Include the original_comment text so we can reference it if needed for fallback posting."
             )
         })
 
