@@ -1,2 +1,5 @@
 requests
-
+dotenv
+mcp
+PyGithub
+GitPython

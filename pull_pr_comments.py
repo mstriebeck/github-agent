@@ -1,12 +1,18 @@
+import os
+from os.path import join, dirname
 import subprocess
 import requests
 import logging
 import argparse
 from github_query import fetch_review_comments
+from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
-GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
+dotenv_path = join(os.getcwd(), '.env')
+load_dotenv(dotenv_path)
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+logging.info(f"{GITHUB_TOKEN=}")
 
 #AGENT_ENDPOINT = os.getenv("AGENT_ENDPOINT", "http://localhost:5001/mcp")
 

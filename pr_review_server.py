@@ -8,7 +8,10 @@ import os
 import json
 import re
 import unicodedata
+import zipfile
+import io
 from typing import Optional, List, Dict, Any
+import subprocess
 
 # Import MCP components
 import mcp
@@ -118,6 +121,16 @@ async def handle_list_tools() -> list[types.Tool]:
                 }
             }
         ),
+        types.Tool(
+            name="read_build_logs",
+            description="Read build logs for Swift compiler errors, warnings, and test failures",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "build_id": {"type": "string", "description": "Build ID (optional, uses latest for current commit if not specified)"}
+                }
+            }
+        ),
         
         # Batch Processing Tools
         types.Tool(
@@ -156,6 +169,8 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
             result = await get_build_status(arguments.get("commit_sha"))
         elif name == "read_swiftlint_logs":
             result = await read_swiftlint_logs(arguments.get("build_id"))
+        elif name == "read_build_logs":
+            result = await read_build_logs(arguments.get("build_id"))
         elif name == "process_comment_batch":
             result = await process_comment_batch(arguments.get("comments_data"))
         else:
@@ -220,23 +235,34 @@ async def get_current_commit() -> Dict[str, Any]:
 
 async def find_pr_for_branch(branch_name: Optional[str] = None) -> Dict[str, Any]:
     """Find the PR associated with a branch"""
+    print(f"[DEBUG] ➡️  Received branch_name: {branch_name}")
     try:
         if not context.repo:
             return {"error": "GitHub repository not configured"}
-            
+
         if not branch_name:
             if not context.git_repo:
                 return {"error": "Not in a Git repository"}
             branch_name = context._current_branch or context.git_repo.active_branch.name
-        
-        # Search for PRs with this head branch
-        pulls = context.repo.get_pulls(state='open', head=f"{context.repo.owner.login}:{branch_name}")
+
+        # Search all PRs and match by branch name
+        #pulls = context.repo.get_pulls(state='open', head=f"{context.repo.owner.login}:{branch_name}")
+        pulls = context.repo.get_pulls(state='all')
+
+        # 👇 NEW DEBUG
+        pulls = list(pulls)
+        print(f"[DEBUG] GitHub returned {len(pulls)} total PRs")
+        for pr in pulls:
+            print(f"[DEBUG] PR #{pr.number}: head.ref={pr.head.ref}, head.repo.full_name={pr.head.repo.full_name}, state={pr.state}")
+
         pr_list = list(pulls)
-        
+        print(f"[DEBUG] 🔍 Found {len(pr_list)} PR(s) matching branch '{branch_name}'")
+
         if pr_list:
-            pr = pr_list[0]  # Take the first (most recent) PR
+            print(f"[DEBUG] PR #{pr.number}: head.ref={pr.head.ref}, base.ref={pr.base.ref}, state={pr.state}, title={pr.title}")
+            pr = pr_list[0]  # Take the first match
             context._current_pr = pr.number
-            
+
             return {
                 "found": True,
                 "pr_number": pr.number,
@@ -253,7 +279,7 @@ async def find_pr_for_branch(branch_name: Optional[str] = None) -> Dict[str, Any
                 "branch_name": branch_name,
                 "message": f"No PR found for branch '{branch_name}'"
             }
-            
+
     except Exception as e:
         return {"error": f"Failed to find PR for branch {branch_name}: {str(e)}"}
 
@@ -404,64 +430,396 @@ async def get_build_status(commit_sha: Optional[str] = None) -> Dict[str, Any]:
     try:
         if not context.repo:
             return {"error": "GitHub repository not configured"}
-        
+
         if not commit_sha:
             if not context.git_repo:
                 return {"error": "Not in a Git repository"}
             commit_sha = context._current_commit or context.git_repo.head.commit.hexsha
-        
+
         commit = context.repo.get_commit(commit_sha)
-        status = commit.get_combined_status()
-        
-        check_runs = []
+
+        # --- MODIFICATION START ---
+        # Initialize overall_state here; it will be updated based on check runs
+        overall_state = "pending" # Default to pending if no checks or statuses are found
+        has_failures = False
+        check_runs_data = []
+
         try:
+            # Prefer check runs for detailed build status
+            # This is more robust against the 'Resource not accessible' error for combined_status
             for run in commit.get_check_runs():
-                check_runs.append({
+                check_run_info = {
                     "name": run.name,
                     "status": run.status,
                     "conclusion": run.conclusion,
                     "url": run.html_url
-                })
-        except Exception:
-            pass
-        
+                }
+                check_runs_data.append(check_run_info)
+
+                if run.conclusion in ["failure", "timed_out", "cancelled", "stale"]:
+                    has_failures = True
+                elif run.status == "completed" and run.conclusion == "success" and overall_state == "pending":
+                    overall_state = "success" # Set to success if at least one successful completed run and no failures yet
+                elif run.status != "completed": # If any check is still running, overall is in_progress
+                    overall_state = "in_progress"
+
+        except Exception as e:
+            # Log this if needed, but allow to proceed to combined_status fallback or default
+            print(f"Warning: Failed to get check runs, trying combined status fallback: {e}")
+            pass # Continue to try combined_status if check_runs fails
+
+        # Fallback to get_combined_status if check_runs_data is empty or if check_runs failed
+        # This part might still throw the 403, but it's a fallback.
+        # If check_runs_data is populated, we might skip this
+        if not check_runs_data:
+            try:
+                status = commit.get_combined_status()
+                overall_state = status.state
+                has_failures = any(
+                    s.state in ["failure", "error", "pending"] and s.context != "expected" # Refine logic if needed
+                    for s in status.statuses
+                )
+                # Populate check_runs_data from statuses if check_runs failed
+                # This part is redundant if check_runs already populated data
+                if not check_runs_data:
+                    for s in status.statuses:
+                        check_runs_data.append({
+                            "name": s.context,
+                            "status": s.state,
+                            "conclusion": s.state, # Map status state to conclusion for consistency
+                            "url": s.target_url
+                        })
+            except Exception as e:
+                print(f"Error: Failed to get combined status even as fallback: {e}")
+                overall_state = "error" # Indicate an error if both fail
+                has_failures = True
+
+        # Ensure overall_state reflects failures if any
+        if has_failures:
+            overall_state = "failure"
+
         return {
             "commit_sha": commit_sha,
-            "overall_state": status.state,
-            "check_runs": check_runs,
-            "has_failures": any(
-                run.get("conclusion") in ["failure", "timed_out", "cancelled"] for run in check_runs
-            )
+            "overall_state": overall_state,
+            "check_runs": check_runs_data,
+            "has_failures": has_failures
         }
-        
+        # --- MODIFICATION END ---
+
     except Exception as e:
         return {"error": f"Failed to get build status: {str(e)}"}
 
-async def read_swiftlint_logs(build_id: Optional[str] = None) -> Dict[str, Any]:
-    """Read SwiftLint logs - CUSTOMIZE based on your CI system"""
+async def get_github_repo():
+    """Return the owner and repo name from the current git repo."""
+    output = subprocess.check_output(["git", "config", "--get", "remote.origin.url"]).decode().strip()
+    print(f"[DEBUG] Git remote URL: {output}")
+    if output.startswith("git@"):
+        _, path = output.split(":", 1)
+    elif output.startswith("https://"):
+        path = output.split("github.com/", 1)[-1]
+    else:
+        raise ValueError(f"Unrecognized GitHub remote URL: {output}")
+    repo_name = path.replace(".git", "")
+    print(f"[DEBUG] Detected repo name: {repo_name}")
+    return repo_name
+
+async def get_github_commit():
+    commit = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+    print(f"[DEBUG] Current commit SHA: {commit}")
+    return commit
+
+async def find_workflow_run(repo, commit, token):
+    url = f"https://api.github.com/repos/{repo}/actions/runs"
+    headers = {"Authorization": f"Bearer {token}"}
+    # Remove event filter to see all workflow runs, increase page size
+    params = {"per_page": 200}
+    print(f"[DEBUG] Searching for workflow runs at: {url}")
+    print(f"[DEBUG] Looking for commit: {commit}")
+    response = requests.get(url, headers=headers, params=params)
+    response.raise_for_status()
+    
+    workflow_data = response.json()
+    workflow_runs = workflow_data.get("workflow_runs", [])
+    print(f"[DEBUG] Found {len(workflow_runs)} workflow runs")
+    
+    for i, run in enumerate(workflow_runs[:10]):  # Show first 10 for debugging
+        print(f"[DEBUG] Run {i+1}: id={run['id']}, head_sha={run['head_sha'][:8]}..., event={run['event']}, status={run['status']}, conclusion={run.get('conclusion', 'N/A')}")
+    
+    # Look for exact match
+    for run in workflow_runs:
+        if run["head_sha"] == commit:
+            print(f"[DEBUG] Found exact match: run_id={run['id']}")
+            return run["id"]
+    
+    # Look for partial match (first 8 characters)
+    short_commit = commit[:8]
+    for run in workflow_runs:
+        if run["head_sha"].startswith(short_commit):
+            print(f"[DEBUG] Found partial match: run_id={run['id']}, head_sha={run['head_sha']}")
+            return run["id"]
+    
+    print(f"[DEBUG] No matching workflow run found for commit {commit}")
+    
+    # Offer the most recent workflow run as fallback
+    if workflow_runs:
+        latest_run = workflow_runs[0]  # Runs are sorted by creation date, most recent first
+        print(f"[DEBUG] Using most recent workflow run as fallback: {latest_run['id']} (commit: {latest_run['head_sha'][:8]}...)")
+        return latest_run["id"]
+    
+    raise RuntimeError(f"No matching workflow run found for commit {commit}. Local commit may not be pushed to GitHub yet.")
+
+async def get_artifact_id(repo, run_id, token, name="swiftlint-reports"):
+    url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts"
+    headers = {"Authorization": f"Bearer {token}"}
+    print(f"[DEBUG] Looking for artifacts in run {run_id}")
+    print(f"[DEBUG] Artifacts URL: {url}")
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    
+    artifacts_data = response.json()
+    artifacts = artifacts_data.get("artifacts", [])
+    print(f"[DEBUG] Found {len(artifacts)} artifacts")
+    
+    for i, artifact in enumerate(artifacts):
+        print(f"[DEBUG] Artifact {i+1}: name='{artifact['name']}', size={artifact.get('size_in_bytes', 0)} bytes")
+    
+    for artifact in artifacts:
+        if artifact["name"] == name:
+            print(f"[DEBUG] Found matching artifact: {artifact['id']}")
+            return artifact["id"]
+    
+    print(f"[DEBUG] No artifact named '{name}' found")
+    raise RuntimeError(f"No artifact named '{name}' found")
+
+async def download_and_extract_artifact(repo, artifact_id, token):
+    url = f"https://api.github.com/repos/{repo}/actions/artifacts/{artifact_id}/zip"
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+        z.extractall("/tmp/swiftlint_output")
+    return "/tmp/swiftlint_output"
+
+async def parse_swiftlint_output(output_dir, expected_filename="swiftlint_all.txt"):
+    """Parse SwiftLint output to extract only actual violations/errors"""
+    violations = []
+    
+    # Show what files are available for debugging
+    print(f"[DEBUG] Contents of {output_dir}:")
+    for root, dirs, files in os.walk(output_dir):
+        for file in files:
+            file_path = os.path.join(root, file)
+            print(f"[DEBUG] Found file: {file_path}")
+    
+    # Look for the expected SwiftLint output file
+    expected_file_path = os.path.join(output_dir, expected_filename)
+    if not os.path.exists(expected_file_path):
+        # Try common alternative names
+        alternatives = ["swiftlint.txt", "violations.txt", "lint-results.txt", "output.txt"]
+        found_file = None
+        for alt_name in alternatives:
+            alt_path = os.path.join(output_dir, alt_name)
+            if os.path.exists(alt_path):
+                found_file = alt_path
+                print(f"[DEBUG] Using alternative file: {alt_path}")
+                break
+        
+        if not found_file:
+            raise FileNotFoundError(f"Expected SwiftLint output file '{expected_filename}' not found in {output_dir}. Available files: {os.listdir(output_dir)}")
+        
+        expected_file_path = found_file
+    
+    print(f"[DEBUG] Parsing SwiftLint file: {expected_file_path}")
+    
+    # Pattern to match SwiftLint violation lines
+    # Format: /path/to/file.swift:line:column: error/warning: description (rule_name)
+    violation_pattern = re.compile(r'^/.+\.swift:\d+:\d+:\s+(error|warning):\s+.+\s+\(.+\)$')
+    
+    with open(expected_file_path) as f:
+        for line_num, line in enumerate(f, 1):
+            line = line.strip()
+            if line and violation_pattern.match(line):
+                violations.append({
+                    "raw_line": line,
+                    "file": extract_file_from_violation(line),
+                    "line_number": extract_line_number_from_violation(line),
+                    "severity": extract_severity_from_violation(line),
+                    "message": extract_message_from_violation(line),
+                    "rule": extract_rule_from_violation(line)
+                })
+                print(f"[DEBUG] Found violation: {line}")
+    
+    print(f"[DEBUG] Total violations found: {len(violations)}")
+    return violations
+
+def extract_file_from_violation(violation_line):
+    """Extract file path from violation line"""
+    match = re.match(r'^(/[^:]+\.swift):', violation_line)
+    return match.group(1) if match else ""
+
+def extract_line_number_from_violation(violation_line):
+    """Extract line number from violation line"""
+    match = re.match(r'^/[^:]+\.swift:(\d+):', violation_line)
+    return int(match.group(1)) if match else 0
+
+def extract_severity_from_violation(violation_line):
+    """Extract severity (error/warning) from violation line"""
+    match = re.search(r':\s+(error|warning):', violation_line)
+    return match.group(1) if match else ""
+
+def extract_message_from_violation(violation_line):
+    """Extract violation message from violation line"""
+    match = re.search(r':\s+(?:error|warning):\s+(.+)\s+\(.+\)$', violation_line)
+    return match.group(1) if match else ""
+
+def extract_rule_from_violation(violation_line):
+    """Extract rule name from violation line"""
+    match = re.search(r'\(([^)]+)\)$', violation_line)
+    return match.group(1) if match else ""
+
+async def read_swiftlint_logs(run_id=None):
     try:
-        # Placeholder implementation
-        violations = [
-            {
-                "file": "Sources/MyApp/ViewController.swift",
-                "line": 45,
-                "column": 20,
-                "severity": "warning",
-                "rule": "line_length",
-                "message": "Line should be 120 characters or less: currently 125 characters"
-            }
-        ]
+        token = os.environ.get("GITHUB_TOKEN")
+        if not token:
+            return {"error": "GITHUB_TOKEN is not set"}
+
+        repo = await get_github_repo()
+
+        if run_id is None:
+            commit = await get_github_commit()
+            run_id = await find_workflow_run(repo, commit, token)
+
+        artifact_id = await get_artifact_id(repo, run_id, token)
+        output_dir = await download_and_extract_artifact(repo, artifact_id, token)
+        lint_results = await parse_swiftlint_output(output_dir)
         
         return {
-            "build_id": build_id,
-            "violations": violations,
-            "total_violations": len(violations),
-            "errors": len([v for v in violations if v["severity"] == "error"]),
-            "warnings": len([v for v in violations if v["severity"] == "warning"])
+            "success": True,
+            "repo": repo,
+            "run_id": run_id,
+            "artifact_id": artifact_id,
+            "violations": lint_results,
+            "total_violations": len(lint_results)
         }
         
     except Exception as e:
         return {"error": f"Failed to read SwiftLint logs: {str(e)}"}
+
+async def read_build_logs(run_id=None):
+    """Read build logs and extract Swift compiler errors, warnings, and test failures"""
+    try:
+        token = os.environ.get("GITHUB_TOKEN")
+        if not token:
+            return {"error": "GITHUB_TOKEN is not set"}
+
+        repo = await get_github_repo()
+
+        if run_id is None:
+            commit = await get_github_commit()
+            run_id = await find_workflow_run(repo, commit, token)
+
+        artifact_id = await get_artifact_id(repo, run_id, token, name="build-output")
+        output_dir = await download_and_extract_artifact(repo, artifact_id, token)
+        build_issues = await parse_build_output(output_dir)
+        
+        return {
+            "success": True,
+            "repo": repo,
+            "run_id": run_id,
+            "artifact_id": artifact_id,
+            "compiler_errors": [issue for issue in build_issues if issue["type"] == "compiler_error"],
+            "compiler_warnings": [issue for issue in build_issues if issue["type"] == "compiler_warning"],
+            "test_failures": [issue for issue in build_issues if issue["type"] == "test_failure"],
+            "total_issues": len(build_issues)
+        }
+        
+    except Exception as e:
+        return {"error": f"Failed to read build logs: {str(e)}"}
+
+async def parse_build_output(output_dir, expected_filename="build_and_test_all.txt"):
+    """Parse build output to extract compiler errors, warnings, and test failures"""
+    issues = []
+    
+    # Show what files are available for debugging
+    print(f"[DEBUG] Contents of {output_dir}:")
+    for root, dirs, files in os.walk(output_dir):
+        for file in files:
+            file_path = os.path.join(root, file)
+            print(f"[DEBUG] Found file: {file_path}")
+    
+    # Look for the expected build output file
+    expected_file_path = os.path.join(output_dir, expected_filename)
+    if not os.path.exists(expected_file_path):
+        # Try common alternative names
+        alternatives = ["build.txt", "output.log", "output.txt", "log.txt"]
+        found_file = None
+        for alt_name in alternatives:
+            alt_path = os.path.join(output_dir, alt_name)
+            if os.path.exists(alt_path):
+                found_file = alt_path
+                print(f"[DEBUG] Using alternative file: {alt_path}")
+                break
+        
+        if not found_file:
+            raise FileNotFoundError(f"Expected build output file '{expected_filename}' not found in {output_dir}. Available files: {os.listdir(output_dir)}")
+        
+        expected_file_path = found_file
+    
+    print(f"[DEBUG] Parsing build file: {expected_file_path}")
+    
+    # Patterns to match different types of build issues
+    compiler_error_pattern = re.compile(r'^(/.*\.swift):(\d+):(\d+): error: (.+)$')
+    compiler_warning_pattern = re.compile(r'^(/.*\.swift):(\d+):(\d+): warning: (.+)$')
+    test_failure_pattern = re.compile(r'^(/.*\.swift):(\d+): error: (.+) : (.+)$')
+    
+    with open(expected_file_path) as f:
+        for line_num, line in enumerate(f, 1):
+            line = line.strip()
+            
+            # Check for compiler errors
+            if match := compiler_error_pattern.match(line):
+                file_path, line_no, col_no, message = match.groups()
+                issues.append({
+                    "type": "compiler_error",
+                    "raw_line": line,
+                    "file": file_path,
+                    "line_number": int(line_no),
+                    "column": int(col_no),
+                    "message": message,
+                    "severity": "error"
+                })
+                print(f"[DEBUG] Found compiler error: {line}")
+            
+            # Check for compiler warnings
+            elif match := compiler_warning_pattern.match(line):
+                file_path, line_no, col_no, message = match.groups()
+                issues.append({
+                    "type": "compiler_warning",
+                    "raw_line": line,
+                    "file": file_path,
+                    "line_number": int(line_no),
+                    "column": int(col_no),
+                    "message": message,
+                    "severity": "warning"
+                })
+                print(f"[DEBUG] Found compiler warning: {line}")
+            
+            # Check for test failures
+            elif match := test_failure_pattern.match(line):
+                file_path, line_no, test_info, failure_message = match.groups()
+                issues.append({
+                    "type": "test_failure",
+                    "raw_line": line,
+                    "file": file_path,
+                    "line_number": int(line_no),
+                    "test_info": test_info.strip(),
+                    "message": failure_message.strip(),
+                    "severity": "error"
+                })
+                print(f"[DEBUG] Found test failure: {line}")
+    
+    print(f"[DEBUG] Total build issues found: {len(issues)}")
+    return issues
 
 async def process_comment_batch(comments_data: str) -> Dict[str, Any]:
     """Process a batch of formatted comment responses"""

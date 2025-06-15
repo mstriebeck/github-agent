@@ -544,14 +544,28 @@ run_verification() {
         log_success "AGENT.md workflow documentation created"
     fi
     
+
     # Test server accessibility
-    if python3 -c "exec(open('$SERVER_PATH').read())" 2>/dev/null; then
-        log_success "Server script is accessible and valid"
+    echo "SERVER_PATH=$SERVER_PATH"
+    # Attempt to run the server script for a very short period to see if it starts without crashing.
+    # A server typically starts and stays running, so a timeout is expected and indicates success.
+    # `timeout 5s` attempts to run for 5 seconds. `> /dev/null 2>&1` suppresses all output.
+    if timeout 5s python3 -c "exec(open('$SERVER_PATH').read())" > /dev/null 2>&1; then
+        # This branch means the script started and exited within 5 seconds.
+        # While it's valid, for a server, we usually expect it to keep running.
+        log_success "Server script is accessible and exited cleanly (may indicate it's not a long-running server)."
     else
-        log_error "Cannot access or run server script"
-        ((errors++))
+        # Check the exit code of the `timeout` command.
+        # An exit code of 124 means the command timed out (i.e., it ran and didn't exit).
+        if [ $? -eq 124 ]; then
+            log_success "Server script started successfully and did not exit within 5 seconds (expected for a server)."
+        else
+            # Any other exit code means the script crashed or had another error.
+            log_error "Server script failed to run or crashed on startup. Please check its logs/output for details."
+            ((errors++))
+        fi
     fi
-    
+
     if [ $errors -eq 0 ]; then
         log_success "Project setup verification completed successfully!"
     else
