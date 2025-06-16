@@ -1,12 +1,19 @@
+import os
+from os.path import join
 import re
 import subprocess
 import unicodedata
 import logging
 import requests
 from typing import Dict, Tuple
+from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
+
+dotenv_path = join(os.getcwd(), '.env')
+load_dotenv(dotenv_path)
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+logging.info(f"{GITHUB_TOKEN=}")
 
 # --- Extract repo info ---
 REPO_URL = subprocess.getoutput("git config --get remote.origin.url").strip()
