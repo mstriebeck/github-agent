@@ -90,6 +90,8 @@ The worker logic will be adapted from the user’s existing `reply_to_github_com
 
 This script’s logic will be embedded into a reusable function that is invoked by the worker as it processes each row in the queue.
 
+As this runs in the background, we will need extensive logging to understand what's happening and debug issues.
+
 ---
 
 ## Agent Prompt Structure
@@ -140,7 +142,7 @@ INSTRUCTIONS:
 
 ## Setup Instructions
 
-We provide an idempotent setup script that ensures all required dependencies and configurations are installed on a macOS or Linux development machine.
+We provide an idempotent setup script (under ./setup) that ensures all required dependencies and configurations are installed on a macOS or Linux development machine.
 
 ### Script Capabilities:
 - Install Python 3 if not available
