@@ -47,14 +47,14 @@ logger = logging.getLogger(__name__)
 class PRReply(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     comment_id: int
-    path: str
-    line: Optional[int]
-    body: str
+    repo_name: str  # Format: "owner/repo"
     status: str = "queued"  # "queued", "sent", "failed"
     attempt_count: int = 0
     last_attempt_at: Optional[datetime] = None
     sent_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.now)
+    # All other data as JSON for flexibility
+    data: str  # JSON string containing: path, line, body, etc.
 
 # Database setup
 DATABASE_URL = "sqlite:///pr_replies.db"
@@ -1009,6 +1009,10 @@ async def parse_build_output(output_dir, expected_filename="build_and_test_all.t
 async def post_pr_reply_queue(comment_id: int, path: str, line: Optional[int], body: str) -> Dict[str, Any]:
     """Queue a reply to a PR comment for later processing"""
     try:
+        # Get current repository name
+        if not context.repo_name:
+            return {"error": "GITHUB_REPO not configured"}
+        
         with Session(engine) as session:
             # Check if we already have a queued reply for this comment
             existing = session.exec(
@@ -1021,24 +1025,31 @@ async def post_pr_reply_queue(comment_id: int, path: str, line: Optional[int], b
                     "message": f"Reply for comment {comment_id} already queued with status: {existing.status}"
                 }
             
+            # Prepare data as JSON
+            reply_data = {
+                "path": path,
+                "line": line,
+                "body": body
+            }
+            
             # Create new queued reply
             reply = PRReply(
                 comment_id=comment_id,
-                path=path,
-                line=line,
-                body=body,
-                status="queued"
+                repo_name=context.repo_name,
+                status="queued",
+                data=json.dumps(reply_data)
             )
             
             session.add(reply)
             session.commit()
             session.refresh(reply)
             
-            logger.info(f"Queued reply for comment {comment_id}")
+            logger.info(f"Queued reply for comment {comment_id} in repo {context.repo_name}")
             return {
                 "success": True,
                 "reply_id": reply.id,
                 "comment_id": comment_id,
+                "repo_name": context.repo_name,
                 "status": "queued",
                 "message": f"Reply queued successfully for comment {comment_id}"
             }

@@ -25,11 +25,6 @@ if [ -z "${GITHUB_TOKEN:-}" ]; then
     echo "   Please set it in your .env file or environment"
 fi
 
-if [ -z "${GITHUB_REPO:-}" ]; then
-    echo "⚠️  GITHUB_REPO environment variable not set"
-    echo "   Please set it in your .env file (format: owner/repo)"
-fi
-
 # Initialize the database
 echo "Initializing database..."
 python3 -c "
@@ -43,8 +38,9 @@ print('Database initialized successfully')
 echo "✅ PR Reply Queue setup complete!"
 echo ""
 echo "Next steps:"
-echo "1. Make sure GITHUB_TOKEN and GITHUB_REPO are set in your .env file"
-echo "2. Start the MCP server: python3 pr_review_server.py"
-echo "3. Start the background worker: python3 pr_reply_worker.py"
+echo "1. Make sure GITHUB_TOKEN is set in your .env file"
+echo "2. For AMP users: Point AMP to python3 pr_review_server.py in MCP config"
+echo "3. For manual usage: Start MCP server with python3 pr_review_server.py"
+echo "4. Start the background worker: python3 pr_reply_worker.py"
 echo ""
 echo "The queue database is stored in pr_replies.db"

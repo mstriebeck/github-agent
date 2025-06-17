@@ -59,12 +59,14 @@ Background Worker (pr_reply_worker.py)
 
 ### Running the System
 
-1. **Start the MCP server:**
+1. **For Sourcegraph AMP users:** Point AMP to `python3 pr_review_server.py` in your MCP configuration. AMP will automatically start and manage the server.
+
+2. **For manual usage:** Start the MCP server:
    ```bash
    python3 pr_review_server.py
    ```
 
-2. **Start the background worker:**
+3. **Start the background worker:**
    ```bash
    python3 pr_reply_worker.py
    ```
@@ -79,16 +81,17 @@ The system uses SQLite with this schema:
 CREATE TABLE prreply (
     id INTEGER PRIMARY KEY,
     comment_id INTEGER NOT NULL,
-    path TEXT NOT NULL,
-    line INTEGER,
-    body TEXT NOT NULL,
-    status TEXT DEFAULT 'queued',  -- 'queued', 'sent', 'failed'
+    repo_name TEXT NOT NULL,  -- format: "owner/repo"
+    status TEXT DEFAULT 'queued',  -- 'queued', 'sent', 'failed'  
     attempt_count INTEGER DEFAULT 0,
     last_attempt_at TIMESTAMP,
     sent_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    data TEXT NOT NULL  -- JSON containing path, line, body, etc.
 );
 ```
+
+**Schema Design:** Query-critical fields (comment_id, repo_name, status, timestamps) are columns, while extensible data (path, line, body, etc.) is stored as JSON for easy schema evolution.
 
 ### Logging
 

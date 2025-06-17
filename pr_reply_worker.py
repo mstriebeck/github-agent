@@ -19,6 +19,11 @@ from pr_review_server import PRReply, DATABASE_URL, engine
 # Load environment variables
 load_dotenv()
 
+# Immediately check for required token
+if not os.getenv("GITHUB_TOKEN"):
+    print("ERROR: GITHUB_TOKEN environment variable is required")
+    exit(1)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -33,15 +38,12 @@ logger = logging.getLogger(__name__)
 class PRReplyWorker:
     def __init__(self):
         self.github_token = os.getenv("GITHUB_TOKEN")
-        self.repo_name = os.getenv("GITHUB_REPO")
         self.poll_interval = int(os.getenv("POLL_INTERVAL", "30"))  # seconds
         
         if not self.github_token:
             raise ValueError("GITHUB_TOKEN environment variable is required")
-        if not self.repo_name:
-            raise ValueError("GITHUB_REPO environment variable is required")
         
-        logger.info(f"Worker initialized for repo: {self.repo_name}")
+        logger.info("Worker initialized for multi-repository support")
     
     def process_queue(self):
         """Process all queued replies"""
@@ -85,8 +87,13 @@ class PRReplyWorker:
         }
         
         try:
+            # Parse the reply data
+            import json
+            reply_data = json.loads(reply.data)
+            body = reply_data.get("body", "")
+            
             # First, try to get the original comment to determine the PR
-            comment_url = f"https://api.github.com/repos/{self.repo_name}/pulls/comments/{reply.comment_id}"
+            comment_url = f"https://api.github.com/repos/{reply.repo_name}/pulls/comments/{reply.comment_id}"
             comment_resp = requests.get(comment_url, headers=headers)
             
             if comment_resp.status_code == 200:
@@ -96,23 +103,23 @@ class PRReplyWorker:
                 pr_number = pr_url.split("/")[-1] if pr_url else None
                 
                 # Try direct reply to review comment first
-                reply_url = f"https://api.github.com/repos/{self.repo_name}/pulls/comments/{reply.comment_id}/replies"
-                reply_data = {"body": reply.body}
-                reply_resp = requests.post(reply_url, headers=headers, json=reply_data)
+                reply_url = f"https://api.github.com/repos/{reply.repo_name}/pulls/comments/{reply.comment_id}/replies"
+                post_data = {"body": body}
+                reply_resp = requests.post(reply_url, headers=headers, json=post_data)
                 
                 if reply_resp.status_code in [200, 201]:
                     return True
                 
                 # Fallback to issue comment
                 if pr_number:
-                    issue_comment_url = f"https://api.github.com/repos/{self.repo_name}/issues/{pr_number}/comments"
-                    issue_comment_data = {"body": reply.body}
+                    issue_comment_url = f"https://api.github.com/repos/{reply.repo_name}/issues/{pr_number}/comments"
+                    issue_comment_data = {"body": body}
                     issue_resp = requests.post(issue_comment_url, headers=headers, json=issue_comment_data)
                     return issue_resp.status_code in [200, 201]
             
             else:
                 # Try as issue comment
-                comment_url = f"https://api.github.com/repos/{self.repo_name}/issues/comments/{reply.comment_id}"
+                comment_url = f"https://api.github.com/repos/{reply.repo_name}/issues/comments/{reply.comment_id}"
                 comment_resp = requests.get(comment_url, headers=headers)
                 
                 if comment_resp.status_code == 200:
@@ -121,8 +128,8 @@ class PRReplyWorker:
                     pr_number = issue_url.split("/")[-1] if issue_url else None
                     
                     if pr_number:
-                        issue_comment_url = f"https://api.github.com/repos/{self.repo_name}/issues/{pr_number}/comments"
-                        issue_comment_data = {"body": reply.body}
+                        issue_comment_url = f"https://api.github.com/repos/{reply.repo_name}/issues/{pr_number}/comments"
+                        issue_comment_data = {"body": body}
                         issue_resp = requests.post(issue_comment_url, headers=headers, json=issue_comment_data)
                         return issue_resp.status_code in [200, 201]
             
