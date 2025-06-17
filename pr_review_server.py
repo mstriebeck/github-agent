@@ -14,6 +14,8 @@ import logging
 import time
 from typing import Optional, List, Dict, Any
 import subprocess
+from datetime import datetime
+import sqlite3
 
 # Import MCP components
 import mcp
@@ -23,6 +25,9 @@ from github import Github
 from git import Repo
 import requests
 from dotenv import load_dotenv
+
+# Import SQLModel components
+from sqlmodel import SQLModel, Field, create_engine, Session, select
 
 # Load environment variables
 load_dotenv()
@@ -38,26 +43,79 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# SQLModel schema for PR reply queue
+class PRReply(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    comment_id: int
+    repo_name: str  # Format: "owner/repo"
+    status: str = "queued"  # "queued", "sent", "failed"
+    attempt_count: int = 0
+    last_attempt_at: Optional[datetime] = None
+    sent_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    # All other data as JSON for flexibility
+    data: str  # JSON string containing: path, line, body, etc.
+
+# Database setup
+DATABASE_URL = "sqlite:///pr_replies.db"
+engine = create_engine(DATABASE_URL, echo=False)
+
+def init_db():
+    """Initialize the database and create tables"""
+    SQLModel.metadata.create_all(engine)
+    logger.info("Database initialized")
+
 class PRReviewContext:
     def __init__(self):
         self.github_token = os.getenv("GITHUB_TOKEN")
-        self.repo_name = os.getenv("GITHUB_REPO")  # format: "owner/repo"
         self.ci_api_key = os.getenv("CI_API_KEY")
+        
+        # Initialize Git repo (assumes script runs from repo root)
+        try:
+            self.git_repo = Repo(".")
+            self.repo_name = self._detect_github_repo()
+        except:
+            self.git_repo = None
+            self.repo_name = None
         
         # Initialize GitHub client
         self.github = Github(self.github_token) if self.github_token else None
         self.repo = self.github.get_repo(self.repo_name) if self.github and self.repo_name else None
         
-        # Initialize Git repo (assumes script runs from repo root)
-        try:
-            self.git_repo = Repo(".")
-        except:
-            self.git_repo = None
-        
         # Cache for current context
         self._current_branch = None
         self._current_commit = None
         self._current_pr = None
+    
+    def _detect_github_repo(self):
+        """Detect GitHub repository name from git remote"""
+        if not self.git_repo:
+            return None
+        
+        try:
+            # Get the origin remote URL
+            origin_url = self.git_repo.remotes.origin.url
+            logger.debug(f"Git remote URL: {origin_url}")
+            
+            # Parse different URL formats
+            if origin_url.startswith("git@github.com:"):
+                # SSH format: git@github.com:owner/repo.git
+                repo_path = origin_url.split(":", 1)[1]
+            elif origin_url.startswith("https://github.com/"):
+                # HTTPS format: https://github.com/owner/repo.git
+                repo_path = origin_url.split("github.com/", 1)[1]
+            else:
+                logger.warning(f"Unrecognized GitHub remote URL format: {origin_url}")
+                return None
+            
+            # Remove .git suffix if present
+            repo_name = repo_path.replace(".git", "")
+            logger.info(f"Detected GitHub repository: {repo_name}")
+            return repo_name
+            
+        except Exception as e:
+            logger.error(f"Failed to detect GitHub repository: {str(e)}")
+            return None
 
 # Create the MCP server instance and context
 app = mcp.server.Server("pr-review-server")
@@ -110,6 +168,43 @@ async def handle_list_tools() -> list[types.Tool]:
                     "message": {"type": "string", "description": "Reply message"}
                 },
                 "required": ["comment_id", "message"]
+            }
+        ),
+        
+        # Queue-based PR Reply Tools
+        types.Tool(
+            name="post_pr_reply_queue",
+            description="Queue a reply to a PR comment for later processing",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "comment_id": {"type": "integer", "description": "Comment ID to reply to"},
+                    "path": {"type": "string", "description": "File path of the comment"},
+                    "line": {"type": "integer", "description": "Line number of the comment"},
+                    "body": {"type": "string", "description": "Reply message body"}
+                },
+                "required": ["comment_id", "path", "body"]
+            }
+        ),
+        types.Tool(
+            name="list_unhandled_comments",
+            description="List PR comments that haven't been replied to yet",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "pr_number": {"type": "integer", "description": "PR number (optional, uses current branch's PR if not specified)"}
+                }
+            }
+        ),
+        types.Tool(
+            name="ack_reply",
+            description="Mark a comment as handled/acknowledged",
+            inputSchema={
+                "type": "object", 
+                "properties": {
+                    "comment_id": {"type": "integer", "description": "Comment ID to acknowledge"}
+                },
+                "required": ["comment_id"]
             }
         ),
         
@@ -185,6 +280,20 @@ async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent
         elif name == "post_pr_reply":
             logger.debug("Calling post_pr_reply")
             result = await post_pr_reply(arguments.get("comment_id"), arguments.get("message"))
+        elif name == "post_pr_reply_queue":
+            logger.debug("Calling post_pr_reply_queue")
+            result = await post_pr_reply_queue(
+                arguments.get("comment_id"), 
+                arguments.get("path"), 
+                arguments.get("line"), 
+                arguments.get("body")
+            )
+        elif name == "list_unhandled_comments":
+            logger.debug("Calling list_unhandled_comments")
+            result = await list_unhandled_comments(arguments.get("pr_number"))
+        elif name == "ack_reply":
+            logger.debug("Calling ack_reply")
+            result = await ack_reply(arguments.get("comment_id"))
         elif name == "get_build_status":
             logger.debug("Calling get_build_status")
             result = await get_build_status(arguments.get("commit_sha"))
@@ -927,6 +1036,126 @@ async def parse_build_output(output_dir, expected_filename="build_and_test_all.t
     logger.debug(f"Total build issues found: {len(issues)}")
     return issues
 
+# Queue-based PR reply functions
+async def post_pr_reply_queue(comment_id: int, path: str, line: Optional[int], body: str) -> Dict[str, Any]:
+    """Queue a reply to a PR comment for later processing"""
+    try:
+        # Get current repository name
+        if not context.repo_name:
+            return {"error": "GITHUB_REPO not configured"}
+        
+        with Session(engine) as session:
+            # Check if we already have a queued reply for this comment
+            existing = session.exec(
+                select(PRReply).where(PRReply.comment_id == comment_id)
+            ).first()
+            
+            if existing:
+                return {
+                    "success": False,
+                    "message": f"Reply for comment {comment_id} already queued with status: {existing.status}"
+                }
+            
+            # Prepare data as JSON
+            reply_data = {
+                "path": path,
+                "line": line,
+                "body": body
+            }
+            
+            # Create new queued reply
+            reply = PRReply(
+                comment_id=comment_id,
+                repo_name=context.repo_name,
+                status="queued",
+                data=json.dumps(reply_data)
+            )
+            
+            session.add(reply)
+            session.commit()
+            session.refresh(reply)
+            
+            logger.info(f"Queued reply for comment {comment_id} in repo {context.repo_name}")
+            return {
+                "success": True,
+                "reply_id": reply.id,
+                "comment_id": comment_id,
+                "repo_name": context.repo_name,
+                "status": "queued",
+                "message": f"Reply queued successfully for comment {comment_id}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to queue reply: {str(e)}")
+        return {"error": f"Failed to queue reply: {str(e)}"}
+
+async def list_unhandled_comments(pr_number: Optional[int] = None) -> Dict[str, Any]:
+    """List PR comments that haven't been replied to yet"""
+    try:
+        # Get PR comments first
+        comments_result = await get_pr_comments(pr_number)
+        if "error" in comments_result:
+            return comments_result
+        
+        # Get all queued/sent comment IDs from database
+        with Session(engine) as session:
+            handled_replies = session.exec(
+                select(PRReply.comment_id).where(PRReply.status.in_(["queued", "sent"]))
+            ).all()
+            handled_comment_ids = set(handled_replies)
+        
+        # Filter out comments that already have replies queued or sent
+        unhandled_review_comments = []
+        unhandled_issue_comments = []
+        
+        for comment in comments_result.get("review_comments", []):
+            if comment["id"] not in handled_comment_ids:
+                unhandled_review_comments.append(comment)
+        
+        for comment in comments_result.get("issue_comments", []):
+            if comment["id"] not in handled_comment_ids:
+                unhandled_issue_comments.append(comment)
+        
+        return {
+            "pr_number": comments_result["pr_number"],
+            "title": comments_result["title"],
+            "unhandled_review_comments": unhandled_review_comments,
+            "unhandled_issue_comments": unhandled_issue_comments,
+            "total_unhandled": len(unhandled_review_comments) + len(unhandled_issue_comments),
+            "total_handled": len(handled_comment_ids)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to list unhandled comments: {str(e)}")
+        return {"error": f"Failed to list unhandled comments: {str(e)}"}
+
+async def ack_reply(comment_id: int) -> Dict[str, Any]:
+    """Mark a comment as handled/acknowledged"""
+    try:
+        with Session(engine) as session:
+            reply = session.exec(
+                select(PRReply).where(PRReply.comment_id == comment_id)
+            ).first()
+            
+            if not reply:
+                return {
+                    "success": False,
+                    "message": f"No queued reply found for comment {comment_id}"
+                }
+            
+            # Update status or just log the acknowledgment
+            logger.info(f"Comment {comment_id} acknowledged (current status: {reply.status})")
+            return {
+                "success": True,
+                "comment_id": comment_id,
+                "current_status": reply.status,
+                "message": f"Comment {comment_id} acknowledged"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to acknowledge comment: {str(e)}")
+        return {"error": f"Failed to acknowledge comment: {str(e)}"}
+
 async def process_comment_batch(comments_data: str) -> Dict[str, Any]:
     """Process a batch of formatted comment responses"""
     try:
@@ -983,6 +1212,14 @@ async def process_comment_batch(comments_data: str) -> Dict[str, Any]:
 async def main():
     """Start the MCP server"""
     logger.info("Starting PR Review MCP Server")
+    
+    # Initialize database
+    try:
+        init_db()
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {str(e)}")
+        raise
+    
     try:
         async with mcp.server.stdio.stdio_server() as streams:
             logger.info("MCP server initialized, starting main loop")

@@ -1,0 +1,40 @@
+[Unit]
+Description=PR Agent Server
+Documentation=https://github.com/your-repo/github-agent
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/github-agent
+Environment=PATH=/opt/github-agent/.venv/bin
+EnvironmentFile=/opt/github-agent/.env
+ExecStart=/opt/github-agent/.venv/bin/python /opt/github-agent/pr_agent_server.py
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pr-agent
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/github-agent /var/log /tmp
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
