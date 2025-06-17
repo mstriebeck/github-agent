@@ -25,7 +25,6 @@ Background Worker (pr_reply_worker.py)
 2. Set environment variables in `.env`:
    ```
    GITHUB_TOKEN=your_github_token
-   GITHUB_REPO=owner/repo
    POLL_INTERVAL=30  # optional, seconds between polls
    ```
 
