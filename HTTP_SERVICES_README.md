@@ -1,97 +1,104 @@
 # PR Agent HTTP Server
 
-This document describes how to deploy and use the PR Agent as a unified HTTP server managed by systemctl.
+Complete deployment and API documentation for the unified PR Agent HTTP server.
 
 ## Overview
 
-The system is a single HTTP service that combines:
+The PR Agent runs as a single HTTP service that provides:
 
-1. **PR Management Tools** - All original MCP tools accessible via HTTP API
-2. **Background Worker** - Automatic processing of queued PR replies in a background thread
-3. **Management Interface** - HTTP endpoints to control the worker and monitor status
+1. **PR Management Tools** - All MCP tools accessible via HTTP API
+2. **Background Worker** - Automatic processing of queued PR replies
+3. **Management Interface** - Control and monitoring endpoints
 
 ## Installation
 
 ### Prerequisites
 
-- Ubuntu/Debian Linux system with systemd
-- Python 3.8+
-- Root/sudo access
+- **macOS** or **Linux** system 
+- **Python 3.8+**
+- **Git repository** with GitHub remote
+- **GitHub Personal Access Token** with `repo` scope
 
 ### Quick Installation
 
-1. Clone/copy all files to your server
-2. Install required Python packages:
+1. **Clone and enter repository:**
+   ```bash
+   cd your-github-repo  # Must be a git repo with GitHub remote
+   ```
+
+2. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
-   pip install -r requirements-http.txt
    ```
-3. Configure environment variables:
+
+3. **Configure GitHub token:**
    ```bash
    cp config/services.env .env
-   # Edit .env with your GitHub token and repo
+   # Edit .env and set GITHUB_TOKEN=your_token_here
    ```
-4. Run the installation script:
+
+4. **Install as service (optional):**
    ```bash
+   # Linux (requires sudo)
    sudo ./install-services.sh
+   
+   # macOS (installs to user space)
+   ./install-services.sh
    ```
 
 ## Configuration
 
-Edit `/opt/github-agent/.env` with your settings:
+The server auto-detects your GitHub repository from `git remote origin`. Only the GitHub token is required:
 
 ```bash
 # Required
 GITHUB_TOKEN=ghp_your_token_here
-GITHUB_REPO=owner/repository
 
 # Optional
 SERVER_PORT=8080
-WORKER_PORT=8081
 POLL_INTERVAL=30
+AUTO_START_WORKER=true
+LOG_LEVEL=INFO
 ```
 
-## Service Management
+**Configuration locations:**
+- **Development:** `.env` in current directory
+- **Service (Linux):** `/opt/github-agent/.env`  
+- **Service (macOS):** `~/.local/share/github-agent/.env`
 
-### Starting Services
+## Running the Server
+
+### Development Mode
 ```bash
-sudo systemctl start pr-review-server
-sudo systemctl start pr-worker-service
+python pr_agent_server.py
 ```
 
-### Stopping Services
+### Service Mode
+
+**Linux (systemd):**
 ```bash
-sudo systemctl stop pr-review-server
-sudo systemctl stop pr-worker-service
+sudo systemctl start pr-agent     # Start
+sudo systemctl status pr-agent    # Check status
+sudo systemctl stop pr-agent      # Stop
 ```
 
-### Checking Status
+**macOS (launchd):**
 ```bash
-sudo systemctl status pr-review-server
-sudo systemctl status pr-worker-service
-```
-
-### Viewing Logs
-```bash
-# Real-time logs
-sudo journalctl -u pr-review-server -f
-sudo journalctl -u pr-worker-service -f
-
-# Log files
-tail -f /var/log/pr_review_server.log
-tail -f /var/log/pr_worker_service.log
+launchctl start com.github.pr-agent    # Start
+launchctl list | grep pr-agent         # Check status  
+launchctl stop com.github.pr-agent     # Stop
 ```
 
 ## API Usage
 
-### PR Review Server (Port 8080)
+### Core Endpoints
 
-#### Health Check
+**Health Check:**
 ```bash
 curl http://localhost:8080/health
 ```
 
-#### Execute Tool
+**Execute Any Tool:**
 ```bash
 curl -X POST http://localhost:8080/execute \
   -H "Content-Type: application/json" \
@@ -101,62 +108,61 @@ curl -X POST http://localhost:8080/execute \
   }'
 ```
 
-#### Get PR Comments
+**Server Status:**
 ```bash
-curl http://localhost:8080/pr/123/comments
+curl http://localhost:8080/status
 ```
 
-#### Get Unhandled Comments
+### Queue Management
+
+**Check Queue:**
 ```bash
-curl http://localhost:8080/pr/comments/unhandled
+curl http://localhost:8080/queue
 ```
 
-### Worker Service (Port 8081)
-
-#### Check Worker Status
+**Control Worker:**
 ```bash
-curl http://localhost:8081/status
-```
-
-#### Control Worker
-```bash
-# Start worker
-curl -X POST http://localhost:8081/control \
-  -H "Content-Type: application/json" \
-  -d '{"action": "start"}'
-
-# Process queue immediately
-curl -X POST http://localhost:8081/control \
+curl -X POST http://localhost:8080/worker/control \
   -H "Content-Type: application/json" \
   -d '{"action": "process_now"}'
 ```
 
-#### Check Queue Status
+**Worker Status:**
 ```bash
-curl http://localhost:8081/queue
+curl http://localhost:8080/worker/status
 ```
 
-## Integration with VS Code/Amp
+## VS Code/Amp Integration
 
-To use these HTTP services with VS Code/Amp instead of the stdio MCP server:
+### MCP HTTP Transport
 
-1. Configure your VS Code settings to point to the HTTP endpoints
-2. Use the `/execute` endpoint with tool names and arguments
-3. The API returns JSON responses in the format:
-   ```json
-   {
-     "success": true,
-     "data": { ... },
-     "error": null
-   }
-   ```
+The server provides an **MCP HTTP transport** in addition to the original stdio transport. Configure your MCP client to use:
 
-## Available Tools
+**MCP Server URL:** `http://localhost:8080/execute`
 
-All original MCP tools are available via HTTP:
+**Request Format:**
+```json
+{
+  "name": "tool_name",
+  "arguments": { "param": "value" }
+}
+```
+
+**Response Format:**
+```json
+{
+  "success": true,
+  "data": { ... },
+  "error": null
+}
+```
+
+### Available Tools
+
+All original MCP tools work via HTTP:
 
 - `get_current_branch` - Get current Git branch and commit info
-- `get_current_commit` - Get current commit details
+- `get_current_commit` - Get current commit details  
 - `find_pr_for_branch` - Find PR associated with a branch
 - `get_pr_comments` - Get all comments from a PR
 - `post_pr_reply` - Reply directly to a PR comment
@@ -170,11 +176,9 @@ All original MCP tools are available via HTTP:
 
 ## Queue System
 
-The unified server includes a built-in queue system for handling PR replies:
-
-### How it Works
+### How It Works
 1. Use `post_pr_reply_queue` to queue replies instead of posting immediately
-2. Background worker automatically processes queued replies
+2. Background worker automatically processes queued replies every 30 seconds
 3. Monitor queue status via `/queue` endpoint
 4. Control worker via `/worker/control` endpoint
 
@@ -184,57 +188,63 @@ The unified server includes a built-in queue system for handling PR replies:
 - **Async Processing** - Don't block main workflow
 - **Monitoring** - Full visibility into queue status
 
-### Queue Endpoints
+## Logging
+
+**Log Locations:**
+- **Development:** Console output
+- **Linux Service:** `/var/log/pr_agent_server.log` + systemd journal
+- **macOS Service:** `~/.local/share/github-agent/logs/pr_agent_server.log`
+
+**View Logs:**
 ```bash
-# Check queue status
-curl http://localhost:8080/queue
+# Linux
+sudo journalctl -u pr-agent -f
+tail -f /var/log/pr_agent_server.log
 
-# Control worker
-curl -X POST http://localhost:8080/worker/control \
-  -H "Content-Type: application/json" \
-  -d '{"action": "process_now"}'
+# macOS  
+tail -f ~/.local/share/github-agent/logs/pr_agent_server.log
 
-# Check worker status  
-curl http://localhost:8080/worker/status
+# Development
+# Logs appear in terminal
 ```
-
-## Security Considerations
-
-- Services run as `www-data` user with restricted permissions
-- Log files are properly secured
-- Configure firewall rules to restrict access to ports 8080/8081
-- Use HTTPS in production (add reverse proxy like nginx)
-- Store GitHub tokens securely in environment files
 
 ## Troubleshooting
 
-### Service Won't Start
-1. Check logs: `sudo journalctl -u pr-review-server -n 50`
-2. Verify environment variables are set
-3. Check file permissions
-4. Ensure Python dependencies are installed
+### Server Won't Start
+1. **Check GitHub token:** Ensure `GITHUB_TOKEN` is set in `.env`
+2. **Verify repository:** Must be a git repo with GitHub remote
+3. **Check dependencies:** Run `pip install -r requirements.txt`
+4. **View logs:** See log locations above
 
 ### Worker Not Processing Queue
-1. Check worker status: `curl http://localhost:8081/status`
-2. Manually trigger processing: `curl -X POST http://localhost:8081/control -d '{"action":"process_now"}'`
-3. Check GitHub token permissions
-4. Review worker logs
+1. **Check worker status:** `curl http://localhost:8080/worker/status`
+2. **Manual trigger:** `curl -X POST http://localhost:8080/worker/control -d '{"action":"process_now"}'`
+3. **GitHub permissions:** Verify token has `repo` scope
+4. **Check logs:** Worker errors appear in main log
 
 ### Database Issues
-- Database file is created automatically at `/opt/github-agent/pr_replies.db`
-- Ensure `www-data` user has write permissions
-- Check SQLite installation
+- Database file created automatically at `./pr_replies.db` (or service directory)
+- Ensure write permissions in working directory
+- SQLite is included with Python
+
+### GitHub API Errors
+- **Rate limiting:** Use queue system (`post_pr_reply_queue`) 
+- **403 Forbidden:** Check token permissions and repository access
+- **404 Not Found:** Verify repository name detection with `/status`
+
+## Security Considerations
+
+- **Service Security:** Linux service runs as `www-data` with restricted permissions
+- **Token Storage:** GitHub tokens stored in environment files with 600 permissions  
+- **Network Access:** Server binds to localhost by default
+- **Production:** Use reverse proxy (nginx) for HTTPS in production environments
 
 ## Development
 
-For development, you can run the services directly:
-
+Run directly for development:
 ```bash
-# Terminal 1 - PR Review Server
-python pr_review_http_server.py
-
-# Terminal 2 - Worker Service  
-python pr_worker_service.py
+export GITHUB_TOKEN=your_token
+python pr_agent_server.py
 ```
 
-Set environment variables in your shell or use a `.env` file in the current directory.
+The server will auto-detect your repository and start on http://localhost:8080

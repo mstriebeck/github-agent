@@ -68,23 +68,54 @@ def init_db():
 class PRReviewContext:
     def __init__(self):
         self.github_token = os.getenv("GITHUB_TOKEN")
-        self.repo_name = os.getenv("GITHUB_REPO")  # format: "owner/repo"
         self.ci_api_key = os.getenv("CI_API_KEY")
+        
+        # Initialize Git repo (assumes script runs from repo root)
+        try:
+            self.git_repo = Repo(".")
+            self.repo_name = self._detect_github_repo()
+        except:
+            self.git_repo = None
+            self.repo_name = None
         
         # Initialize GitHub client
         self.github = Github(self.github_token) if self.github_token else None
         self.repo = self.github.get_repo(self.repo_name) if self.github and self.repo_name else None
         
-        # Initialize Git repo (assumes script runs from repo root)
-        try:
-            self.git_repo = Repo(".")
-        except:
-            self.git_repo = None
-        
         # Cache for current context
         self._current_branch = None
         self._current_commit = None
         self._current_pr = None
+    
+    def _detect_github_repo(self):
+        """Detect GitHub repository name from git remote"""
+        if not self.git_repo:
+            return None
+        
+        try:
+            # Get the origin remote URL
+            origin_url = self.git_repo.remotes.origin.url
+            logger.debug(f"Git remote URL: {origin_url}")
+            
+            # Parse different URL formats
+            if origin_url.startswith("git@github.com:"):
+                # SSH format: git@github.com:owner/repo.git
+                repo_path = origin_url.split(":", 1)[1]
+            elif origin_url.startswith("https://github.com/"):
+                # HTTPS format: https://github.com/owner/repo.git
+                repo_path = origin_url.split("github.com/", 1)[1]
+            else:
+                logger.warning(f"Unrecognized GitHub remote URL format: {origin_url}")
+                return None
+            
+            # Remove .git suffix if present
+            repo_name = repo_path.replace(".git", "")
+            logger.info(f"Detected GitHub repository: {repo_name}")
+            return repo_name
+            
+        except Exception as e:
+            logger.error(f"Failed to detect GitHub repository: {str(e)}")
+            return None
 
 # Create the MCP server instance and context
 app = mcp.server.Server("pr-review-server")
