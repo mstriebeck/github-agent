@@ -32,7 +32,7 @@ The agent now runs as a unified HTTP server that can be deployed as a systemd se
 2. **Configure environment:**
    ```bash
    sudo nano /opt/github-agent/.env
-   # Set your GITHUB_TOKEN and GITHUB_REPO
+   # Set your GITHUB_TOKEN
    ```
 
 3. **Start the service:**
@@ -74,37 +74,10 @@ The agent now runs as a unified HTTP server that can be deployed as a systemd se
 * `install-services.sh` - Installation script
 * `systemd/pr-agent.service` - Systemd service file
 * `config/services.env` - Configuration template
-* `requirements.txt` - Core Python dependencies
-* `requirements-http.txt` - HTTP server dependencies
+* `requirements.txt` - Python dependencies
 
 ### Documentation
 * `HTTP_SERVICES_README.md` - HTTP server deployment guide
 * `PR-REVIEW-AGENT-SETUP-GUIDE.md` - Detailed setup instructions
-* `PR_QUEUE_README.md` - Queue system documentation
-
----
-
-## 🗑️ Legacy Files (Obsolete)
-
-The following files are from the original CLI-based implementation and are no longer needed:
-
-### CLI Scripts (replaced by HTTP API)
-* ~~`pull_pr_comments.py`~~ - Replaced by HTTP `/execute` endpoint
-* ~~`reply_to_github_comments.py`~~ - Replaced by HTTP reply functionality
-* ~~`github_query.py`~~ - Functionality moved to core server
-* ~~`run_tool_cli.py`~~ - Replaced by HTTP API
-
-### Separate HTTP Servers (replaced by unified server)
-* ~~`pr_review_http_server.py`~~ - Replaced by `pr_agent_server.py`
-* ~~`pr_worker_service.py`~~ - Replaced by `pr_agent_server.py`
-
-### Old Systemd Services
-* ~~`systemd/pr-review-server.service`~~ - Replaced by `systemd/pr-agent.service`
-* ~~`systemd/pr-worker-service.service`~~ - Replaced by `systemd/pr-agent.service`
-
-### Old Shell Scripts
-* ~~`run_pr_server.sh`~~ - Replaced by systemd service
-
-These files can be safely deleted to clean up the repository.
 
 ---
