@@ -30,17 +30,19 @@ echo "Initializing database..."
 python3 -c "
 import sys
 sys.path.append('.')
-from pr_review_server import init_db
+from pr_agent_server import init_db
 init_db()
 print('Database initialized successfully')
 "
 
-echo "✅ PR Reply Queue setup complete!"
+echo "✅ PR Agent Server setup complete!"
 echo ""
 echo "Next steps:"
 echo "1. Make sure GITHUB_TOKEN is set in your .env file"
-echo "2. For AMP users: Point AMP to python3 pr_review_server.py in MCP config"
-echo "3. For manual usage: Start MCP server with python3 pr_review_server.py"
-echo "4. Start the background worker: python3 pr_reply_worker.py"
+echo "2. Start the unified server: python3 pr_agent_server.py"
+echo "3. Server will be available at http://localhost:8080"
 echo ""
-echo "The queue database is stored in pr_replies.db"
+echo "The server includes:"
+echo "- All PR management tools via HTTP API"
+echo "- Built-in background worker for queue processing"
+echo "- Management interface at /status and /queue"
