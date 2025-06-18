@@ -47,8 +47,6 @@ mkdir -p "$LOG_DIR"
 # Copy files
 echo "Copying service files..."
 cp pr_agent_server.py "$INSTALL_DIR/"
-cp pr_review_server.py "$INSTALL_DIR/"
-cp pr_reply_worker.py "$INSTALL_DIR/"
 cp requirements.txt "$INSTALL_DIR/"
 
 # Copy .env if it exists, otherwise copy template

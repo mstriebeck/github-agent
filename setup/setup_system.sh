@@ -323,8 +323,7 @@ check_required_files() {
     log_info "Checking required files..."
     
     REQUIRED_FILES=(
-        "pr_review_server.py"
-        "init_project.sh"
+        "pr_agent_server.py"
     )
     
     for file in "${REQUIRED_FILES[@]}"; do
@@ -378,15 +377,15 @@ run_verification() {
 import sys
 sys.path.insert(0, '$SCRIPT_DIR')
 try:
-    import pr_review_server
-    print('PR review server script is valid')
+    import pr_agent_server
+    print('PR agent server script is valid')
 except Exception as e:
     print(f'Error: {e}')
     sys.exit(1)
 " 2>/dev/null; then
-        log_success "PR review server script verified"
+        log_success "PR agent server script verified"
     else
-        log_error "PR review server script test failed"
+        log_error "PR agent server script test failed"
         ((errors++))
     fi
     
@@ -414,15 +413,15 @@ main() {
     log_info "Next steps:"
     if [ -n "$VENV_PYTHON_PATH" ]; then
         echo "1. Virtual environment created at: $(dirname "$VENV_PYTHON_PATH")"
-        echo "2. To set up a project, first activate the virtual environment:"
+        echo "2. To start the PR Agent Server, first activate the virtual environment:"
         echo "   source $(dirname "$VENV_PYTHON_PATH")/bin/activate"
-        echo "3. Then copy init_project.sh to your project directory"
-        echo "4. Run: ./init_project.sh $SCRIPT_DIR/pr_review_server.py"
+        echo "3. Then run: python $SCRIPT_DIR/pr_agent_server.py"
+        echo "4. Server will be available at http://localhost:8080"
     else
-        echo "1. The system is now ready to use the PR Review Agent"
-        echo "2. To set up a project, copy init_project.sh to your project directory"
-        echo "3. Run: ./init_project.sh $SCRIPT_DIR/pr_review_server.py"
-        echo "4. Or run: $SCRIPT_DIR/init_project.sh in your project (will prompt for server path)"
+        echo "1. The system is now ready to use the PR Agent Server"
+        echo "2. To start the server: python $SCRIPT_DIR/pr_agent_server.py"
+        echo "3. Server will be available at http://localhost:8080"
+        echo "4. Use HTTP API or install as systemd service with install-services.sh"
     fi
     echo
     
