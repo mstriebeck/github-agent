@@ -46,7 +46,7 @@ mkdir -p "$LOG_DIR"
 
 # Copy files
 echo "Copying service files..."
-cp pr_agent_server.py "$INSTALL_DIR/"
+cp github_mcp_server.py "$INSTALL_DIR/"
 cp requirements.txt "$INSTALL_DIR/"
 
 # Copy .env if it exists, otherwise copy template
@@ -108,7 +108,7 @@ else
     <key>ProgramArguments</key>
     <array>
         <string>$INSTALL_DIR/.venv/bin/python</string>
-        <string>$INSTALL_DIR/pr_agent_server.py</string>
+        <string>$INSTALL_DIR/github_mcp_server.py</string>
     </array>
     <key>WorkingDirectory</key>
     <string>$INSTALL_DIR</string>

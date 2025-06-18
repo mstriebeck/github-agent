@@ -70,7 +70,7 @@ LOG_LEVEL=INFO
 
 ### Development Mode
 ```bash
-python pr_agent_server.py
+python github_mcp_server.py
 ```
 
 ### Service Mode
@@ -244,7 +244,7 @@ tail -f ~/.local/share/github-agent/logs/pr_agent_server.log
 Run directly for development:
 ```bash
 export GITHUB_TOKEN=your_token
-python pr_agent_server.py
+python github_mcp_server.py
 ```
 
 The server will auto-detect your repository and start on http://localhost:8080

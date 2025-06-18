@@ -66,9 +66,7 @@ The agent now runs as a unified HTTP server that can be deployed as a systemd se
 ## 📁 Current Files
 
 ### Core Server Components
-* `pr_agent_server.py` - Unified HTTP server (main service)
-* `pr_review_server.py` - Core PR management functions
-* `pr_reply_worker.py` - Background worker for processing replies
+* `github_mcp_server.py` - Unified HTTP server (both core GitHub management functions and background worker for processing replies)
 
 ### Configuration & Deployment
 * `install-services.sh` - Installation script
