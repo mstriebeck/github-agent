@@ -149,7 +149,7 @@ We provide an idempotent setup script (under ./setup) that ensures all required 
 - Create and activate a virtual environment
 - Install required Python packages (`sqlmodel`, `requests`, etc.)
 - Create the SQLite database and initialize the schema (using SQLModel)
-- Check for required environment variables (e.g., `GITHUB_TOKEN`)
+- Check for required environment variables (e.g., `GITHUB_TOKEN`) - can also be defined in ./.env
 - (Optional) Register and configure MCP tools if part of a larger agent system
 
 ### Sample Script Entry Point: `setup_dev_env.sh`

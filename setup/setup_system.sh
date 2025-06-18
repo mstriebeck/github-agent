@@ -323,7 +323,7 @@ check_required_files() {
     log_info "Checking required files..."
     
     REQUIRED_FILES=(
-        "pr_agent_server.py"
+        "github_mcp_server.py"
     )
     
     for file in "${REQUIRED_FILES[@]}"; do
@@ -415,11 +415,11 @@ main() {
         echo "1. Virtual environment created at: $(dirname "$VENV_PYTHON_PATH")"
         echo "2. To start the PR Agent Server, first activate the virtual environment:"
         echo "   source $(dirname "$VENV_PYTHON_PATH")/bin/activate"
-        echo "3. Then run: python $SCRIPT_DIR/pr_agent_server.py"
+        echo "3. Then run: python $SCRIPT_DIR/github_mcp_server.py"
         echo "4. Server will be available at http://localhost:8080"
     else
         echo "1. The system is now ready to use the PR Agent Server"
-        echo "2. To start the server: python $SCRIPT_DIR/pr_agent_server.py"
+        echo "2. To start the server: python $SCRIPT_DIR/github_mcp_server.py"
         echo "3. Server will be available at http://localhost:8080"
         echo "4. Use HTTP API or install as systemd service with install-services.sh"
     fi

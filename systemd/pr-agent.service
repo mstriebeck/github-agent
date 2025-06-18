@@ -11,7 +11,7 @@ Group=www-data
 WorkingDirectory=/opt/github-agent
 Environment=PATH=/opt/github-agent/.venv/bin
 EnvironmentFile=/opt/github-agent/.env
-ExecStart=/opt/github-agent/.venv/bin/python /opt/github-agent/pr_agent_server.py
+ExecStart=/opt/github-agent/.venv/bin/python /opt/github-agent/github_mcp_server.py
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=5
