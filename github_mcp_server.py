@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-GitHub PR Agent MCP Server
+GitHub PR Agent MCP Server - Multi-Repository Support
 Complete GitHub PR management server with MCP support for coding agents.
 
 This server provides tools for:
@@ -10,9 +10,14 @@ This server provides tools for:
 - SwiftLint and build log analysis from GitHub Actions
 - Reply posting with multiple fallback strategies
 
-Environment variables required:
-- GITHUB_TOKEN: GitHub personal access token
-- LOCAL_REPO_PATH: Local filesystem path to the git repository
+NEW: Multi-repository support via URL routing:
+- http://localhost:8080/mcp/repo-name/ → configured repository
+- Backward compatible with single repository mode
+
+Environment variables:
+- GITHUB_TOKEN: GitHub personal access token (required)
+- LOCAL_REPO_PATH: Local filesystem path to git repository (fallback mode)
+- GITHUB_AGENT_REPO_CONFIG: Path to repositories.json config file
 
 Optional:
 - SERVER_HOST: Host to bind to (default: 0.0.0.0)
@@ -27,23 +32,34 @@ import subprocess
 import re
 import zipfile
 import io
+import logging
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import queue
 from github import Github
 from git import Repo
 from dotenv import load_dotenv
 
+# Import our repository manager
+from repository_manager import RepositoryManager, extract_repo_name_from_url, RepositoryConfig
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Load environment variables
 load_dotenv()
 
 app = FastAPI(
-    title="GitHub PR Agent MCP Server",
-    description="Complete GitHub PR management server with MCP support for coding agents",
-    version="1.0.0"
+    title="GitHub PR Agent MCP Server - Multi-Repository",
+    description="Complete GitHub PR management server with MCP support and multi-repository routing",
+    version="2.0.0"
 )
 
 # Add CORS middleware
@@ -58,43 +74,75 @@ app.add_middleware(
 # Queue for messages to send via SSE
 message_queue = queue.Queue()
 
-# Core Context Class
-class GitHubAPIClient:
-    def __init__(self):
+# Global repository manager
+repo_manager = RepositoryManager()
+
+# GitHub API Context Class
+class GitHubAPIContext:
+    """Context for GitHub API operations with repository information"""
+    
+    def __init__(self, repo_config: RepositoryConfig):
+        self.repo_config = repo_config
         self.github_token = os.getenv("GITHUB_TOKEN")
-        self.repo_path = os.getenv("LOCAL_REPO_PATH")  # Local filesystem path to repo
-        # Initialize GitHub client
         self.github = Github(self.github_token) if self.github_token else None
         
-        # Get repo name from git config if repo path is available
+        # Get repo name from git config
         self.repo_name = None
         self.repo = None
-        if self.github and self.repo_path:
+        if self.github and self.repo_config.path:
             try:
                 # Get repo name from git remote
-                output = subprocess.check_output(["git", "config", "--get", "remote.origin.url"], cwd=self.repo_path).decode().strip()
+                output = subprocess.check_output(
+                    ["git", "config", "--get", "remote.origin.url"], 
+                    cwd=self.repo_config.path
+                ).decode().strip()
+                
                 if output.startswith("git@"):
                     _, path = output.split(":", 1)
                 elif output.startswith("https://"):
                     path = output.split("github.com/", 1)[-1]
                 else:
                     raise ValueError(f"Unrecognized GitHub remote URL: {output}")
+                
                 self.repo_name = path.replace(".git", "")
                 self.repo = self.github.get_repo(self.repo_name)
-            except Exception:
-                pass  # Will be handled when tools are called
+                logger.info(f"Initialized GitHub context for {self.repo_name}")
+                
+            except Exception as e:
+                logger.warning(f"Failed to initialize GitHub context: {e}")
     
-# Global GitHub API client
-github_client = GitHubAPIClient()
+    def get_current_branch(self) -> str:
+        """Get current branch name"""
+        return subprocess.check_output(
+            ["git", "branch", "--show-current"], 
+            cwd=self.repo_config.path
+        ).decode().strip()
+    
+    def get_current_commit(self) -> str:
+        """Get current commit hash"""
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], 
+            cwd=self.repo_config.path
+        ).decode().strip()
 
-# Tool implementations - simple and focused on configured repo
-async def execute_find_pr_for_branch(branch_name: str) -> str:
-    """Find the PR associated with a branch in the configured repository"""
-    if not github_client.repo:
-        return json.dumps({"error": "GitHub repository not configured. Set GITHUB_REPO environment variable."})
 
+def get_github_context(repo_name: str) -> GitHubAPIContext:
+    """Get GitHub API context for a specific repository"""
+    repo_config = repo_manager.get_repository(repo_name)
+    if not repo_config:
+        raise ValueError(f"Repository '{repo_name}' not found")
+    
+    return GitHubAPIContext(repo_config)
+
+# Tool implementations with repository context
+async def execute_find_pr_for_branch(repo_name: str, branch_name: str) -> str:
+    """Find the PR associated with a branch in the specified repository"""
     try:
-        pulls = github_client.repo.get_pulls(state='all')
+        context = get_github_context(repo_name)
+        if not context.repo:
+            return json.dumps({"error": f"GitHub repository not configured for {repo_name}"})
+
+        pulls = context.repo.get_pulls(state='all')
         
         # Look for matching branch
         for pr in pulls:
@@ -108,30 +156,34 @@ async def execute_find_pr_for_branch(branch_name: str) -> str:
                     "author": pr.user.login,
                     "base_branch": pr.base.ref,
                     "head_branch": pr.head.ref,
-                    "repo": github_client.repo_name
+                    "repo": context.repo_name,
+                    "repo_config": repo_name
                 })
 
         return json.dumps({
             "found": False,
             "branch_name": branch_name,
-            "repo": github_client.repo_name,
-            "message": f"No PR found for branch '{branch_name}' in {github_client.repo_name}"
+            "repo": context.repo_name,
+            "repo_config": repo_name,
+            "message": f"No PR found for branch '{branch_name}' in {context.repo_name}"
         })
 
     except Exception as e:
-        return json.dumps({"error": f"Failed to find PR for branch {branch_name}: {str(e)}"})
+        return json.dumps({"error": f"Failed to find PR for branch {branch_name} in {repo_name}: {str(e)}"})
 
-async def execute_get_pr_comments(pr_number: int) -> str:
-    """Get all comments from a PR"""
-    if not github_client.repo:
-        return json.dumps({"error": "GitHub repository not configured"})
-    
+
+async def execute_get_pr_comments(repo_name: str, pr_number: int) -> str:
+    """Get all comments from a PR in the specified repository"""
     try:
+        context = get_github_context(repo_name)
+        if not context.repo:
+            return json.dumps({"error": f"GitHub repository not configured for {repo_name}"})
+        
         # Use GitHub API directly for better error handling
-        headers = {"Authorization": f"token {github_client.github_token}"}
+        headers = {"Authorization": f"token {context.github_token}"}
         
         # Get PR details first
-        pr_url = f"https://api.github.com/repos/{github_client.repo_name}/pulls/{pr_number}"
+        pr_url = f"https://api.github.com/repos/{context.repo_name}/pulls/{pr_number}"
         pr_response = requests.get(pr_url, headers=headers)
         pr_response.raise_for_status()
         pr_data = pr_response.json()
@@ -143,7 +195,7 @@ async def execute_get_pr_comments(pr_number: int) -> str:
         review_comments = comments_resp.json()
         
         # Get issue comments
-        issue_comments_url = f"https://api.github.com/repos/{github_client.repo_name}/issues/{pr_number}/comments"
+        issue_comments_url = f"https://api.github.com/repos/{context.repo_name}/issues/{pr_number}/comments"
         issue_resp = requests.get(issue_comments_url, headers=headers)
         issue_resp.raise_for_status()
         issue_comments = issue_resp.json()
@@ -177,27 +229,31 @@ async def execute_get_pr_comments(pr_number: int) -> str:
         return json.dumps({
             "pr_number": pr_number,
             "title": pr_data["title"],
+            "repo": context.repo_name,
+            "repo_config": repo_name,
             "review_comments": formatted_review_comments,
             "issue_comments": formatted_issue_comments,
             "total_comments": len(formatted_review_comments) + len(formatted_issue_comments)
         })
         
     except Exception as e:
-        return json.dumps({"error": f"Failed to get PR comments: {str(e)}"})
+        return json.dumps({"error": f"Failed to get PR comments from {repo_name}: {str(e)}"})
 
-async def execute_post_pr_reply(comment_id: int, message: str) -> str:
-    """Reply to a PR comment immediately"""
-    if not github_client.repo:
-        return json.dumps({"error": "GitHub repository not configured"})
-    
-    headers = {
-        "Authorization": f"token {github_client.github_token}",
-        "Accept": "application/vnd.github+json"
-    }
-    
+
+async def execute_post_pr_reply(repo_name: str, comment_id: int, message: str) -> str:
+    """Reply to a PR comment in the specified repository"""
     try:
+        context = get_github_context(repo_name)
+        if not context.repo:
+            return json.dumps({"error": f"GitHub repository not configured for {repo_name}"})
+        
+        headers = {
+            "Authorization": f"token {context.github_token}",
+            "Accept": "application/vnd.github+json"
+        }
+        
         # Try to get original comment context
-        comment_url = f"https://api.github.com/repos/{github_client.repo_name}/pulls/comments/{comment_id}"
+        comment_url = f"https://api.github.com/repos/{context.repo_name}/pulls/comments/{comment_id}"
         comment_resp = requests.get(comment_url, headers=headers)
         
         if comment_resp.status_code == 200:
@@ -206,18 +262,18 @@ async def execute_post_pr_reply(comment_id: int, message: str) -> str:
             pr_number = pr_url.split("/")[-1] if pr_url else None
         else:
             # Try as issue comment
-            comment_url = f"https://api.github.com/repos/{github_client.repo_name}/issues/comments/{comment_id}"
+            comment_url = f"https://api.github.com/repos/{context.repo_name}/issues/comments/{comment_id}"
             comment_resp = requests.get(comment_url, headers=headers)
             if comment_resp.status_code == 200:
                 original_comment = comment_resp.json()
                 issue_url = original_comment.get("issue_url", "")
                 pr_number = issue_url.split("/")[-1] if issue_url else None
             else:
-                return json.dumps({"error": f"Could not find comment with ID {comment_id}"})
+                return json.dumps({"error": f"Could not find comment with ID {comment_id} in {repo_name}"})
         
         # Strategy 1: Try direct reply to review comment
         try:
-            reply_url = f"https://api.github.com/repos/{github_client.repo_name}/pulls/comments/{comment_id}/replies"
+            reply_url = f"https://api.github.com/repos/{context.repo_name}/pulls/comments/{comment_id}/replies"
             reply_data = {"body": message}
             reply_resp = requests.post(reply_url, headers=headers, json=reply_data)
             
@@ -225,6 +281,8 @@ async def execute_post_pr_reply(comment_id: int, message: str) -> str:
                 return json.dumps({
                     "success": True,
                     "method": "direct_reply",
+                    "repo": context.repo_name,
+                    "repo_config": repo_name,
                     "comment_id": reply_resp.json()["id"],
                     "url": reply_resp.json()["html_url"]
                 })
@@ -234,7 +292,7 @@ async def execute_post_pr_reply(comment_id: int, message: str) -> str:
         # Strategy 2: Post as issue comment (fallback)
         if pr_number:
             try:
-                issue_comment_url = f"https://api.github.com/repos/{github_client.repo_name}/issues/{pr_number}/comments"
+                issue_comment_url = f"https://api.github.com/repos/{context.repo_name}/issues/{pr_number}/comments"
                 issue_comment_data = {"body": f"@{original_comment['user']['login']} {message}"}
                 issue_resp = requests.post(issue_comment_url, headers=headers, json=issue_comment_data)
                 
@@ -242,16 +300,47 @@ async def execute_post_pr_reply(comment_id: int, message: str) -> str:
                     return json.dumps({
                         "success": True,
                         "method": "issue_comment_fallback",
+                        "repo": context.repo_name,
+                        "repo_config": repo_name,
                         "comment_id": issue_resp.json()["id"],
                         "url": issue_resp.json()["html_url"]
                     })
             except Exception as e:
-                return json.dumps({"error": f"All reply strategies failed. Final error: {str(e)}"})
+                return json.dumps({"error": f"All reply strategies failed for {repo_name}. Final error: {str(e)}"})
         
-        return json.dumps({"error": "All reply strategies failed"})
+        return json.dumps({"error": f"All reply strategies failed for {repo_name}"})
         
     except Exception as e:
-        return json.dumps({"error": f"Failed to post PR reply: {str(e)}"})
+        return json.dumps({"error": f"Failed to post PR reply in {repo_name}: {str(e)}"})
+
+
+async def execute_get_current_branch(repo_name: str) -> str:
+    """Get current branch for the specified repository"""
+    try:
+        context = get_github_context(repo_name)
+        branch = context.get_current_branch()
+        return json.dumps({
+            "branch": branch,
+            "repo": context.repo_name,
+            "repo_config": repo_name
+        })
+    except Exception as e:
+        return json.dumps({"error": f"Failed to get current branch for {repo_name}: {str(e)}"})
+
+
+async def execute_get_current_commit(repo_name: str) -> str:
+    """Get current commit for the specified repository"""
+    try:
+        context = get_github_context(repo_name)
+        commit = context.get_current_commit()
+        return json.dumps({
+            "commit": commit,
+            "repo": context.repo_name,
+            "repo_config": repo_name
+        })
+    except Exception as e:
+        return json.dumps({"error": f"Failed to get current commit for {repo_name}: {str(e)}"})
+
 
 # Build/Lint helper functions
 async def get_github_repo():
@@ -550,39 +639,57 @@ async def execute_read_build_logs(build_id: str = None) -> str:
 @app.get("/")
 async def root():
     """Root endpoint with basic server information"""
+    repositories = repo_manager.list_repositories()
     return {
-        "name": "GitHub PR Agent MCP Server",
-        "version": "1.0.0",
+        "name": "GitHub PR Agent MCP Server - Multi-Repository",
+        "version": "2.0.0",
         "status": "running",
+        "multi_repo_mode": repo_manager.is_multi_repo_mode(),
+        "repositories": repositories,
         "endpoints": {
             "health": "/health",
             "status": "/status", 
-            "mcp": "/mcp/",
+            "mcp": "/mcp/{repo-name}/",
             "docs": "/docs"
         }
     }
 
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    repositories = repo_manager.list_repositories()
+    github_configured = bool(os.getenv("GITHUB_TOKEN"))
+    
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "github_configured": bool(github_client.github_token),
-        "repo_configured": bool(github_client.repo_path)
+        "github_configured": github_configured,
+        "multi_repo_mode": repo_manager.is_multi_repo_mode(),
+        "repositories_count": len(repositories),
+        "repositories": repositories
     }
+
 
 @app.get("/status") 
 async def get_server_status():
     """Get comprehensive server status"""
+    repositories = repo_manager.list_repositories()
+    repo_details = {}
+    
+    for repo_name in repositories:
+        repo_info = repo_manager.get_repository_info(repo_name)
+        if repo_info:
+            repo_details[repo_name] = repo_info
+    
     return {
         "server": {
             "status": "running",
-            "github_configured": bool(github_client.github_token and github_client.repo_name),
-            "repo_path": github_client.repo_path,
-            "repo_name": github_client.repo_name,
+            "github_configured": bool(os.getenv("GITHUB_TOKEN")),
+            "multi_repo_mode": repo_manager.is_multi_repo_mode(),
             "timestamp": datetime.now().isoformat()
         },
+        "repositories": repo_details,
         "tools": [
             "get_current_branch", "get_current_commit", "find_pr_for_branch",
             "get_pr_comments", "post_pr_reply", "read_swiftlint_logs", "read_build_logs"
@@ -997,35 +1104,30 @@ async def mcp_post_endpoint(request: Request):
         print(f"Error handling MCP request: {e}")
         return {"jsonrpc": "2.0", "id": 1, "error": {"code": -32603, "message": f"Internal error: {str(e)}"}}
 
+@app.on_event("startup")
+async def startup_event():
+    """Initialize repository manager on startup"""
+    logger.info("Starting GitHub MCP Server - Multi-Repository")
+    
+    # Load repository configuration
+    if repo_manager.load_configuration():
+        repositories = repo_manager.list_repositories()
+        logger.info(f"Successfully loaded {len(repositories)} repositories: {repositories}")
+        
+        if repo_manager.is_multi_repo_mode():
+            logger.info("Running in multi-repository mode")
+        else:
+            logger.info("Running in single-repository fallback mode")
+    else:
+        logger.error("Failed to load repository configuration")
+        raise RuntimeError("Could not initialize repository configuration")
+
+
 if __name__ == "__main__":
-    # Check for required environment variables
-    if not os.getenv("GITHUB_TOKEN"):
-        print("ERROR: GITHUB_TOKEN environment variable is required")
-        exit(1)
-        
-    if not os.getenv("LOCAL_REPO_PATH"):
-        print("ERROR: LOCAL_REPO_PATH environment variable is required (local filesystem path to git repository)")
-        exit(1)
-        
-    # Get configuration from environment
+    import uvicorn
+    
     host = os.getenv("SERVER_HOST", "0.0.0.0")
     port = int(os.getenv("SERVER_PORT", "8080"))
     
-    # Check if a workspace was specified - if so, use a different port
-    workspace_arg = None
-    import sys
-    if len(sys.argv) > 1 and sys.argv[1].startswith("--workspace="):
-        workspace_arg = sys.argv[1].split("=", 1)[1]
-        # Use hash of workspace path to generate consistent port
-        port = 8080 + abs(hash(workspace_arg)) % 1000
-    
-    print(f"Starting GitHub PR Agent MCP Server on {host}:{port}")
-    print("MCP endpoint will be available at /mcp")
-    print(f"GitHub token configured: {'Yes' if github_client.github_token else 'No'}")
-    print(f"Local repository path: {github_client.repo_path or 'NOT CONFIGURED'}")
-    print(f"GitHub repository name: {github_client.repo_name or 'NOT DETECTED'}")
-    print("LOCAL_REPO_PATH should be the local filesystem path to your git repository")
-    
-    # Run with uvicorn
-    import uvicorn
-    uvicorn.run(app, host=host, port=port)
+    logger.info(f"Starting server on {host}:{port}")
+    uvicorn.run(app, host=host, port=port, log_level="info")

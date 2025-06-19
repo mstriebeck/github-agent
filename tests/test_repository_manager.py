@@ -52,15 +52,26 @@ class TestRepositoryConfig(unittest.TestCase):
         self.assertIn("Repository path cannot be empty", str(context.exception))
     
     def test_path_normalization(self):
-        """Test that paths are normalized and expanded"""
+        """Test that absolute paths are normalized and expanded"""
         config = RepositoryConfig(
             name="test",
-            path="~/test-repo",
+            path="/home/user/test-repo",
             description="Test"
         )
         
-        expected_path = os.path.abspath(os.path.expanduser("~/test-repo"))
+        expected_path = os.path.abspath("/home/user/test-repo")
         self.assertEqual(config.path, expected_path)
+    
+    def test_relative_path_raises_error(self):
+        """Test that relative paths raise ValueError"""
+        with self.assertRaises(ValueError) as context:
+            RepositoryConfig(
+                name="test",
+                path="relative/path",
+                description="Test"
+            )
+        
+        self.assertIn("Repository path must be absolute", str(context.exception))
 
 
 class TestRepositoryManager(unittest.TestCase):

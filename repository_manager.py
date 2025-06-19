@@ -30,7 +30,11 @@ class RepositoryConfig:
         if not self.path:
             raise ValueError("Repository path cannot be empty")
         
-        # Normalize path
+        # Require absolute paths
+        if not os.path.isabs(self.path):
+            raise ValueError(f"Repository path must be absolute, got: {self.path}")
+        
+        # Expand user home if needed and normalize
         self.path = os.path.abspath(os.path.expanduser(self.path))
 
 
