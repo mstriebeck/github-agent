@@ -696,48 +696,30 @@ async def get_server_status():
         ]
     }
 
-# MCP Endpoints
-@app.post("/mcp/config")
-async def mcp_config_endpoint(request: Request):
+# MCP Endpoints with URL routing
+@app.get("/mcp/{repo_name}/")
+async def mcp_sse_endpoint(repo_name: str, request: Request):
     """
-    Configure workspace path
+    MCP SSE endpoint for server-to-client messages with repository routing
     """
-    try:
-        body = await request.json()
-        workspace_path = body.get("workspace_path")
-        if workspace_path:
-            print(f"Configuring workspace path: {workspace_path}")
-            global context
-            context.workspace_path = workspace_path
-            try:
-                context.git_repo = Repo(context.workspace_path)
-                context.repo_name = context._detect_github_repo()
-                context.repo = context.github.get_repo(context.repo_name) if context.github and context.repo_name else None
-                print(f"Successfully configured workspace: {context.repo_name}")
-                return {"status": "success", "repo": context.repo_name}
-            except Exception as e:
-                print(f"Failed to initialize workspace {workspace_path}: {e}")
-                return {"status": "error", "message": str(e)}
-        return {"status": "error", "message": "No workspace_path provided"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-@app.get("/mcp/")
-async def mcp_sse_endpoint(request: Request):
-    """
-    MCP SSE endpoint for server-to-client messages
-    """
-    print(f"SSE connection from {request.client.host}")
-    print(f"Headers: {dict(request.headers)}")
-    print(f"Query params: {dict(request.query_params)}")
+    logger.info(f"SSE connection for repository '{repo_name}' from {request.client.host}")
     
-    # No longer need workspace handling - now stateless!
+    # Validate repository name
+    if not repo_manager.get_repository(repo_name):
+        available_repos = repo_manager.list_repositories()
+        raise HTTPException(
+            status_code=404, 
+            detail={
+                "error": f"Repository '{repo_name}' not found",
+                "available_repositories": available_repos
+            }
+        )
     
     async def generate_sse():
         try:
             # REQUIRED: Send endpoint event with POST URL  
             yield "event: endpoint\n"
-            yield "data: http://localhost:8080/mcp/\n\n"
+            yield f"data: http://localhost:8080/mcp/{repo_name}/\n\n"
             
             # Process queued messages and keep connection alive
             keepalive_counter = 0
@@ -753,7 +735,7 @@ async def mcp_sse_endpoint(request: Request):
                 
                 await asyncio.sleep(0.1)
                 
-                # Send keepalive every 30 seconds (300 * 0.1s = 30s)
+                # Send keepalive every 30 seconds
                 keepalive_counter += 1
                 if keepalive_counter >= 300:
                     yield ": keepalive\n\n"
@@ -773,14 +755,25 @@ async def mcp_sse_endpoint(request: Request):
         }
     )
 
-@app.post("/mcp/")
-async def mcp_post_endpoint(request: Request):
+@app.post("/mcp/{repo_name}/")
+async def mcp_post_endpoint(repo_name: str, request: Request):
     """
-    Handle POST requests (JSON-RPC MCP protocol)
+    Handle POST requests (JSON-RPC MCP protocol) with repository routing
     """
+    # Validate repository name
+    if not repo_manager.get_repository(repo_name):
+        available_repos = repo_manager.list_repositories()
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": f"Repository '{repo_name}' not found",
+                "available_repositories": available_repos
+            }
+        )
+    
     try:
         body = await request.json()
-        print(f"Received MCP request: {body}")
+        logger.info(f"Received MCP request for '{repo_name}': {body.get('method')}")
         
         if body.get("method") == "initialize":
             response = {
@@ -795,18 +788,16 @@ async def mcp_post_endpoint(request: Request):
                         "experimental": {}
                     },
                     "serverInfo": {
-                        "name": "github-pr-agent",
-                        "version": "1.0.0"
+                        "name": f"github-pr-agent-{repo_name}",
+                        "version": "2.0.0"
                     }
                 }
             }
-            print(f"Queuing initialize response: {response}")
             message_queue.put(response)
             return {"status": "queued"}
         
         elif body.get("method") == "notifications/initialized":
-            # Just acknowledge the notification
-            print("Received initialized notification")
+            logger.info(f"Received initialized notification for {repo_name}")
             return {"status": "ok"}
         
         elif body.get("method") == "tools/list":
@@ -816,10 +807,9 @@ async def mcp_post_endpoint(request: Request):
                 "id": body.get("id", 1),
                 "result": {
                     "tools": [
-
                         {
                             "name": "get_current_commit",
-                            "description": "Get current commit information",
+                            "description": f"Get current commit information for {repo_name}",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {},
@@ -828,7 +818,7 @@ async def mcp_post_endpoint(request: Request):
                         },
                         {
                             "name": "get_current_branch",
-                            "description": "Get current Git branch name",
+                            "description": f"Get current Git branch name for {repo_name}",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {},
@@ -837,7 +827,7 @@ async def mcp_post_endpoint(request: Request):
                         },
                         {
                             "name": "find_pr_for_branch",
-                            "description": "Find the PR associated with a branch in the configured repository",
+                            "description": f"Find the PR associated with a branch in {repo_name}",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
@@ -851,7 +841,7 @@ async def mcp_post_endpoint(request: Request):
                         },
                         {
                             "name": "get_pr_comments",
-                            "description": "Get all comments from a PR",
+                            "description": f"Get all comments from a PR in {repo_name}",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
@@ -865,7 +855,7 @@ async def mcp_post_endpoint(request: Request):
                         },
                         {
                             "name": "post_pr_reply",
-                            "description": "Reply to a PR comment immediately",
+                            "description": f"Reply to a PR comment in {repo_name}",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
@@ -879,48 +869,6 @@ async def mcp_post_endpoint(request: Request):
                                     }
                                 },
                                 "required": ["comment_id", "message"]
-                            }
-                        },
-                        {
-                            "name": "list_unhandled_comments",
-                            "description": "List PR comments that haven't been replied to yet",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "pr_number": {
-                                        "type": "integer",
-                                        "description": "PR number (optional, auto-detects from current branch if not provided)"
-                                    }
-                                },
-                                "required": []
-                            }
-                        },
-                        {
-                            "name": "get_build_status",
-                            "description": "Get build status for commit",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "commit_sha": {
-                                        "type": "string",
-                                        "description": "Commit SHA (optional, uses current commit if not provided)"
-                                    }
-                                },
-                                "required": []
-                            }
-                        },
-                        {
-                            "name": "read_swiftlint_logs",
-                            "description": "Read SwiftLint violation logs from GitHub Actions artifacts",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "build_id": {
-                                        "type": "string",
-                                        "description": "Build ID (optional, uses latest for current commit if not specified)"
-                                    }
-                                },
-                                "required": []
                             }
                         },
                         {
@@ -940,169 +888,69 @@ async def mcp_post_endpoint(request: Request):
                     ]
                 }
             }
-            print(f"Queuing tools/list response: {response}")
             message_queue.put(response)
             return {"status": "queued"}
         
         elif body.get("method") == "tools/call":
-            # Handle tool execution
+            # Handle tool execution with repository context
             tool_name = body.get("params", {}).get("name")
             tool_args = body.get("params", {}).get("arguments", {})
             
-            print(f"Tool call: {tool_name} with args: {tool_args}")
+            logger.info(f"Tool call '{tool_name}' for repo '{repo_name}' with args: {tool_args}")
             
+            # Execute tools with repository context
             if tool_name == "find_pr_for_branch":
                 branch_name = tool_args.get("branch_name")
-                
                 if not branch_name:
                     result = json.dumps({"error": "branch_name is required"})
                 else:
-                    result = await execute_find_pr_for_branch(branch_name)
+                    result = await execute_find_pr_for_branch(repo_name, branch_name)
                     
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": body.get("id", 1),
-                    "result": {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": result
-                            }
-                        ]
-                    }
-                }
-                print(f"Queuing tool response: {response}")
-                message_queue.put(response)
-                return {"status": "queued"}
-                
             elif tool_name == "get_pr_comments":
                 pr_number = tool_args.get("pr_number")
-                
                 if not pr_number:
                     result = json.dumps({"error": "pr_number is required"})
                 else:
-                    result = await execute_get_pr_comments(pr_number)
+                    result = await execute_get_pr_comments(repo_name, pr_number)
                     
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": body.get("id", 1),
-                    "result": {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": result
-                            }
-                        ]
-                    }
-                }
-                print(f"Queuing tool response: {response}")
-                message_queue.put(response)
-                return {"status": "queued"}
-                
             elif tool_name == "post_pr_reply":
                 comment_id = tool_args.get("comment_id")
                 message = tool_args.get("message")
-                
                 if not comment_id or not message:
                     result = json.dumps({"error": "Both comment_id and message are required"})
                 else:
-                    result = await execute_post_pr_reply(comment_id, message)
+                    result = await execute_post_pr_reply(repo_name, comment_id, message)
                     
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": body.get("id", 1),
-                    "result": {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": result
-                            }
-                        ]
-                    }
-                }
-                print(f"Queuing tool response: {response}")
-                message_queue.put(response)
-                return {"status": "queued"}
-                
-            elif tool_name == "read_swiftlint_logs":
-                build_id = tool_args.get("build_id")
-                result = await execute_read_swiftlint_logs(build_id)
-                    
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": body.get("id", 1),
-                    "result": {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": result
-                            }
-                        ]
-                    }
-                }
-                print(f"Queuing tool response: {response}")
-                message_queue.put(response)
-                return {"status": "queued"}
-                
-            elif tool_name == "read_build_logs":
-                build_id = tool_args.get("build_id")
-                result = await execute_read_build_logs(build_id)
-                    
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": body.get("id", 1),
-                    "result": {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": result
-                            }
-                        ]
-                    }
-                }
-                print(f"Queuing tool response: {response}")
-                message_queue.put(response)
-                return {"status": "queued"}
-                
             elif tool_name == "get_current_branch":
-                try:
-                    branch = await get_current_branch()
-                    result = json.dumps({"branch": branch})
-                except Exception as e:
-                    result = json.dumps({"error": str(e)})
-                    
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": body.get("id", 1),
-                    "result": {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": result
-                            }
-                        ]
-                    }
-                }
-                print(f"Queuing tool response: {response}")
-                message_queue.put(response)
-                return {"status": "queued"}
+                result = await execute_get_current_branch(repo_name)
+                
+            elif tool_name == "get_current_commit":
+                result = await execute_get_current_commit(repo_name)
+                
             else:
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": body.get("id", 1),
-                    "error": {
-                        "code": -32601,
-                        "message": f"Tool '{tool_name}' not implemented yet"
-                    }
+                result = json.dumps({"error": f"Tool '{tool_name}' not implemented yet"})
+            
+            response = {
+                "jsonrpc": "2.0",
+                "id": body.get("id", 1),
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": result
+                        }
+                    ]
                 }
-                message_queue.put(response)
-                return {"status": "queued"}
+            }
+            message_queue.put(response)
+            return {"status": "queued"}
         
         return {"jsonrpc": "2.0", "id": body.get("id", 1), "error": {"code": -32601, "message": "Method not found"}}
     
     except Exception as e:
-        print(f"Error handling MCP request: {e}")
+        logger.error(f"Error handling MCP request for {repo_name}: {e}")
         return {"jsonrpc": "2.0", "id": 1, "error": {"code": -32603, "message": f"Internal error: {str(e)}"}}
+
 
 @app.on_event("startup")
 async def startup_event():

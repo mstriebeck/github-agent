@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Simple Integration Tests for Phase 1 Multi-Repository Support
+Integration Tests for Multi-Repository Configuration and Management
 """
 
 import json
@@ -17,8 +17,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from repository_manager import RepositoryManager, RepositoryConfig, extract_repo_name_from_url
 
 
-class TestPhase1Integration(unittest.TestCase):
-    """Integration tests for Phase 1 multi-repository functionality"""
+class TestMultiRepositoryIntegration(unittest.TestCase):
+    """Integration tests for multi-repository configuration and management"""
     
     def setUp(self):
         """Set up test fixtures"""
