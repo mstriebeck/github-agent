@@ -26,23 +26,76 @@ The agent now runs as a unified HTTP server that can be deployed as a systemd se
 
 1. **Install the service:**
    ```bash
-   sudo ./install-services.sh
+   # Linux (requires sudo)
+   sudo ./scripts/install-services.sh
+   
+   # macOS (installs to user space)
+   ./scripts/install-services.sh
    ```
 
 2. **Configure environment:**
    ```bash
+   # Linux
    sudo nano /opt/github-agent/.env
-   # Set your GITHUB_TOKEN
+   
+   # macOS  
+   nano ~/.local/share/github-agent/.env
+   
+   # Set your GITHUB_TOKEN (repo is auto-detected)
    ```
 
 3. **Start the service:**
    ```bash
+   # Linux
    sudo systemctl start pr-agent
+   
+   # macOS
+   launchctl start com.mstriebeck.github_mcp_server
+   # (Service auto-starts on login)
    ```
 
 4. **Check status:**
    ```bash
    curl http://localhost:8080/health
+   ```
+
+5. **Stop the service:**
+   ```bash
+   # Linux
+   sudo systemctl stop pr-agent
+   
+   # macOS (permanently stop - service has KeepAlive enabled)
+   launchctl unload ~/Library/LaunchAgents/com.mstriebeck.github_mcp_server.plist
+   
+   # macOS (temporary stop - will auto-restart)
+   launchctl stop com.mstriebeck.github_mcp_server
+   ```
+
+### Troubleshooting (macOS)
+
+If the service doesn't start on macOS, try these steps:
+
+1. **Check if service is loaded:**
+   ```bash
+   launchctl list | grep github_mcp
+   ```
+
+2. **Check the logs:**
+   ```bash
+   tail -f ~/.local/share/github-agent/logs/github_mcp_server.log
+   ```
+
+3. **Unload and reload the service:**
+   ```bash
+   launchctl unload ~/Library/LaunchAgents/com.github.pr-agent.plist
+   launchctl load ~/Library/LaunchAgents/com.github.pr-agent.plist
+   ```
+
+4. **Run manually for debugging:**
+   ```bash
+   cd ~/.local/share/github-agent
+   source .venv/bin/activate
+   python github_mcp_server.py
    ```
 
 ### Important: Agent User Setup

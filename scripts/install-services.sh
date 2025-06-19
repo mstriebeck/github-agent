@@ -31,7 +31,7 @@ case $OS in
     ;;
 esac
 
-echo "Installing PR Agent Server for $OS..."
+echo "Installing GitHub MCP Server for $OS..."
 
 # Check if running as root (Linux only)
 if [[ "$USE_SYSTEMD" == true && $EUID -ne 0 ]]; then
@@ -46,6 +46,9 @@ mkdir -p "$LOG_DIR"
 
 # Copy files
 echo "Copying service files..."
+# Remove existing files if they exist to avoid permission issues
+[ -f "$INSTALL_DIR/github_mcp_server.py" ] && rm -f "$INSTALL_DIR/github_mcp_server.py"
+[ -f "$INSTALL_DIR/requirements.txt" ] && rm -f "$INSTALL_DIR/requirements.txt"
 cp github_mcp_server.py "$INSTALL_DIR/"
 cp requirements.txt "$INSTALL_DIR/"
 
@@ -75,9 +78,9 @@ fi
 
 # Create log file
 echo "Creating log file..."
-touch "$LOG_DIR/pr_agent_server.log"
+touch "$LOG_DIR/github_mcp_server.log"
 if [[ "$USE_SYSTEMD" == true ]]; then
-    chown "$SERVICE_USER:$SERVICE_GROUP" "$LOG_DIR/pr_agent_server.log"
+    chown "$SERVICE_USER:$SERVICE_GROUP" "$LOG_DIR/github_mcp_server.log"
 fi
 
 # Install service (OS-specific)
@@ -98,13 +101,21 @@ else
     echo "Creating launchd service for macOS..."
     mkdir -p "$HOME/Library/LaunchAgents"
     
-    cat > "$HOME/Library/LaunchAgents/com.github.pr-agent.plist" << EOF
+    # Stop and unload existing service if it exists
+    if [ -f "$HOME/Library/LaunchAgents/com.mstriebeck.github_mcp_server.plist" ]; then
+        echo "Stopping existing service..."
+        launchctl stop com.mstriebeck.github_mcp_server 2>/dev/null || true
+        launchctl unload "$HOME/Library/LaunchAgents/com.mstriebeck.github_mcp_server.plist" 2>/dev/null || true
+        rm -f "$HOME/Library/LaunchAgents/com.mstriebeck.github_mcp_server.plist"
+    fi
+    
+    cat > "$HOME/Library/LaunchAgents/com.mstriebeck.github_mcp_server.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.github.pr-agent</string>
+    <string>com.mstriebeck.github_mcp_server</string>
     <key>ProgramArguments</key>
     <array>
         <string>$INSTALL_DIR/.venv/bin/python</string>
@@ -113,9 +124,9 @@ else
     <key>WorkingDirectory</key>
     <string>$INSTALL_DIR</string>
     <key>StandardOutPath</key>
-    <string>$LOG_DIR/pr_agent_server.log</string>
+    <string>$LOG_DIR/github_mcp_server.log</string>
     <key>StandardErrorPath</key>
-    <string>$LOG_DIR/pr_agent_server.log</string>
+    <string>$LOG_DIR/github_mcp_server.log</string>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
@@ -125,7 +136,7 @@ else
 EOF
     
     echo "Loading launchd service..."
-    launchctl load "$HOME/Library/LaunchAgents/com.github.pr-agent.plist"
+    launchctl load "$HOME/Library/LaunchAgents/com.mstriebeck.github_mcp_server.plist"
 fi
 
 echo "Installation complete!"
@@ -143,23 +154,23 @@ if [[ "$USE_SYSTEMD" == true ]]; then
     echo ""
     echo "To view logs:"
     echo "  sudo journalctl -u pr-agent -f"
-    echo "  tail -f $LOG_DIR/pr_agent_server.log"
+    echo "  tail -f $LOG_DIR/github_mcp_server.log"
 else
     echo "To start the service (macOS):"
-    echo "  launchctl start com.github.pr-agent"
+    echo "  launchctl start com.mstriebeck.github_mcp_server"
     echo "  (Service auto-starts on login)"
     echo ""
     echo "To check status:"
-    echo "  launchctl list | grep pr-agent"
+    echo "  launchctl list | grep github_mcp_server"
     echo ""
     echo "To view logs:"
-    echo "  tail -f $LOG_DIR/pr_agent_server.log"
+    echo "  tail -f $LOG_DIR/github_mcp_server.log"
     echo ""
     echo "To stop the service:"
-    echo "  launchctl stop com.github.pr-agent"
+    echo "  launchctl stop com.mstriebeck.github_mcp_server"
     echo ""
     echo "To unload the service:"
-    echo "  launchctl unload ~/Library/LaunchAgents/com.github.pr-agent.plist"
+    echo "  launchctl unload ~/Library/LaunchAgents/com.mstriebeck.github_mcp_server.plist"
 fi
 
 echo ""

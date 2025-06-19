@@ -192,17 +192,17 @@ All original MCP tools work via HTTP:
 
 **Log Locations:**
 - **Development:** Console output
-- **Linux Service:** `/var/log/pr_agent_server.log` + systemd journal
-- **macOS Service:** `~/.local/share/github-agent/logs/pr_agent_server.log`
+- **Linux Service:** `/var/log/github_mcp_server.log` + systemd journal
+- **macOS Service:** `~/.local/share/github-agent/logs/github_mcp_server.log`
 
 **View Logs:**
 ```bash
 # Linux
 sudo journalctl -u pr-agent -f
-tail -f /var/log/pr_agent_server.log
+tail -f /var/log/github_mcp_server.log
 
 # macOS  
-tail -f ~/.local/share/github-agent/logs/pr_agent_server.log
+tail -f ~/.local/share/github-agent/logs/github_mcp_server.log
 
 # Development
 # Logs appear in terminal
@@ -247,4 +247,86 @@ export GITHUB_TOKEN=your_token
 python github_mcp_server.py
 ```
 
+## Uninstallation
+
+Use the provided uninstall script to completely remove the GitHub Agent:
+
+```bash
+./scripts/uninstall-services.sh
+```
+
+The uninstall script will:
+- Stop and remove the service (systemd/launchd)
+- Remove all installation files and directories
+- Clean up log files and databases
+- Remove Python cache files
+- Verify complete removal
+- Handle permission issues automatically
+
+**Features:**
+- **Cross-platform**: Works on both Linux and macOS
+- **Verification**: Confirms all components are removed
+- **Safety**: Asks for confirmation before proceeding
+- **Cleanup**: Removes cache files and processes
+- **Detailed output**: Shows exactly what's being removed
+
+**Manual Uninstall (if script fails):**
+```bash
+# Stop the service
+sudo systemctl stop pr-agent     # Linux
+launchctl unload com.github.pr-agent  # macOS
+
+# Remove installation
+sudo rm -rf /opt/github-agent    # Linux
+rm -rf ~/.local/share/github-agent  # macOS
+
+# Remove service files
+sudo rm /etc/systemd/system/pr-agent.service  # Linux
+rm ~/Library/LaunchAgents/com.github.pr-agent.plist  # macOS
+
+# Kill any remaining processes
+pkill -f github_mcp_server
+```
+
 The server will auto-detect your repository and start on http://localhost:8080
+
+## MCP Integration with Amp
+
+The server provides MCP (Model Context Protocol) support for integration with Amp and other MCP clients.
+
+### MCP Endpoints
+
+- **Streamable HTTP (Recommended):** `http://localhost:8080/mcp` - Supports both POST messages and GET SSE streams
+
+### Configuring Amp
+
+To add the GitHub PR Agent to Amp, enter this URL:
+
+```
+http://localhost:8080/mcp
+```
+
+This single endpoint provides both HTTP POST (for tool calls) and GET SSE (for streaming) as required by the MCP Streamable HTTP transport protocol.
+
+### Available MCP Tools
+
+Once connected, Amp will have access to these PR management tools:
+
+- `get_current_branch` - Get current Git branch information
+- `get_current_commit` - Get current commit details  
+- `find_pr_for_branch` - Find PR associated with a branch
+- `get_pr_comments` - Get all comments from a PR
+- `post_pr_reply` - Reply to a PR comment immediately
+- `post_pr_reply_queue` - Queue a reply for later processing
+- `list_unhandled_comments` - List unhandled PR comments
+- `get_build_status` - Get CI/CD build status for commits
+
+### Usage in Amp
+
+Once configured, you can use the tools in Amp:
+
+```
+@github-pr-agent get_current_branch
+@github-pr-agent get_pr_comments {"pr_number": 123}
+@github-pr-agent post_pr_reply {"comment_id": 456, "message": "Fixed in latest commit"}
+```

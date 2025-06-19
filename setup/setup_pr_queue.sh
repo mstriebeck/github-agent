@@ -30,7 +30,7 @@ echo "Initializing database..."
 python3 -c "
 import sys
 sys.path.append('.')
-from pr_agent_server import init_db
+from github_mcp_server import init_db
 init_db()
 print('Database initialized successfully')
 "

@@ -373,16 +373,7 @@ run_verification() {
         TEST_PYTHON_CMD="$VENV_PYTHON_PATH"
     fi
     
-    if $TEST_PYTHON_CMD -c "
-import sys
-sys.path.insert(0, '$SCRIPT_DIR')
-try:
-    import pr_agent_server
-    print('PR agent server script is valid')
-except Exception as e:
-    print(f'Error: {e}')
-    sys.exit(1)
-" 2>/dev/null; then
+    if $TEST_PYTHON_CMD "$SCRIPT_DIR/setup/verify_imports.py" >/dev/null 2>&1; then
         log_success "PR agent server script verified"
     else
         log_error "PR agent server script test failed"
