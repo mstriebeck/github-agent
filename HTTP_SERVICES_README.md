@@ -274,7 +274,7 @@ The uninstall script will:
 ```bash
 # Stop the service
 sudo systemctl stop pr-agent     # Linux
-launchctl stop com.github.pr-agent  # macOS
+launchctl unload com.github.pr-agent  # macOS
 
 # Remove installation
 sudo rm -rf /opt/github-agent    # Linux
