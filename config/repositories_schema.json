@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GitHub Agent Repository Configuration",
+  "description": "Configuration schema for multiple repository support in GitHub MCP Agent",
+  "type": "object",
+  "properties": {
+    "repositories": {
+      "type": "object",
+      "description": "Dictionary of repository configurations",
+      "patternProperties": {
+        "^[a-zA-Z0-9_-]+$": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute or relative path to the git repository"
+            },
+            "description": {
+              "type": "string",
+              "description": "Human-readable description of the repository"
+            }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["repositories"],
+  "additionalProperties": false
+}
