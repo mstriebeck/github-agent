@@ -377,7 +377,7 @@ run_verification() {
 import sys
 sys.path.insert(0, '$SCRIPT_DIR')
 try:
-    import pr_agent_server
+    import github_mcp_server
     print('PR agent server script is valid')
 except Exception as e:
     print(f'Error: {e}')
