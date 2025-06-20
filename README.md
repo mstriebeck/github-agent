@@ -302,6 +302,7 @@ To migrate from the old single-port server:
 2. **Generate a classic GitHub token** (not fine-grained) with `repo` scope  
 3. **Checkout the repository as the agent user**
 4. **Use the agent user's token** in `GITHUB_TOKEN` environment variable
+5. **Set user.name and user.email to the agent user**
 
 **Critical:** The agent user must create the pull request, not the main user!
 
