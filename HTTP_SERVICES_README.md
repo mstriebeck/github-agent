@@ -103,7 +103,7 @@ curl http://localhost:8080/health
 curl -X POST http://localhost:8080/execute \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "get_current_branch",
+    "name": "git_get_current_branch",
     "arguments": {}
   }'
 ```
@@ -161,17 +161,17 @@ The server provides an **MCP HTTP transport** in addition to the original stdio 
 
 All original MCP tools work via HTTP:
 
-- `get_current_branch` - Get current Git branch and commit info
-- `get_current_commit` - Get current commit details  
-- `find_pr_for_branch` - Find PR associated with a branch
-- `get_pr_comments` - Get all comments from a PR
-- `post_pr_reply` - Reply directly to a PR comment
+- `git_get_current_branch` - Get current Git branch and commit info
+- `git_get_current_commit` - Get current commit details  
+- `github_find_pr_for_branch` - Find PR associated with a branch
+- `github_get_pr_comments` - Get all comments from a PR
+- `github_post_pr_reply` - Reply directly to a PR comment
 - `post_pr_reply_queue` - Queue a reply for background processing
 - `list_unhandled_comments` - List comments without replies
 - `ack_reply` - Mark a comment as handled
-- `get_build_status` - Get CI/CD build status
-- `read_swiftlint_logs` - Read SwiftLint violation reports
-- `read_build_logs` - Read build logs and extract errors/warnings
+- `github_get_build_status` - Get CI/CD build status
+- `github_get_lint_errors` - Extract linting errors from CI logs
+- `github_get_build_and_test_errors` - Extract build errors, warnings, and test failures
 - `process_comment_batch` - Process multiple replies in batch
 
 ## Queue System
@@ -312,21 +312,23 @@ This single endpoint provides both HTTP POST (for tool calls) and GET SSE (for s
 
 Once connected, Amp will have access to these PR management tools:
 
-- `get_current_branch` - Get current Git branch information
-- `get_current_commit` - Get current commit details  
-- `find_pr_for_branch` - Find PR associated with a branch
-- `get_pr_comments` - Get all comments from a PR
-- `post_pr_reply` - Reply to a PR comment immediately
+- `git_get_current_branch` - Get current Git branch information
+- `git_get_current_commit` - Get current commit details  
+- `github_find_pr_for_branch` - Find PR associated with a branch
+- `github_get_pr_comments` - Get all comments from a PR
+- `github_post_pr_reply` - Reply to a PR comment immediately
 - `post_pr_reply_queue` - Queue a reply for later processing
 - `list_unhandled_comments` - List unhandled PR comments
-- `get_build_status` - Get CI/CD build status for commits
+- `github_get_build_status` - Get CI/CD build status for commits
+- `github_get_lint_errors` - Extract linting errors from CI logs
+- `github_get_build_and_test_errors` - Extract build errors, warnings, and test failures
 
 ### Usage in Amp
 
 Once configured, you can use the tools in Amp:
 
 ```
-@github-pr-agent get_current_branch
-@github-pr-agent get_pr_comments {"pr_number": 123}
-@github-pr-agent post_pr_reply {"comment_id": 456, "message": "Fixed in latest commit"}
+@github-pr-agent git_get_current_branch
+@github-pr-agent github_get_pr_comments {"pr_number": 123}
+@github-pr-agent github_post_pr_reply {"comment_id": 456, "message": "Fixed in latest commit"}
 ```

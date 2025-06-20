@@ -203,7 +203,7 @@ class GitHubMCPWorker:
                             "serverInfo": {
                                 "name": f"github-pr-agent-{self.repo_name}",
                                 "version": "2.0.0",
-                                "description": f"GitHub Pull Request management, code review, CI/CD build analysis, and Git repository tools for {self.repo_name}. Provides GitHub API integration, Swift build log parsing, SwiftLint analysis, PR comment management, and local Git operations."
+                                "description": f"GitHub Pull Request management, code review, CI/CD build analysis, and Git repository tools for {self.repo_name}. Provides GitHub API integration, build log parsing, linter analysis, test failure extraction, PR comment management, and local Git operations."
                             }
                         }
                     }
@@ -286,8 +286,8 @@ class GitHubMCPWorker:
                                     }
                                 },
                                 {
-                                    "name": "github_read_build_logs",
-                                    "description": f"Read continuous integration build logs from GitHub Actions for {self.repo_name}. Analyzes CI/CD pipeline results, extracts Swift compiler errors, warnings, test failures, and other build issues from the latest GitHub Actions run. Essential for debugging failing builds, understanding test failures, and identifying compilation problems in Swift projects.",
+                                    "name": "github_get_build_and_test_errors",
+                                    "description": f"Extract and return build errors, warnings, and test failures from GitHub Actions CI logs for {self.repo_name}. Analyzes CI/CD pipeline results to identify compilation errors, build warnings, failed tests, and other build issues from the latest GitHub Actions run. Essential for debugging failing builds, understanding test failures, and identifying compilation problems across different programming languages.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {
@@ -300,8 +300,8 @@ class GitHubMCPWorker:
                                     }
                                 },
                                 {
-                                    "name": "github_read_swiftlint_logs",
-                                    "description": f"Read SwiftLint code style and quality warnings from GitHub Actions CI logs for {self.repo_name}. Parses GitHub Actions build output to extract linting violations, style issues, and code quality problems from SwiftLint analysis. Helps identify code style inconsistencies, potential bugs, and maintainability issues in Swift codebases.",
+                                    "name": "github_get_lint_errors",
+                                    "description": f"Extract and return linting errors and code quality violations from GitHub Actions CI logs for {self.repo_name}. Parses GitHub Actions build output to extract linting violations, style issues, and code quality problems from various linters (SwiftLint, ESLint, Pylint, etc.). Helps identify code style inconsistencies, potential bugs, and maintainability issues across different programming languages.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {
@@ -369,11 +369,11 @@ class GitHubMCPWorker:
                     elif tool_name == "git_get_current_commit":
                         result = await execute_get_current_commit(self.repo_name)
                         
-                    elif tool_name == "github_read_swiftlint_logs":
+                    elif tool_name == "github_get_lint_errors":
                         build_id = tool_args.get("build_id")
                         result = await execute_read_swiftlint_logs(build_id)
                         
-                    elif tool_name == "github_read_build_logs":
+                    elif tool_name == "github_get_build_and_test_errors":
                         build_id = tool_args.get("build_id")
                         result = await execute_read_build_logs(build_id)
                         
