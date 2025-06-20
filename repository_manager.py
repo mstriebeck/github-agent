@@ -10,8 +10,9 @@ for the GitHub MCP server's URL-based routing system.
 import json
 import os
 import logging
+import time
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Callable
 from dataclasses import dataclass
 from git import Repo, InvalidGitRepositoryError
 
@@ -65,6 +66,10 @@ class RepositoryManager:
         
         self.repositories: Dict[str, RepositoryConfig] = {}
         self._fallback_repo: Optional[RepositoryConfig] = None
+        
+        # Hot reload support
+        self._last_modified: Optional[float] = None
+        self._reload_callbacks: List[Callable[[], None]] = []
         
     def load_configuration(self) -> bool:
         """
@@ -266,6 +271,93 @@ class RepositoryManager:
             json.dump(config_data, f, indent=2)
         
         self.logger.info(f"Created configuration file: {self.config_path}")
+    
+    def add_reload_callback(self, callback: Callable[[], None]) -> None:
+        """
+        Add a callback function to be called when configuration is reloaded
+        
+        Args:
+            callback: Function to call when configuration changes
+        """
+        self._reload_callbacks.append(callback)
+    
+    def check_for_config_changes(self) -> bool:
+        """
+        Check if configuration file has been modified and reload if necessary
+        
+        Returns:
+            True if configuration was reloaded, False otherwise
+        """
+        if not self.config_path.exists():
+            return False
+        
+        try:
+            current_modified = self.config_path.stat().st_mtime
+            
+            # Initialize on first check
+            if self._last_modified is None:
+                self._last_modified = current_modified
+                return False
+            
+            # Check if file was modified
+            if current_modified > self._last_modified:
+                self.logger.info(f"Configuration file changed, reloading: {self.config_path}")
+                
+                # Attempt to reload
+                old_repos = set(self.repositories.keys()) if self.repositories else set()
+                
+                if self.load_configuration():
+                    self._last_modified = current_modified
+                    
+                    new_repos = set(self.repositories.keys()) if self.repositories else set()
+                    added = new_repos - old_repos
+                    removed = old_repos - new_repos
+                    
+                    if added:
+                        self.logger.info(f"Added repositories: {list(added)}")
+                    if removed:
+                        self.logger.info(f"Removed repositories: {list(removed)}")
+                    
+                    # Notify callbacks
+                    for callback in self._reload_callbacks:
+                        try:
+                            callback()
+                        except Exception as e:
+                            self.logger.error(f"Error in reload callback: {e}")
+                    
+                    return True
+                else:
+                    self.logger.error("Failed to reload configuration, keeping previous version")
+                    # Reset modification time to avoid repeated reload attempts
+                    self._last_modified = current_modified
+            
+            return False
+            
+        except OSError as e:
+            self.logger.error(f"Error checking configuration file: {e}")
+            return False
+    
+    def start_watching_config(self, check_interval: float = 1.0) -> None:
+        """
+        Start watching configuration file for changes (for development/testing)
+        
+        Args:
+            check_interval: How often to check for changes in seconds
+        """
+        import threading
+        
+        def watch_loop():
+            while True:
+                try:
+                    self.check_for_config_changes()
+                    time.sleep(check_interval)
+                except Exception as e:
+                    self.logger.error(f"Error in config watcher: {e}")
+                    time.sleep(check_interval)
+        
+        thread = threading.Thread(target=watch_loop, daemon=True)
+        thread.start()
+        self.logger.info(f"Started watching configuration file: {self.config_path}")
 
 
 def extract_repo_name_from_url(url_path: str) -> Optional[str]:

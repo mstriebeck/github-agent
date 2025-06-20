@@ -966,6 +966,13 @@ async def startup_event():
             logger.info("Running in multi-repository mode")
         else:
             logger.info("Running in single-repository fallback mode")
+        
+        # Enable hot reload in development mode
+        if os.getenv("GITHUB_AGENT_DEV_MODE", "").lower() in ("true", "1", "yes"):
+            logger.info("Development mode enabled - starting configuration file watcher")
+            repo_manager.start_watching_config(check_interval=2.0)
+        else:
+            logger.info("Hot reload disabled (set GITHUB_AGENT_DEV_MODE=true to enable)")
     else:
         logger.error("Failed to load repository configuration")
         raise RuntimeError("Could not initialize repository configuration")
