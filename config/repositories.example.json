@@ -1,0 +1,16 @@
+{
+  "repositories": {
+    "my-project": {
+      "path": "/Users/bob/code/my-project",
+      "description": "Personal project repository"
+    },
+    "work-stuff": {
+      "path": "/Users/bob/work/complex-repository", 
+      "description": "Work-related code"
+    },
+    "github-agent": {
+      "path": "/Volumes/Code/github-agent",
+      "description": "GitHub MCP Agent"
+    }
+  }
+}

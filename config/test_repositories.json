@@ -1,0 +1,8 @@
+{
+  "repositories": {
+    "github-agent": {
+      "path": "/Volumes/Code/github-agent",
+      "description": "GitHub MCP Agent - Local Development"
+    }
+  }
+}
