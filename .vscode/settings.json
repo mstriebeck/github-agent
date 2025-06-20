@@ -3,5 +3,5 @@
     "github-mcp-server": {
       "url": "http://localhost:8081/mcp/"
     }
-  },
+  }
 }
