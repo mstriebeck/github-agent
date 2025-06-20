@@ -303,6 +303,34 @@ To migrate from the old single-port server:
 3. **Checkout the repository as the agent user**
 4. **Use the agent user's token** in `GITHUB_TOKEN` environment variable
 
+### Agent User NOT logged in user
+Often, the agent user won't be a real user and in particular, you won't be logged in as the agent user. In this case, we need to:
+
+1. **Create SSH keys for the agent user** 
+```bash
+ssh-keygen -t ed25519 -C "mark.striebeck+agent@gmail.com" -f ~/.ssh/id_mstriebeck_agent
+```
+2. **Upload the public SSH key of the agent user to GitHub**
+3. **Configure SSH for this repository**
+```bash
+# Edit ~/.ssh/config
+Host github-agent
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519_agent
+    IdentitiesOnly yes
+```
+4. **Update the repository's remote URL**
+```bash
+git remote set-url origin git@github-agent:mstriebeck/github-agent.git
+```
+5. **Set user.name and user.email to the agent user**
+6. **You can test the connection with**
+```bash
+ssh -T git@github-agent
+# Should show: Hi mstriebeck-agent! You've successfully authenticated...
+```
+
 **Critical:** The agent user must create the pull request, not the main user!
 
 ---
