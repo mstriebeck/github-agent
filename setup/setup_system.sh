@@ -72,17 +72,34 @@ check_python_version() {
 install_python_deps() {
     log_info "Installing Python dependencies..."
     
-    # Required packages for PR agent
-    PACKAGES=(
-        "mcp"
-        "pygithub"
-        "gitpython"
-        "requests"
-        "pydantic"
-        "python-dotenv"
-    )
+    # Check if requirements.txt exists
+    REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+    if [ -f "$REPO_ROOT/requirements.txt" ]; then
+        log_info "Installing from requirements.txt..."
+        REQUIREMENTS_FILE="$REPO_ROOT/requirements.txt"
+        USE_REQUIREMENTS_FILE=true
+    else
+        log_warning "requirements.txt not found, using manual package list"
+        # Required packages for PR agent
+        PACKAGES=(
+            "mcp"
+            "pygithub"
+            "gitpython"
+            "requests"
+            "pydantic"
+            "python-dotenv"
+            "fastapi"
+            "uvicorn"
+            "sqlmodel"
+        )
+        USE_REQUIREMENTS_FILE=false
+    fi
     
-    log_info "Installing required packages: ${PACKAGES[*]}"
+    if [ "$USE_REQUIREMENTS_FILE" = true ]; then
+        log_info "Installing from requirements.txt"
+    else
+        log_info "Installing required packages: ${PACKAGES[*]}"
+    fi
     
     # Check if we're in a virtual environment
     if [ -n "$VIRTUAL_ENV" ]; then
@@ -142,15 +159,21 @@ install_python_deps() {
     case $INSTALL_METHOD in
         "venv")
             # Already in virtual environment, proceed normally
-            for package in "${PACKAGES[@]}"; do
-                if $PYTHON_CMD -c "import ${package//-/_}" 2>/dev/null; then
-                    log_success "$package already installed"
-                else
-                    log_info "Installing $package..."
-                    $PIP_CMD install "$package"
-                    log_success "$package installed"
-                fi
-            done
+            if [ "$USE_REQUIREMENTS_FILE" = true ]; then
+                log_info "Installing from requirements.txt..."
+                $PIP_CMD install -r "$REQUIREMENTS_FILE"
+                log_success "Requirements installed from file"
+            else
+                for package in "${PACKAGES[@]}"; do
+                    if $PYTHON_CMD -c "import ${package//-/_}" 2>/dev/null; then
+                        log_success "$package already installed"
+                    else
+                        log_info "Installing $package..."
+                        $PIP_CMD install "$package"
+                        log_success "$package installed"
+                    fi
+                done
+            fi
             ;;
             
         "user")
@@ -323,17 +346,108 @@ check_required_files() {
     log_info "Checking required files..."
     
     REQUIRED_FILES=(
-        "github_mcp_server.py"
+        "github_mcp_master.py"
+        "github_mcp_worker.py"
+        "github_tools.py"
+        "repository_manager.py"
+        "repository_cli.py"
     )
     
     for file in "${REQUIRED_FILES[@]}"; do
-        if [ ! -f "$SCRIPT_DIR/$file" ]; then
+        if [ ! -f "$(dirname "$SCRIPT_DIR")/$file" ]; then
             log_error "Required file not found: $file"
-            log_error "Please ensure you have all agent files in the same directory as this script"
+            log_error "Please ensure you have all agent files in the repository root"
             exit 1
         fi
         log_success "Found $file"
     done
+}
+
+# Setup GitHub MCP multi-repository configuration
+setup_github_mcp() {
+    log_info "Setting up GitHub MCP multi-repository configuration..."
+    
+    REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+    
+    # Change to repository root for CLI operations
+    cd "$REPO_ROOT" || {
+        log_error "Could not change to repository root: $REPO_ROOT"
+        return 1
+    }
+    
+    # Use the correct Python command
+    local SETUP_PYTHON_CMD="$PYTHON_CMD"
+    if [ -n "$VENV_PYTHON_PATH" ]; then
+        SETUP_PYTHON_CMD="$VENV_PYTHON_PATH"
+    fi
+    
+    # Check if repositories.json already exists
+    if [ -f "repositories.json" ]; then
+        log_success "repositories.json already exists"
+        log_info "Checking current configuration..."
+        
+        if $SETUP_PYTHON_CMD repository_cli.py list >/dev/null 2>&1; then
+            log_success "Configuration is valid"
+            
+            # Check if ports are assigned
+            if $SETUP_PYTHON_CMD repository_cli.py list | grep -q "Port:"; then
+                log_success "Ports already assigned"
+            else
+                log_info "Assigning ports to repositories..."
+                $SETUP_PYTHON_CMD repository_cli.py assign-ports
+                log_success "Ports assigned"
+            fi
+            
+            # Setup VSCode configurations
+            log_info "Setting up VSCode configurations..."
+            $SETUP_PYTHON_CMD repository_cli.py setup-vscode
+        else
+            log_warning "Invalid configuration detected, creating new one..."
+            setup_initial_repository_config "$SETUP_PYTHON_CMD"
+        fi
+    else
+        log_info "Creating initial repository configuration..."
+        setup_initial_repository_config "$SETUP_PYTHON_CMD"
+    fi
+    
+    log_success "GitHub MCP configuration complete"
+}
+
+# Create initial repository configuration
+setup_initial_repository_config() {
+    local python_cmd="$1"
+    
+    # Initialize with example configuration
+    $python_cmd repository_cli.py init --example
+    
+    # Try to detect the current repository
+    if git rev-parse --git-dir >/dev/null 2>&1; then
+        repo_name=$(basename "$(git rev-parse --show-toplevel)")
+        repo_path="$(git rev-parse --show-toplevel)"
+        
+        log_info "Detected current repository: $repo_name at $repo_path"
+        log_info "Adding current repository to configuration..."
+        
+        # Remove example and add current repo
+        $python_cmd repository_cli.py remove example-repo 2>/dev/null || true
+        $python_cmd repository_cli.py add "$repo_name" "$repo_path" \
+            --description="$repo_name repository"
+        
+        log_success "Added $repo_name to configuration"
+    else
+        log_warning "Not in a git repository. Please manually add repositories using:"
+        log_warning "  python3 repository_cli.py add <name> <path> --description='<desc>'"
+    fi
+    
+    # Assign ports
+    log_info "Assigning ports to repositories..."
+    $python_cmd repository_cli.py assign-ports
+    
+    # Setup VSCode configurations
+    log_info "Setting up VSCode configurations..."
+    $python_cmd repository_cli.py setup-vscode
+    
+    log_success "Initial configuration complete"
 }
 
 # Run verification tests
@@ -373,7 +487,7 @@ run_verification() {
         TEST_PYTHON_CMD="$VENV_PYTHON_PATH"
     fi
     
-    if $TEST_PYTHON_CMD "$SCRIPT_DIR/setup/verify_imports.py" >/dev/null 2>&1; then
+    if $TEST_PYTHON_CMD "$SCRIPT_DIR/verify_imports.py" >/dev/null 2>&1; then
         log_success "PR agent server script verified"
     else
         log_error "PR agent server script test failed"
@@ -389,7 +503,7 @@ run_verification() {
 
 # Main setup function
 main() {
-    log_info "Starting PR Review Agent system setup..."
+    log_info "Starting GitHub MCP Multi-Repository setup..."
     echo
     
     check_required_files
@@ -397,23 +511,34 @@ main() {
     install_python_deps
     install_agents
     check_git
+    setup_github_mcp
     
     echo
     log_success "System setup completed!"
     echo
     log_info "Next steps:"
+    
+    REPO_ROOT="$(dirname "$SCRIPT_DIR")"
     if [ -n "$VENV_PYTHON_PATH" ]; then
         echo "1. Virtual environment created at: $(dirname "$VENV_PYTHON_PATH")"
-        echo "2. To start the PR Agent Server, first activate the virtual environment:"
+        echo "2. Set your GitHub token: export GITHUB_TOKEN=your_token_here"
+        echo "3. To start the multi-port server, activate the virtual environment:"
         echo "   source $(dirname "$VENV_PYTHON_PATH")/bin/activate"
-        echo "3. Then run: python $SCRIPT_DIR/github_mcp_server.py"
-        echo "4. Server will be available at http://localhost:8080"
+        echo "4. Change to repository directory: cd $REPO_ROOT"
+        echo "5. Start the master process: python3 github_mcp_master.py"
+        echo "6. Check status: python3 repository_cli.py status"
     else
-        echo "1. The system is now ready to use the PR Agent Server"
-        echo "2. To start the server: python $SCRIPT_DIR/github_mcp_server.py"
-        echo "3. Server will be available at http://localhost:8080"
-        echo "4. Use HTTP API or install as systemd service with install-services.sh"
+        echo "1. Set your GitHub token: export GITHUB_TOKEN=your_token_here"
+        echo "2. Change to repository directory: cd $REPO_ROOT"
+        echo "3. Start the master process: python3 github_mcp_master.py"
+        echo "4. Check status: python3 repository_cli.py status"
     fi
+    echo
+    log_info "Repository management:"
+    echo "- Add repositories: python3 repository_cli.py add <name> <path>"
+    echo "- List repositories: python3 repository_cli.py list"
+    echo "- Assign ports: python3 repository_cli.py assign-ports"
+    echo "- Setup VSCode: python3 repository_cli.py setup-vscode"
     echo
     
     run_verification

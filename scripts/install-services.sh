@@ -47,11 +47,21 @@ mkdir -p "$LOG_DIR"
 # Copy files
 echo "Copying service files..."
 # Remove existing files if they exist to avoid permission issues
-[ -f "$INSTALL_DIR/github_mcp_server.py" ] && rm -f "$INSTALL_DIR/github_mcp_server.py"
+[ -f "$INSTALL_DIR/github_mcp_master.py" ] && rm -f "$INSTALL_DIR/github_mcp_master.py"
+[ -f "$INSTALL_DIR/github_mcp_worker.py" ] && rm -f "$INSTALL_DIR/github_mcp_worker.py"
 [ -f "$INSTALL_DIR/requirements.txt" ] && rm -f "$INSTALL_DIR/requirements.txt"
-cp github_mcp_server.py "$INSTALL_DIR/"
+cp github_mcp_master.py "$INSTALL_DIR/"
+cp github_mcp_worker.py "$INSTALL_DIR/"
+cp github_tools.py "$INSTALL_DIR/"
 cp repository_manager.py "$INSTALL_DIR/"
+cp repository_cli.py "$INSTALL_DIR/"
 cp requirements.txt "$INSTALL_DIR/"
+
+# Copy configuration if it exists
+if [ -f "repositories.json" ]; then
+    echo "Copying repository configuration..."
+    cp repositories.json "$INSTALL_DIR/"
+fi
 
 # Copy .env if it exists, otherwise copy template
 if [ -f ".env" ]; then
@@ -70,6 +80,31 @@ cd "$INSTALL_DIR"
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+
+# Set up repository configuration
+echo "Setting up repository configuration..."
+if [ ! -f "repositories.json" ]; then
+    echo "Creating initial repository configuration..."
+    python repository_cli.py init --example
+    
+    # If we're in a git repository, try to add it
+    ORIGINAL_DIR="$(dirname "$(dirname "$0")")"
+    if [ -d "$ORIGINAL_DIR/.git" ]; then
+        REPO_NAME=$(basename "$ORIGINAL_DIR")
+        echo "Adding current repository: $REPO_NAME"
+        python repository_cli.py remove example-repo 2>/dev/null || true
+        python repository_cli.py add "$REPO_NAME" "$ORIGINAL_DIR" --description="$REPO_NAME repository"
+    fi
+    
+    # Assign ports
+    python repository_cli.py assign-ports
+    echo "Repository configuration created. Add more repositories with:"
+    echo "  $INSTALL_DIR/.venv/bin/python $INSTALL_DIR/repository_cli.py add <name> <path>"
+else
+    echo "Repository configuration already exists"
+    # Ensure ports are assigned
+    python repository_cli.py assign-ports 2>/dev/null || true
+fi
 
 # Set ownership (Linux only)
 if [[ "$USE_SYSTEMD" == true ]]; then
@@ -120,7 +155,7 @@ else
     <key>ProgramArguments</key>
     <array>
         <string>$INSTALL_DIR/.venv/bin/python</string>
-        <string>$INSTALL_DIR/github_mcp_server.py</string>
+        <string>$INSTALL_DIR/github_mcp_master.py</string>
     </array>
     <key>WorkingDirectory</key>
     <string>$INSTALL_DIR</string>
@@ -157,9 +192,9 @@ if [[ "$USE_SYSTEMD" == true ]]; then
     echo "  sudo journalctl -u pr-agent -f"
     echo "  tail -f $LOG_DIR/github_mcp_server.log"
 else
-    echo "To start the service (macOS):"
-    echo "  launchctl start com.mstriebeck.github_mcp_server"
-    echo "  (Service auto-starts on login)"
+    echo "Service management (macOS):"
+    echo "  Start: launchctl start com.mstriebeck.github_mcp_server"
+    echo "  (Service auto-starts on login and auto-restarts if it stops)"
     echo ""
     echo "To check status:"
     echo "  launchctl list | grep github_mcp_server"
@@ -167,15 +202,22 @@ else
     echo "To view logs:"
     echo "  tail -f $LOG_DIR/github_mcp_server.log"
     echo ""
-    echo "To stop the service:"
+    echo "To restart the service (temporary stop - will auto-restart):"
     echo "  launchctl stop com.mstriebeck.github_mcp_server"
     echo ""
-    echo "To unload the service:"
+    echo "To permanently stop the service:"
     echo "  launchctl unload ~/Library/LaunchAgents/com.mstriebeck.github_mcp_server.plist"
+    echo ""
+    echo "To reload the service:"
+    echo "  launchctl load ~/Library/LaunchAgents/com.mstriebeck.github_mcp_server.plist"
 fi
 
 echo ""
-echo "Server will be available at:"
-echo "  HTTP API: http://localhost:8080"
-echo "  Health check: http://localhost:8080/health"
-echo "  Status: http://localhost:8080/status"
+echo "Multi-port GitHub MCP Server will be available at:"
+echo "  Repository management: $INSTALL_DIR/.venv/bin/python $INSTALL_DIR/repository_cli.py"
+echo "  Add repositories: $INSTALL_DIR/.venv/bin/python $INSTALL_DIR/repository_cli.py add <name> <path>"
+echo "  Check status: $INSTALL_DIR/.venv/bin/python $INSTALL_DIR/repository_cli.py status"
+echo ""
+echo "Each repository will get its own port starting from 8081:"
+echo "  Repository 1: http://localhost:8081/mcp/ (health: http://localhost:8081/health)"
+echo "  Repository 2: http://localhost:8082/mcp/ (health: http://localhost:8082/health)"

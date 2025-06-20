@@ -239,6 +239,7 @@ class RepositoryManager:
             "name": repo_config.name,
             "path": repo_config.path,
             "description": repo_config.description,
+            "port": repo_config.port,
             "exists": os.path.exists(repo_config.path)
         }
     

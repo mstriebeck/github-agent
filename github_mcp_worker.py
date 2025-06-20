@@ -24,9 +24,9 @@ from fastapi.middleware.cors import CORSMiddleware
 import queue
 from datetime import datetime
 
-# Import shared functionality from the main server
+# Import shared functionality
 from repository_manager import RepositoryConfig, RepositoryManager
-from github_mcp_server import (
+from github_tools import (
     GitHubAPIContext,
     execute_find_pr_for_branch, execute_get_pr_comments, execute_post_pr_reply,
     execute_get_current_branch, execute_get_current_commit,
@@ -79,14 +79,14 @@ class GitHubMCPWorker:
     def _setup_repository_manager(self):
         """Set up a temporary repository manager for this worker's repository"""
         # Create a temporary in-memory repository manager with just this repository
-        import github_mcp_server
+        import github_tools
         
         # Create a minimal repository manager that only knows about this repo
         temp_repo_manager = RepositoryManager()
         temp_repo_manager.repositories = {self.repo_name: self.repo_config}
         
-        # Replace the global repository manager in the server module
-        github_mcp_server.repo_manager = temp_repo_manager
+        # Replace the global repository manager in the tools module
+        github_tools.repo_manager = temp_repo_manager
     
     def create_app(self) -> FastAPI:
         """Create FastAPI application for this worker"""

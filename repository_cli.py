@@ -25,11 +25,22 @@ from repository_manager import RepositoryManager, RepositoryConfig
 
 def get_default_config_path() -> Path:
     """Get the default configuration file path"""
+    # Priority order:
+    # 1. Environment variable
+    # 2. Local repositories.json file
+    # 3. System location
+    
     config_path = os.getenv("GITHUB_AGENT_REPO_CONFIG")
     if config_path:
         return Path(config_path)
-    else:
-        return Path.home() / ".local" / "share" / "github-agent" / "repositories.json"
+    
+    # Check for local repositories.json first
+    local_config = Path("repositories.json")
+    if local_config.exists():
+        return local_config
+    
+    # Fall back to system location
+    return Path.home() / ".local" / "share" / "github-agent" / "repositories.json"
 
 
 def load_or_create_config(config_path: Path) -> Dict[str, Any]:
@@ -89,11 +100,11 @@ def cmd_list(args):
                         print(f"     Description: {repo_info['description']}")
                     # Show URL based on whether repository has dedicated port
                     repo_config = manager.get_repository(repo_name)
-                    if repo_config and hasattr(repo_config, 'port') and repo_config.port:
+                    if repo_config and repo_config.port:
                         print(f"     Port: {repo_config.port}")
                         print(f"     URL: http://localhost:{repo_config.port}/mcp/")
                     else:
-                        print(f"     URL: http://localhost:8080/mcp/{repo_name}/")
+                        print(f"     URL: http://localhost:8080/mcp/{repo_name}/ (legacy single-port mode)")
                     print()
     else:
         print("Failed to load configuration. Check file format and permissions.")
@@ -297,6 +308,84 @@ def cmd_assign_ports(args):
         print("All repositories already have ports assigned.")
 
 
+def update_vscode_settings(repo_path: str, repo_name: str, port: int):
+    """Update .vscode/settings.json in a repository with MCP server configuration"""
+    try:
+        vscode_dir = Path(repo_path) / ".vscode"
+        settings_file = vscode_dir / "settings.json"
+        
+        # Create .vscode directory if it doesn't exist
+        vscode_dir.mkdir(exist_ok=True)
+        
+        # Load existing settings or create new ones
+        settings = {}
+        if settings_file.exists():
+            try:
+                with open(settings_file, 'r') as f:
+                    settings = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                print(f"Warning: Could not parse existing {settings_file}, creating new settings")
+                settings = {}
+        
+        # Ensure amp.mcpServers exists
+        if "amp.mcpServers" not in settings:
+            settings["amp.mcpServers"] = {}
+        
+        # Add or update the GitHub MCP server configuration
+        settings["amp.mcpServers"]["github-mcp-server"] = {
+            "url": f"http://localhost:{port}/mcp/"
+        }
+        
+        # Save settings
+        with open(settings_file, 'w') as f:
+            json.dump(settings, f, indent=2)
+        
+        print(f"  Updated .vscode/settings.json in {repo_name}")
+        return True
+        
+    except Exception as e:
+        print(f"  Warning: Could not update .vscode/settings.json in {repo_name}: {e}")
+        return False
+
+
+def cmd_setup_vscode(args):
+    """Set up VSCode settings for all configured repositories"""
+    config_path = get_default_config_path()
+    config_data = load_or_create_config(config_path)
+    
+    if not config_data["repositories"]:
+        print("No repositories configured.")
+        return
+    
+    print("Setting up VSCode MCP server configuration for all repositories...")
+    
+    success_count = 0
+    total_count = len(config_data["repositories"])
+    
+    for repo_name, repo_config in config_data["repositories"].items():
+        repo_path = repo_config.get("path")
+        repo_port = repo_config.get("port")
+        
+        if not repo_path:
+            print(f"  Skipping {repo_name}: no path configured")
+            continue
+            
+        if not repo_port:
+            print(f"  Skipping {repo_name}: no port assigned (run 'assign-ports' first)")
+            continue
+            
+        if not os.path.exists(repo_path):
+            print(f"  Skipping {repo_name}: path does not exist ({repo_path})")
+            continue
+        
+        if update_vscode_settings(repo_path, repo_name, repo_port):
+            success_count += 1
+    
+    print(f"\nVSCode setup complete: {success_count}/{total_count} repositories configured")
+    if success_count < total_count:
+        print("Some repositories were skipped - check the output above for details")
+
+
 def cmd_status(args):
     """Show status of master and worker processes"""
     try:
@@ -388,6 +477,10 @@ Examples:
     # Status command
     parser_status = subparsers.add_parser('status', help='Show status of master and worker processes')
     parser_status.set_defaults(func=cmd_status)
+    
+    # Setup VSCode command
+    parser_setup_vscode = subparsers.add_parser('setup-vscode', help='Configure .vscode/settings.json for all repositories')
+    parser_setup_vscode.set_defaults(func=cmd_setup_vscode)
     
     args = parser.parse_args()
     
