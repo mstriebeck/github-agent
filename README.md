@@ -298,7 +298,7 @@ To migrate from the old single-port server:
 
 **The code must be submitted by a different user (the "agent" user).** GitHub's API has limitations that prevent the PR author from replying to their own review comments.
 
-1. **Create a separate GitHub user** and invite them to your project
+1. **Create a separate GitHub user** and invite them to your project (and accept the invitation - Doh!)
 2. **Generate a classic GitHub token** (not fine-grained) with `repo` scope  
 3. **Checkout the repository as the agent user**
 4. **Use the agent user's token** in `GITHUB_TOKEN` environment variable
