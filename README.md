@@ -190,12 +190,14 @@ Logs are stored in `~/.local/share/github-agent/logs/`:
 
 Each repository provides these MCP tools:
 
-- **`get_current_branch`** - Get current Git branch name
-- **`get_current_commit`** - Get current commit information  
-- **`find_pr_for_branch`** - Find PR associated with a branch
-- **`get_pr_comments`** - Get all comments from a PR
-- **`post_pr_reply`** - Reply to a PR comment
-- **`read_build_logs`** - Read Swift compiler errors, warnings, and test failures
+- **`git_get_current_branch`** - Get current Git branch name
+- **`git_get_current_commit`** - Get current commit information  
+- **`github_find_pr_for_branch`** - Find PR associated with a branch
+- **`github_get_pr_comments`** - Get all comments from a PR
+- **`github_post_pr_reply`** - Reply to a PR comment
+- **`github_get_build_status`** - Get CI/CD build status for commits
+- **`github_get_lint_errors`** - Extract linting errors from CI logs
+- **`github_get_build_and_test_errors`** - Extract build errors, warnings, and test failures
 
 ---
 
