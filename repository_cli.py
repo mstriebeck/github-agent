@@ -87,7 +87,13 @@ def cmd_list(args):
                     print(f"     Path: {repo_info['path']}")
                     if repo_info["description"]:
                         print(f"     Description: {repo_info['description']}")
-                    print(f"     URL: http://localhost:8080/mcp/{repo_name}/")
+                    # Show URL based on whether repository has dedicated port
+                    repo_config = manager.get_repository(repo_name)
+                    if repo_config and hasattr(repo_config, 'port') and repo_config.port:
+                        print(f"     Port: {repo_config.port}")
+                        print(f"     URL: http://localhost:{repo_config.port}/mcp/")
+                    else:
+                        print(f"     URL: http://localhost:8080/mcp/{repo_name}/")
                     print()
     else:
         print("Failed to load configuration. Check file format and permissions.")
@@ -262,6 +268,74 @@ def cmd_init(args):
         print("2. Run 'repository_cli.py list' to see your repositories")
 
 
+def cmd_assign_ports(args):
+    """Assign ports to repositories for multi-port architecture"""
+    config_path = get_default_config_path()
+    config_data = load_or_create_config(config_path)
+    
+    if not config_data["repositories"]:
+        print("No repositories configured.")
+        return
+    
+    # Auto-assign ports starting from 8081
+    next_port = args.start_port
+    assigned_ports = []
+    
+    for repo_name, repo_config in config_data["repositories"].items():
+        if "port" not in repo_config or repo_config["port"] is None:
+            repo_config["port"] = next_port
+            assigned_ports.append((repo_name, next_port))
+            next_port += 1
+    
+    if assigned_ports:
+        save_config(config_path, config_data)
+        print("Assigned ports to repositories:")
+        for repo_name, port in assigned_ports:
+            print(f"  {repo_name}: port {port} -> http://localhost:{port}/mcp/")
+        print(f"\nConfiguration updated in {config_path}")
+    else:
+        print("All repositories already have ports assigned.")
+
+
+def cmd_status(args):
+    """Show status of master and worker processes"""
+    try:
+        import subprocess
+        import json
+        
+        # Try to get status from master process
+        result = subprocess.run(
+            ["python3", "github_mcp_master.py", "status"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode == 0:
+            status = json.loads(result.stdout)
+            print("GitHub MCP Multi-Port Status:")
+            print(f"Master running: {status['master']['running']}")
+            print(f"Workers: {status['master']['workers_count']}")
+            print()
+            
+            for repo_name, worker_info in status['workers'].items():
+                status_icon = "🟢" if worker_info['running'] else "🔴"
+                print(f"{status_icon} {repo_name} (port {worker_info['port']})")
+                print(f"   Path: {worker_info['path']}")
+                print(f"   Endpoint: {worker_info['endpoint']}")
+                if worker_info['running']:
+                    print(f"   PID: {worker_info['pid']}")
+                    print(f"   Restarts: {worker_info['restart_count']}")
+                print()
+        else:
+            print("Master process not running or not responding.")
+            print("Use 'python github_mcp_master.py' to start.")
+            
+    except Exception as e:
+        print(f"Error getting status: {e}")
+        print("Make sure the master process is installed and accessible.")
+
+
 def main():
     """Main CLI entry point"""
     parser = argparse.ArgumentParser(
@@ -305,6 +379,15 @@ Examples:
     parser_init.add_argument('--example', action='store_true', help='Create example configuration')
     parser_init.add_argument('--force', action='store_true', help='Overwrite existing configuration')
     parser_init.set_defaults(func=cmd_init)
+    
+    # Assign ports command
+    parser_assign_ports = subparsers.add_parser('assign-ports', help='Assign ports to repositories for multi-port architecture')
+    parser_assign_ports.add_argument('--start-port', type=int, default=8081, help='Starting port number (default: 8081)')
+    parser_assign_ports.set_defaults(func=cmd_assign_ports)
+    
+    # Status command
+    parser_status = subparsers.add_parser('status', help='Show status of master and worker processes')
+    parser_status.set_defaults(func=cmd_status)
     
     args = parser.parse_args()
     

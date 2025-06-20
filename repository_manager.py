@@ -23,6 +23,7 @@ class RepositoryConfig:
     name: str
     path: str
     description: str
+    port: Optional[int] = None
     
     def __post_init__(self):
         """Validate configuration after initialization"""
@@ -121,7 +122,8 @@ class RepositoryManager:
             repo_config = RepositoryConfig(
                 name=name,
                 path=repo_data["path"],
-                description=repo_data.get("description", "")
+                description=repo_data.get("description", ""),
+                port=repo_data.get("port")
             )
             
             self.repositories[name] = repo_config

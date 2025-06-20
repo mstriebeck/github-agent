@@ -50,6 +50,7 @@ echo "Copying service files..."
 [ -f "$INSTALL_DIR/github_mcp_server.py" ] && rm -f "$INSTALL_DIR/github_mcp_server.py"
 [ -f "$INSTALL_DIR/requirements.txt" ] && rm -f "$INSTALL_DIR/requirements.txt"
 cp github_mcp_server.py "$INSTALL_DIR/"
+cp repository_manager.py "$INSTALL_DIR/"
 cp requirements.txt "$INSTALL_DIR/"
 
 # Copy .env if it exists, otherwise copy template
