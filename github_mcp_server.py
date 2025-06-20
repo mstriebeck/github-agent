@@ -927,6 +927,14 @@ async def mcp_post_endpoint(repo_name: str, request: Request):
             elif tool_name == "get_current_commit":
                 result = await execute_get_current_commit(repo_name)
                 
+            elif tool_name == "read_swiftlint_logs":
+                build_id = tool_args.get("build_id")
+                result = await execute_read_swiftlint_logs(build_id)
+                
+            elif tool_name == "read_build_logs":
+                build_id = tool_args.get("build_id")
+                result = await execute_read_build_logs(build_id)
+                
             else:
                 result = json.dumps({"error": f"Tool '{tool_name}' not implemented yet"})
             
