@@ -17,9 +17,8 @@ import json
 import logging
 import argparse
 import sys
-from typing import Optional
 from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import queue
 from datetime import datetime
@@ -30,7 +29,7 @@ from github_tools import (
     GitHubAPIContext,
     execute_find_pr_for_branch, execute_get_pr_comments, execute_post_pr_reply,
     execute_get_current_branch, execute_get_current_commit,
-    execute_read_swiftlint_logs, execute_read_build_logs
+    execute_read_swiftlint_logs, execute_read_build_logs, execute_get_build_status
 )
 
 class GitHubMCPWorker:
@@ -203,7 +202,8 @@ class GitHubMCPWorker:
                             },
                             "serverInfo": {
                                 "name": f"github-pr-agent-{self.repo_name}",
-                                "version": "2.0.0"
+                                "version": "2.0.0",
+                                "description": f"GitHub Pull Request management, code review, CI/CD build analysis, and Git repository tools for {self.repo_name}. Provides GitHub API integration, Swift build log parsing, SwiftLint analysis, PR comment management, and local Git operations."
                             }
                         }
                     }
@@ -222,8 +222,8 @@ class GitHubMCPWorker:
                         "result": {
                             "tools": [
                                 {
-                                    "name": "get_current_commit",
-                                    "description": f"Get current commit information for {self.repo_name}",
+                                    "name": "git_get_current_commit",
+                                    "description": f"Get current local commit SHA, message, author and timestamp from the Git repository at {self.repo_path}. Shows the HEAD commit details including hash, commit message, author, and date. Local Git operation, no network required.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {},
@@ -231,8 +231,8 @@ class GitHubMCPWorker:
                                     }
                                 },
                                 {
-                                    "name": "get_current_branch",
-                                    "description": f"Get current Git branch name for {self.repo_name}",
+                                    "name": "git_get_current_branch",
+                                    "description": f"Get the currently checked out Git branch name from the local repository at {self.repo_path}. Returns the active branch that would be used for new commits. Local Git operation, no network required.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {},
@@ -240,60 +240,88 @@ class GitHubMCPWorker:
                                     }
                                 },
                                 {
-                                    "name": "find_pr_for_branch",
-                                    "description": f"Find the PR associated with a branch in {self.repo_name}",
+                                    "name": "github_find_pr_for_branch",
+                                    "description": f"Find and retrieve the GitHub Pull Request associated with a specific branch in {self.repo_name}. Searches GitHub API for open PRs that have the specified branch as their head branch. Returns PR details including number, title, URL, status, and merge information. Useful for connecting local branches to GitHub PRs.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {
                                             "branch_name": {
                                                 "type": "string",
-                                                "description": "Branch name to search for"
+                                                "description": "Git branch name to search for (e.g., 'feature/new-login', 'main', 'develop')"
                                             }
                                         },
                                         "required": ["branch_name"]
                                     }
                                 },
                                 {
-                                    "name": "get_pr_comments",
-                                    "description": f"Get all comments from a PR in {self.repo_name}",
+                                    "name": "github_get_pr_comments",
+                                    "description": f"Retrieve all review comments, issue comments, and discussion threads from a GitHub Pull Request in {self.repo_name}. Uses GitHub API to fetch comments with author, timestamp, content, and reply status. Essential for finding unanswered code review comments that need responses, tracking discussion threads, and understanding PR feedback.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {
                                             "pr_number": {
                                                 "type": "integer",
-                                                "description": "PR number"
+                                                "description": "GitHub Pull Request number (e.g., 123 for PR #123)"
                                             }
                                         },
                                         "required": ["pr_number"]
                                     }
                                 },
                                 {
-                                    "name": "post_pr_reply",
-                                    "description": f"Reply to a PR comment in {self.repo_name}",
+                                    "name": "github_post_pr_reply",
+                                    "description": f"Post a reply to a specific comment in a GitHub Pull Request for {self.repo_name}. Uses GitHub API to create a threaded response to review comments or general PR discussion comments. Supports GitHub Markdown formatting for rich text responses.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {
                                             "comment_id": {
                                                 "type": "integer",
-                                                "description": "ID of the comment to reply to"
+                                                "description": "GitHub comment ID to reply to (found in comment URLs or from github_get_pr_comments)"
                                             },
                                             "message": {
                                                 "type": "string",
-                                                "description": "Reply message content"
+                                                "description": "Reply message content (supports GitHub Markdown formatting)"
                                             }
                                         },
                                         "required": ["comment_id", "message"]
                                     }
                                 },
                                 {
-                                    "name": "read_build_logs",
-                                    "description": "Read build logs for Swift compiler errors, warnings, and test failures",
+                                    "name": "github_read_build_logs",
+                                    "description": f"Read continuous integration build logs from GitHub Actions for {self.repo_name}. Analyzes CI/CD pipeline results, extracts Swift compiler errors, warnings, test failures, and other build issues from the latest GitHub Actions run. Essential for debugging failing builds, understanding test failures, and identifying compilation problems in Swift projects.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {
                                             "build_id": {
                                                 "type": "string",
-                                                "description": "Build ID (optional, uses latest for current commit if not specified)"
+                                                "description": "Specific GitHub Actions run ID (optional - if not provided, uses the latest run for the current commit)"
+                                            }
+                                        },
+                                        "required": []
+                                    }
+                                },
+                                {
+                                    "name": "github_read_swiftlint_logs",
+                                    "description": f"Read SwiftLint code style and quality warnings from GitHub Actions CI logs for {self.repo_name}. Parses GitHub Actions build output to extract linting violations, style issues, and code quality problems from SwiftLint analysis. Helps identify code style inconsistencies, potential bugs, and maintainability issues in Swift codebases.",
+                                    "inputSchema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "build_id": {
+                                                "type": "string",
+                                                "description": "Specific GitHub Actions run ID (optional - if not provided, uses the latest run for the current commit)"
+                                            }
+                                        },
+                                        "required": []
+                                    }
+                                },
+                                {
+                                    "name": "github_get_build_status",
+                                    "description": f"Get comprehensive CI/CD build status and check results for a commit in {self.repo_name}. Retrieves GitHub Actions workflow status, check runs, and build conclusions from GitHub API. Shows overall build state (success/failure/pending/in_progress), individual check run details, and failure indicators. Essential for monitoring build health, understanding CI pipeline status, and identifying failing checks.",
+                                    "inputSchema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "commit_sha": {
+                                                "type": "string",
+                                                "description": "Git commit SHA to check build status for (optional - if not provided, uses the current HEAD commit)"
                                             }
                                         },
                                         "required": []
@@ -313,21 +341,21 @@ class GitHubMCPWorker:
                     self.logger.info(f"Tool call '{tool_name}' with args: {tool_args}")
                     
                     # Execute tools (all calls pass self.repo_name as the repo context)
-                    if tool_name == "find_pr_for_branch":
+                    if tool_name == "github_find_pr_for_branch":
                         branch_name = tool_args.get("branch_name")
                         if not branch_name:
                             result = json.dumps({"error": "branch_name is required"})
                         else:
                             result = await execute_find_pr_for_branch(self.repo_name, branch_name)
                             
-                    elif tool_name == "get_pr_comments":
+                    elif tool_name == "github_get_pr_comments":
                         pr_number = tool_args.get("pr_number")
                         if not pr_number:
                             result = json.dumps({"error": "pr_number is required"})
                         else:
                             result = await execute_get_pr_comments(self.repo_name, pr_number)
                             
-                    elif tool_name == "post_pr_reply":
+                    elif tool_name == "github_post_pr_reply":
                         comment_id = tool_args.get("comment_id")
                         message = tool_args.get("message")
                         if not comment_id or not message:
@@ -335,19 +363,23 @@ class GitHubMCPWorker:
                         else:
                             result = await execute_post_pr_reply(self.repo_name, comment_id, message)
                             
-                    elif tool_name == "get_current_branch":
+                    elif tool_name == "git_get_current_branch":
                         result = await execute_get_current_branch(self.repo_name)
                         
-                    elif tool_name == "get_current_commit":
+                    elif tool_name == "git_get_current_commit":
                         result = await execute_get_current_commit(self.repo_name)
                         
-                    elif tool_name == "read_swiftlint_logs":
+                    elif tool_name == "github_read_swiftlint_logs":
                         build_id = tool_args.get("build_id")
                         result = await execute_read_swiftlint_logs(build_id)
                         
-                    elif tool_name == "read_build_logs":
+                    elif tool_name == "github_read_build_logs":
                         build_id = tool_args.get("build_id")
                         result = await execute_read_build_logs(build_id)
+                        
+                    elif tool_name == "github_get_build_status":
+                        commit_sha = tool_args.get("commit_sha")
+                        result = await execute_get_build_status(self.repo_name, commit_sha)
                         
                     else:
                         result = json.dumps({"error": f"Tool '{tool_name}' not implemented"})
