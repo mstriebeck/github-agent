@@ -19,7 +19,9 @@ import signal
 import logging
 import subprocess
 import time
-from typing import Dict, List, Optional
+import socket
+import traceback
+from typing import Dict, Optional
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -48,6 +50,29 @@ class WorkerProcess:
     start_time: Optional[float] = None
     restart_count: int = 0
     max_restarts: int = 5
+
+def is_port_free(port: int) -> bool:
+    """Check if a port is available for binding"""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(('0.0.0.0', port))
+            return True
+    except OSError:
+        return False
+
+async def wait_for_port_free(port: int, timeout: int = 30) -> bool:
+    """Wait for a port to become available, with timeout"""
+    logger.debug(f"Waiting for port {port} to become available...")
+    start_time = time.time()
+    
+    while time.time() - start_time < timeout:
+        if is_port_free(port):
+            logger.debug(f"Port {port} is now available")
+            return True
+        await asyncio.sleep(0.5)  # Check every 500ms
+    
+    logger.error(f"Timeout waiting for port {port} to become available after {timeout}s")
+    return False
 
 class GitHubMCPMaster:
     """Master process for managing multiple MCP worker processes"""
@@ -142,8 +167,12 @@ class GitHubMCPMaster:
                 return True
             
             # Command to start worker process
+            # Use the virtual environment Python explicitly
+            venv_python = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.venv', 'bin', 'python')
+            python_executable = venv_python if os.path.exists(venv_python) else sys.executable
+            
             cmd = [
-                sys.executable, 
+                python_executable, 
                 "github_mcp_worker.py",
                 "--repo-name", worker.repo_name,
                 "--repo-path", worker.path,
@@ -154,6 +183,11 @@ class GitHubMCPMaster:
             # Set up environment
             env = os.environ.copy()
             env['PYTHONPATH'] = os.getcwd()
+            
+            # Check if port is available before starting
+            if not is_port_free(worker.port):
+                logger.error(f"Port {worker.port} is not available for {worker.repo_name}")
+                return False
             
             # Start the process
             worker.process = subprocess.Popen(
@@ -173,40 +207,82 @@ class GitHubMCPMaster:
             logger.error(f"Failed to start worker for {worker.repo_name}: {e}")
             return False
     
-    def stop_worker(self, worker: WorkerProcess) -> bool:
-        """Stop a worker process"""
+    def stop_worker(self, worker: WorkerProcess, timeout: int = 5) -> bool:
+        """Stop a worker process with timeout"""
+        logger.debug(f"stop_worker called for {worker.repo_name} with timeout {timeout}")
         try:
-            if not worker.process or worker.process.poll() is not None:
-                logger.info(f"Worker for {worker.repo_name} is not running")
+            logger.debug(f"Checking if worker {worker.repo_name} is running...")
+            logger.debug(f"worker.process: {worker.process}")
+            
+            if not worker.process:
+                logger.info(f"Worker for {worker.repo_name} has no process object")
+                return True
+                
+            poll_result = worker.process.poll()
+            logger.debug(f"worker.process.poll() returned: {poll_result}")
+            
+            if poll_result is not None:
+                logger.info(f"Worker for {worker.repo_name} is not running (exit code: {poll_result})")
+                worker.process = None
                 return True
             
-            # Send SIGTERM for graceful shutdown
-            worker.process.terminate()
+            pid = worker.process.pid
+            logger.debug(f"About to stop worker for {worker.repo_name} (PID: {pid})")
             
-            # Wait for graceful shutdown
+            # Send SIGTERM for graceful shutdown
+            logger.debug(f"Sending SIGTERM to worker {worker.repo_name} (PID: {pid})")
+            worker.process.terminate()
+            logger.debug(f"SIGTERM sent to worker {worker.repo_name}")
+            
+            # Wait for graceful shutdown with timeout
+            logger.debug(f"Waiting up to {timeout}s for worker {worker.repo_name} to stop gracefully...")
             try:
-                worker.process.wait(timeout=10)
+                worker.process.wait(timeout=timeout)
                 logger.info(f"Worker for {worker.repo_name} stopped gracefully")
+                logger.debug(f"Final poll after graceful stop: {worker.process.poll()}")
             except subprocess.TimeoutExpired:
                 # Force kill if doesn't respond
+                logger.warning(f"Worker for {worker.repo_name} didn't respond to SIGTERM within {timeout}s, force killing")
+                logger.debug(f"Sending SIGKILL to worker {worker.repo_name} (PID: {pid})")
                 worker.process.kill()
-                worker.process.wait()
-                logger.warning(f"Worker for {worker.repo_name} force killed")
+                logger.debug(f"SIGKILL sent to worker {worker.repo_name}")
+                try:
+                    logger.debug(f"Waiting up to 2s for force kill to complete...")
+                    worker.process.wait(timeout=2)
+                    logger.debug(f"Force kill completed for worker {worker.repo_name}")
+                except subprocess.TimeoutExpired:
+                    logger.error(f"Worker for {worker.repo_name} couldn't be killed even with SIGKILL")
+                    return False
             
+            logger.debug(f"Setting worker.process = None for {worker.repo_name}")
             worker.process = None
+            logger.debug(f"Worker for {worker.repo_name} stopped successfully")
             return True
             
         except Exception as e:
-            logger.error(f"Failed to stop worker for {worker.repo_name}: {e}")
+            logger.error(f"Exception in stop_worker for {worker.repo_name}: {e}")
+            logger.error(f"stop_worker exception traceback: {traceback.format_exc()}")
             return False
     
     def is_worker_healthy(self, worker: WorkerProcess) -> bool:
         """Check if a worker process is healthy"""
         if not worker.process:
+            logger.debug(f"Worker for {worker.repo_name} has no process")
             return False
         
         # Check if process is still alive
-        if worker.process.poll() is not None:
+        poll_result = worker.process.poll()
+        if poll_result is not None:
+            logger.warning(f"Worker for {worker.repo_name} is not running (exit code: {poll_result})")
+            # Log any output from the failed process
+            try:
+                stdout, stderr = worker.process.communicate(timeout=1)
+                if stdout:
+                    logger.error(f"Worker {worker.repo_name} STDOUT: {stdout.decode()}")
+                if stderr:
+                    logger.error(f"Worker {worker.repo_name} STDERR: {stderr.decode()}")
+            except Exception as e:
+                logger.debug(f"Failed to read worker output: {e}")
             return False
         
         # TODO: Add health check HTTP endpoint call
@@ -215,41 +291,62 @@ class GitHubMCPMaster:
     
     async def monitor_workers(self):
         """Monitor worker processes and restart if needed"""
-        while self.running:
-            try:
-                for repo_name, worker in self.workers.items():
-                    if not self.is_worker_healthy(worker):
-                        if worker.restart_count < worker.max_restarts:
-                            logger.warning(f"Worker for {repo_name} is unhealthy, restarting...")
-                            self.stop_worker(worker)
-                            
-                            # Wait a bit before restarting
-                            await asyncio.sleep(2)
-                            
-                            if self.start_worker(worker):
-                                worker.restart_count += 1
-                                logger.info(f"Restarted worker for {repo_name} (restart count: {worker.restart_count})")
+        logger.debug("Worker monitoring task started")
+        try:
+            while self.running:
+                try:
+                    for repo_name, worker in self.workers.items():
+                        if not self.is_worker_healthy(worker):
+                            if worker.restart_count < worker.max_restarts:
+                                logger.warning(f"Worker for {repo_name} is unhealthy, restarting...")
+                                self.stop_worker(worker)
+                                
+                                # Wait for port to be properly released before restarting
+                                logger.debug(f"Waiting for port {worker.port} to be released...")
+                                port_available = await wait_for_port_free(worker.port, timeout=15)
+                                if not port_available:
+                                    logger.error(f"Port {worker.port} still not available after 15s, skipping restart for {repo_name}")
+                                    continue
+                                
+                                if self.start_worker(worker):
+                                    worker.restart_count += 1
+                                    logger.info(f"Restarted worker for {repo_name} (restart count: {worker.restart_count})")
+                                else:
+                                    logger.error(f"Failed to restart worker for {repo_name}")
                             else:
-                                logger.error(f"Failed to restart worker for {repo_name}")
-                        else:
-                            logger.error(f"Worker for {repo_name} exceeded max restarts ({worker.max_restarts})")
-                
-                # Check every 30 seconds
-                await asyncio.sleep(30)
-                
-            except Exception as e:
-                logger.error(f"Error in worker monitoring: {e}")
-                await asyncio.sleep(5)
+                                logger.error(f"Worker for {repo_name} exceeded max restarts ({worker.max_restarts})")
+                    
+                    # Sleep in smaller chunks to allow for faster cancellation
+                    for _ in range(30):  # 30 seconds total, 1 second chunks
+                        if not self.running:
+                            break
+                        await asyncio.sleep(1)
+                    
+                except Exception as e:
+                    logger.error(f"Error in worker monitoring: {e}")
+                    await asyncio.sleep(5)
+        finally:
+            logger.debug("Worker monitoring task ending")
     
     def signal_handler(self, signum, frame):
-        """Handle shutdown signals"""
-        logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+        """Handle shutdown signals - minimal implementation to avoid signal handler issues"""
+        # Avoid complex operations in signal handler - just set flags
         self.running = False
-        self.shutdown_event.set()
+        # Use call_soon_threadsafe to safely signal from signal handler context
+        try:
+            self.loop.call_soon_threadsafe(self.shutdown_event.set)
+            # Only log after setting up the shutdown to avoid hanging in signal handler
+            self.loop.call_soon_threadsafe(logger.info, f"Received signal {signum}, initiating graceful shutdown...")
+        except Exception:
+            # If we can't use the loop, fall back to direct call (might be unsafe but better than hanging)
+            self.shutdown_event.set()
     
     async def start(self):
         """Start the master process"""
         logger.info("Starting GitHub MCP Master Process")
+        
+        # Store loop reference for signal handler
+        self.loop = asyncio.get_running_loop()
         
         # Load configuration
         if not self.load_configuration():
@@ -285,18 +382,111 @@ class GitHubMCPMaster:
                 logger.info(f"  - {repo_name}: http://localhost:{worker.port}/mcp/")
         
         # Wait for shutdown signal
-        await self.shutdown_event.wait()
+        logger.debug("About to wait for shutdown signal...")
+        logger.debug(f"shutdown_event state before wait: {self.shutdown_event.is_set()}")
         
-        # Cancel monitoring
-        monitor_task.cancel()
+        try:
+            logger.debug("Calling await self.shutdown_event.wait()...")
+            await self.shutdown_event.wait()
+            logger.debug("shutdown_event.wait() returned successfully")
+        except Exception as e:
+            logger.error(f"Exception in shutdown_event.wait(): {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return False
         
-        # Stop all workers
-        logger.info("Stopping all workers...")
-        for repo_name, worker in self.workers.items():
-            self.stop_worker(worker)
+        logger.info("Shutdown signal received, beginning shutdown process...")
+        logger.debug(f"self.running is now: {self.running}")
+        logger.debug(f"shutdown_event.is_set() is now: {self.shutdown_event.is_set()}")
         
-        logger.info("GitHub MCP Master Process shutdown complete")
-        return True
+        try:
+            # Cancel monitoring
+            logger.info("About to cancel worker monitoring task...")
+            logger.debug(f"monitor_task object: {monitor_task}")
+            logger.debug(f"monitor_task.cancelled(): {monitor_task.cancelled() if hasattr(monitor_task, 'cancelled') else 'N/A'}")
+            logger.debug(f"monitor_task.done(): {monitor_task.done() if hasattr(monitor_task, 'done') else 'N/A'}")
+            
+            logger.debug("Calling monitor_task.cancel()...")
+            monitor_task.cancel()
+            logger.debug("monitor_task.cancel() completed")
+            logger.debug(f"monitor_task.cancelled() after cancel(): {monitor_task.cancelled()}")
+            
+            logger.debug("About to await monitor_task...")
+            try:
+                await monitor_task
+                logger.debug("await monitor_task completed normally")
+            except asyncio.CancelledError:
+                logger.debug("Monitor task cancelled successfully (CancelledError caught)")
+            except Exception as e:
+                logger.error(f"Unexpected error awaiting monitor task: {e}")
+                logger.error(f"Monitor task exception traceback: {traceback.format_exc()}")
+            
+            logger.info("Monitor task cancellation complete, proceeding to stop workers")
+            
+            # Stop all workers in parallel to avoid race conditions
+            logger.info("About to stop all workers in parallel...")
+            logger.debug(f"Number of workers to stop: {len(self.workers)}")
+            
+            async def stop_worker_with_timeout(repo_name, worker, timeout=5):
+                """Stop a worker with overall timeout"""
+                try:
+                    logger.info(f"About to stop worker for {repo_name}...")
+                    logger.debug(f"Worker {repo_name} - PID: {worker.process.pid if worker.process else 'None'}")
+                    logger.debug(f"Worker {repo_name} - Port: {worker.port}")
+                    
+                    # Wrap the stop_worker call in asyncio.wait_for for timeout
+                    def sync_stop_worker():
+                        return self.stop_worker(worker, timeout=3)
+                    
+                    # Run in thread pool to avoid blocking
+                    success = await asyncio.wait_for(
+                        asyncio.get_event_loop().run_in_executor(None, sync_stop_worker),
+                        timeout=timeout
+                    )
+                    
+                    logger.debug(f"stop_worker returned: {success} for {repo_name}")
+                    if success:
+                        logger.info(f"Successfully stopped worker for {repo_name}")
+                    else:
+                        logger.error(f"Failed to stop worker for {repo_name}")
+                    return success
+                    
+                except asyncio.TimeoutError:
+                    logger.error(f"Timeout stopping worker for {repo_name} after {timeout}s")
+                    # Force kill if timeout
+                    if worker.process:
+                        try:
+                            logger.warning(f"Force killing hung worker {repo_name} (PID: {worker.process.pid})")
+                            worker.process.kill()
+                            worker.process = None
+                        except Exception as e:
+                            logger.error(f"Failed to force kill worker {repo_name}: {e}")
+                    return False
+                except Exception as e:
+                    logger.error(f"Exception stopping worker for {repo_name}: {e}")
+                    logger.error(f"Worker stop exception traceback: {traceback.format_exc()}")
+                    return False
+            
+            # Stop all workers concurrently
+            stop_tasks = [
+                stop_worker_with_timeout(repo_name, worker)
+                for repo_name, worker in self.workers.items()
+            ]
+            
+            if stop_tasks:
+                logger.debug(f"Starting {len(stop_tasks)} concurrent stop tasks...")
+                results = await asyncio.gather(*stop_tasks, return_exceptions=True)
+                logger.debug(f"All stop tasks completed with results: {results}")
+            else:
+                logger.debug("No workers to stop")
+            
+            logger.info("All workers stop attempts completed")
+            logger.info("GitHub MCP Master Process shutdown complete")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Critical error during shutdown: {e}")
+            logger.error(f"Critical error traceback: {traceback.format_exc()}")
+            return False
     
     def status(self) -> Dict:
         """Get status of all workers"""

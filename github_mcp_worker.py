@@ -36,6 +36,8 @@ class GitHubMCPWorker:
     """Worker process for handling a single repository"""
     
     def __init__(self, repo_name: str, repo_path: str, port: int, description: str):
+        print(f"[WORKER INIT] Starting initialization for {repo_name}")  # Use print for immediate output
+        
         self.repo_name = repo_name
         self.repo_path = repo_path
         self.port = port
@@ -47,45 +49,116 @@ class GitHubMCPWorker:
         log_dir.mkdir(parents=True, exist_ok=True)
         
         self.logger = logging.getLogger(f"worker-{repo_name}")
-        handler = logging.FileHandler(log_dir / f'{repo_name}.log')
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        self.logger.addHandler(handler)
-        self.logger.setLevel(logging.INFO)
         
-        # Create repository configuration
-        self.repo_config = RepositoryConfig(
-            name=repo_name,
-            path=repo_path,
-            description=description
-        )
+        # Add console handler for immediate feedback
+        console_handler = logging.StreamHandler()
+        console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        console_handler.setFormatter(console_formatter)
+        self.logger.addHandler(console_handler)
         
-        # Create GitHub context
-        self.github_context = GitHubAPIContext(self.repo_config)
+        # Add file handler
+        file_handler = logging.FileHandler(log_dir / f'{repo_name}.log')
+        file_handler.setFormatter(console_formatter)
+        self.logger.addHandler(file_handler)
         
-        # Set up temporary repository manager for this worker
-        # This allows the shared tool functions to work with this repository
-        self._setup_repository_manager()
+        self.logger.setLevel(logging.DEBUG)  # Use DEBUG level for more visibility
         
+        self.logger.info(f"Worker initializing for {repo_name} on port {port}")
+        self.logger.info(f"Repository path: {repo_path}")
+        self.logger.info(f"Log directory: {log_dir}")
+        
+        # Validate repository path early
+        if not os.path.exists(repo_path):
+            self.logger.error(f"Repository path {repo_path} does not exist!")
+            raise ValueError(f"Repository path {repo_path} does not exist")
+        
+        self.logger.debug("Creating repository configuration...")
+        try:
+            # Create repository configuration
+            self.logger.debug(f"RepositoryConfig args: name={repo_name}, path={repo_path}, description={description}")
+            self.repo_config = RepositoryConfig(
+                name=repo_name,
+                path=repo_path,
+                description=description
+            )
+            self.logger.debug("Repository configuration created successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to create repository configuration: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+            raise
+        
+        self.logger.debug("Creating GitHub context...")
+        try:
+            # Create GitHub context
+            self.github_context = GitHubAPIContext(self.repo_config)
+            self.logger.debug("GitHub context created successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to create GitHub context: {e}")
+            raise
+        
+        self.logger.debug("Setting up repository manager...")
+        try:
+            # Set up temporary repository manager for this worker
+            # This allows the shared tool functions to work with this repository
+            self._setup_repository_manager()
+            self.logger.debug("Repository manager setup complete")
+        except Exception as e:
+            self.logger.error(f"Failed to setup repository manager: {e}")
+            raise
+        
+        self.logger.debug("Creating message queue...")
         # Message queue for MCP communication
         self.message_queue = queue.Queue()
         
-        # Create FastAPI app
-        self.app = self.create_app()
+        self.logger.debug("Creating FastAPI app...")
+        try:
+            # Create FastAPI app
+            self.app = self.create_app()
+            self.logger.debug("FastAPI app created successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to create FastAPI app: {e}")
+            raise
         
-        self.logger.info(f"Worker initialized for {repo_name} on port {port}")
+        self.logger.info(f"Worker initialization complete for {repo_name} on port {port}")
         
     def _setup_repository_manager(self):
         """Set up a temporary repository manager for this worker's repository"""
-        # Create a temporary in-memory repository manager with just this repository
-        import github_tools
+        self.logger.debug("Importing github_tools module...")
+        try:
+            # Create a temporary in-memory repository manager with just this repository
+            import github_tools
+            self.logger.debug("Successfully imported github_tools")
+            
+            # Configure github_tools logger immediately after import
+            github_tools_logger = logging.getLogger('github_tools')
+            for handler in self.logger.handlers:
+                github_tools_logger.addHandler(handler)
+            github_tools_logger.setLevel(logging.DEBUG)
+            self.logger.info("Configured github_tools logger")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to import github_tools: {e}")
+            raise
         
-        # Create a minimal repository manager that only knows about this repo
-        temp_repo_manager = RepositoryManager()
-        temp_repo_manager.repositories = {self.repo_name: self.repo_config}
+        self.logger.debug("Creating temporary repository manager...")
+        try:
+            # Create a minimal repository manager that only knows about this repo
+            temp_repo_manager = RepositoryManager()
+            temp_repo_manager.repositories = {self.repo_name: self.repo_config}
+            self.logger.debug(f"Created repository manager with repo: {self.repo_name}")
+        except Exception as e:
+            self.logger.error(f"Failed to create repository manager: {e}")
+            raise
         
-        # Replace the global repository manager in the tools module
-        github_tools.repo_manager = temp_repo_manager
+        self.logger.debug("Setting global repository manager in github_tools...")
+        try:
+            # Replace the global repository manager in the tools module
+            github_tools.repo_manager = temp_repo_manager
+            self.logger.debug("Successfully set global repository manager")
+        except Exception as e:
+            self.logger.error(f"Failed to set global repository manager: {e}")
+            raise
     
     def create_app(self) -> FastAPI:
         """Create FastAPI application for this worker"""
@@ -409,51 +482,105 @@ class GitHubMCPWorker:
     
     async def start(self):
         """Start the worker process"""
-        import uvicorn
+        self.logger.debug("Importing uvicorn...")
+        try:
+            import uvicorn
+            self.logger.debug("Successfully imported uvicorn")
+        except Exception as e:
+            self.logger.error(f"Failed to import uvicorn: {e}")
+            raise
         
         self.logger.info(f"Starting worker for {self.repo_name} on port {self.port}")
         self.logger.info(f"Repository path: {self.repo_path}")
         self.logger.info(f"MCP endpoint: http://localhost:{self.port}/mcp/")
         
-        # Start the server
-        config = uvicorn.Config(
-            self.app,
-            host="0.0.0.0",
-            port=self.port,
-            log_level="info"
-        )
-        server = uvicorn.Server(config)
-        await server.serve()
+        # Note: Port availability is checked by the master process before starting workers
+        
+        self.logger.debug("Creating uvicorn config...")
+        try:
+            # Start the server
+            config = uvicorn.Config(
+                self.app,
+                host="0.0.0.0",
+                port=self.port,
+                log_level="info"
+            )
+            self.logger.debug("Uvicorn config created successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to create uvicorn config: {e}")
+            raise
+        
+        self.logger.debug("Creating uvicorn server...")
+        try:
+            server = uvicorn.Server(config)
+            self.logger.debug("Uvicorn server created successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to create uvicorn server: {e}")
+            raise
+        
+        self.logger.info(f"Starting uvicorn server on port {self.port}...")
+        try:
+            await server.serve()
+        except Exception as e:
+            self.logger.error(f"Failed to start uvicorn server: {e}")
+            raise
 
 def main():
     """Main entry point for worker process"""
+    print("[WORKER MAIN] Starting worker process...")
+    
+    # Set up basic logging immediately
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[logging.StreamHandler()]
+    )
+    
     parser = argparse.ArgumentParser(description="GitHub MCP Worker Process")
     parser.add_argument("--repo-name", required=True, help="Repository name")
     parser.add_argument("--repo-path", required=True, help="Repository filesystem path")
     parser.add_argument("--port", type=int, required=True, help="Port to listen on")
     parser.add_argument("--description", default="", help="Repository description")
     
+    print("[WORKER MAIN] Parsing arguments...")
     args = parser.parse_args()
+    print(f"[WORKER MAIN] Arguments: repo_name={args.repo_name}, repo_path={args.repo_path}, port={args.port}")
     
     # Validate arguments
+    print(f"[WORKER MAIN] Validating repository path: {args.repo_path}")
     if not os.path.exists(args.repo_path):
         print(f"Error: Repository path {args.repo_path} does not exist", file=sys.stderr)
         sys.exit(1)
+    print("[WORKER MAIN] Repository path validation passed")
     
     # Create and start worker
-    worker = GitHubMCPWorker(
-        repo_name=args.repo_name,
-        repo_path=args.repo_path,
-        port=args.port,
-        description=args.description
-    )
+    print("[WORKER MAIN] Creating worker instance...")
+    try:
+        worker = GitHubMCPWorker(
+            repo_name=args.repo_name,
+            repo_path=args.repo_path,
+            port=args.port,
+            description=args.description
+        )
+        print("[WORKER MAIN] Worker instance created successfully")
+    except Exception as e:
+        print(f"[WORKER MAIN] Failed to create worker: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
     
+    print("[WORKER MAIN] Starting worker async loop...")
     try:
         asyncio.run(worker.start())
     except KeyboardInterrupt:
+        print("[WORKER MAIN] Worker stopped by user")
         worker.logger.info("Worker stopped by user")
     except Exception as e:
-        worker.logger.error(f"Worker failed: {e}")
+        print(f"[WORKER MAIN] Worker failed: {e}")
+        import traceback
+        traceback.print_exc()
+        if 'worker' in locals():
+            worker.logger.error(f"Worker failed: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
