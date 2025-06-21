@@ -290,99 +290,11 @@ async def execute_get_current_commit(repo_name: str) -> str:
 # Build/Lint helper functions (simplified - removed legacy single-repo functions)
 async def execute_read_swiftlint_logs(build_id: str = None) -> str:
     """Read SwiftLint violation logs from GitHub Actions artifacts"""
+    logger.info(f"Reading SwiftLint logs (build_id: {build_id})")
+    logger.warning("SwiftLint logs not implemented in multi-repo mode yet")
     return json.dumps({"error": "SwiftLint logs not implemented in multi-repo mode yet"})
 
 
 async def execute_read_build_logs(build_id: str = None) -> str:
     """Read build logs and extract Swift compiler errors, warnings, and test failures"""
     return json.dumps({"error": "Build logs not implemented in multi-repo mode yet"})
-
-async def execute_get_build_status(repo_name: str, commit_sha: Optional[str] = None) -> str:
-    """Get build status for commit"""
-    try:
-        if not repo_manager or repo_name not in repo_manager.repositories:
-            return json.dumps({"error": f"Repository {repo_name} not found"})
-        
-        repo_config = repo_manager.repositories[repo_name]
-        context = GitHubAPIContext(repo_config)
-        
-        if not context.repo:
-            return json.dumps({"error": "GitHub repository not configured"})
-
-        if not commit_sha:
-            if not context.git_repo:
-                return json.dumps({"error": "Not in a Git repository"})
-            commit_sha = context._current_commit or context.git_repo.head.commit.hexsha
-
-        commit = context.repo.get_commit(commit_sha)
-
-        # Initialize overall_state here; it will be updated based on check runs
-        overall_state = "pending"  # Default to pending if no checks or statuses are found
-        has_failures = False
-        check_runs_data = []
-
-        try:
-            # Prefer check runs for detailed build status
-            # This is more robust against the 'Resource not accessible' error for combined_status
-            for run in commit.get_check_runs():
-                check_run_info = {
-                    "name": run.name,
-                    "status": run.status,
-                    "conclusion": run.conclusion,
-                    "url": run.html_url
-                }
-                check_runs_data.append(check_run_info)
-
-                if run.conclusion in ["failure", "timed_out", "cancelled", "stale"]:
-                    has_failures = True
-                elif run.status == "completed" and run.conclusion == "success" and overall_state == "pending":
-                    overall_state = "success"  # Set to success if at least one successful completed run and no failures yet
-                elif run.status != "completed":  # If any check is still running, overall is in_progress
-                    overall_state = "in_progress"
-
-        except Exception as e:
-            # Log this if needed, but allow to proceed to combined_status fallback or default
-            logger.debug(f"Warning: Failed to get check runs, trying combined status fallback: {e}")
-            pass  # Continue to try combined_status if check_runs fails
-
-        # Fallback to get_combined_status if check_runs_data is empty or if check_runs failed
-        # This part might still throw the 403, but it's a fallback.
-        # If check_runs_data is populated, we might skip this
-        if not check_runs_data:
-            try:
-                status = commit.get_combined_status()
-                overall_state = status.state
-                has_failures = any(
-                    s.state in ["failure", "error", "pending"] and s.context != "expected"  # Refine logic if needed
-                    for s in status.statuses
-                )
-                # Populate check_runs_data from statuses if check_runs failed
-                # This part is redundant if check_runs already populated data
-                if not check_runs_data:
-                    for s in status.statuses:
-                        check_runs_data.append({
-                            "name": s.context,
-                            "status": s.state,
-                            "conclusion": s.state,  # Map status state to conclusion for consistency
-                            "url": s.target_url
-                        })
-            except Exception as e:
-                logger.debug(f"Error: Failed to get combined status even as fallback: {e}")
-                overall_state = "error"  # Indicate an error if both fail
-                has_failures = True
-
-        # Ensure overall_state reflects failures if any
-        if has_failures:
-            overall_state = "failure"
-
-        result = {
-            "commit_sha": commit_sha,
-            "overall_state": overall_state,
-            "check_runs": check_runs_data,
-            "has_failures": has_failures
-        }
-        
-        return json.dumps(result)
-
-    except Exception as e:
-        return json.dumps({"error": f"Failed to get build status: {str(e)}"})
