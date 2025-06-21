@@ -17,6 +17,7 @@ import json
 import logging
 import argparse
 import sys
+import signal
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -110,6 +111,10 @@ class GitHubMCPWorker:
         self.logger.debug("Creating message queue...")
         # Message queue for MCP communication
         self.message_queue = queue.Queue()
+        
+        # Server instance for shutdown
+        self.server = None
+        self.shutdown_event = asyncio.Event()
         
         self.logger.debug("Creating FastAPI app...")
         try:
@@ -480,6 +485,20 @@ class GitHubMCPWorker:
         
         return app
     
+    def signal_handler(self, signum, frame):
+        """Handle shutdown signals"""
+        self.logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+        if self.server:
+            self.logger.info("Stopping uvicorn server...")
+            self.server.should_exit = True
+        # Set the shutdown event to wake up the main loop
+        if hasattr(self, 'shutdown_event'):
+            asyncio.create_task(self._set_shutdown_event())
+    
+    async def _set_shutdown_event(self):
+        """Set shutdown event from async context"""
+        self.shutdown_event.set()
+    
     async def start(self):
         """Start the worker process"""
         self.logger.debug("Importing uvicorn...")
@@ -512,15 +531,21 @@ class GitHubMCPWorker:
         
         self.logger.debug("Creating uvicorn server...")
         try:
-            server = uvicorn.Server(config)
+            self.server = uvicorn.Server(config)
             self.logger.debug("Uvicorn server created successfully")
         except Exception as e:
             self.logger.error(f"Failed to create uvicorn server: {e}")
             raise
         
+        # Set up signal handlers
+        self.logger.debug("Setting up signal handlers...")
+        signal.signal(signal.SIGTERM, self.signal_handler)
+        signal.signal(signal.SIGINT, self.signal_handler)
+        self.logger.debug("Signal handlers configured")
+        
         self.logger.info(f"Starting uvicorn server on port {self.port}...")
         try:
-            await server.serve()
+            await self.server.serve()
         except Exception as e:
             self.logger.error(f"Failed to start uvicorn server: {e}")
             raise
