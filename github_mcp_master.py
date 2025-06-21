@@ -53,25 +53,38 @@ class WorkerProcess:
 
 def is_port_free(port: int) -> bool:
     """Check if a port is available for binding"""
+    logger.debug(f"is_port_free: Checking port {port}")
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            logger.debug(f"is_port_free: Created socket for port {port}")
             s.bind(('0.0.0.0', port))
+            logger.debug(f"is_port_free: Successfully bound to port {port} - PORT IS FREE")
             return True
-    except OSError:
+    except OSError as e:
+        logger.debug(f"is_port_free: Failed to bind to port {port} - PORT IS OCCUPIED: {e}")
         return False
 
 async def wait_for_port_free(port: int, timeout: int = 30) -> bool:
     """Wait for a port to become available, with timeout"""
-    logger.debug(f"Waiting for port {port} to become available...")
+    logger.debug(f"wait_for_port_free: Starting to wait for port {port} with timeout {timeout}s")
     start_time = time.time()
     
+    check_count = 0
     while time.time() - start_time < timeout:
+        check_count += 1
+        elapsed = time.time() - start_time
+        logger.debug(f"wait_for_port_free: Check #{check_count} for port {port} after {elapsed:.1f}s")
+        
         if is_port_free(port):
-            logger.debug(f"Port {port} is now available")
+            logger.debug(f"wait_for_port_free: Port {port} is now available after {elapsed:.1f}s and {check_count} checks")
             return True
+        
+        logger.debug(f"wait_for_port_free: Port {port} still not free, sleeping 0.5s...")
         await asyncio.sleep(0.5)  # Check every 500ms
+        logger.debug(f"wait_for_port_free: Woke up from sleep for port {port}")
     
-    logger.error(f"Timeout waiting for port {port} to become available after {timeout}s")
+    final_elapsed = time.time() - start_time
+    logger.error(f"wait_for_port_free: Timeout waiting for port {port} after {final_elapsed:.1f}s and {check_count} checks")
     return False
 
 class GitHubMCPMaster:
@@ -207,7 +220,7 @@ class GitHubMCPMaster:
             logger.error(f"Failed to start worker for {worker.repo_name}: {e}")
             return False
     
-    def stop_worker(self, worker: WorkerProcess, timeout: int = 5) -> bool:
+    async def stop_worker(self, worker: WorkerProcess, timeout: int = 5) -> bool:
         """Stop a worker process with timeout"""
         logger.debug(f"stop_worker called for {worker.repo_name} with timeout {timeout}")
         try:
@@ -254,6 +267,8 @@ class GitHubMCPMaster:
                     logger.error(f"Worker for {worker.repo_name} couldn't be killed even with SIGKILL")
                     return False
             
+            # Port will be freed shortly after process termination - deploy script handles port checking
+            
             logger.debug(f"Setting worker.process = None for {worker.repo_name}")
             worker.process = None
             logger.debug(f"Worker for {worker.repo_name} stopped successfully")
@@ -299,7 +314,7 @@ class GitHubMCPMaster:
                         if not self.is_worker_healthy(worker):
                             if worker.restart_count < worker.max_restarts:
                                 logger.warning(f"Worker for {repo_name} is unhealthy, restarting...")
-                                self.stop_worker(worker)
+                                await self.stop_worker(worker)
                                 
                                 # Wait for port to be properly released before restarting
                                 logger.debug(f"Waiting for port {worker.port} to be released...")
@@ -426,22 +441,20 @@ class GitHubMCPMaster:
             logger.info("About to stop all workers in parallel...")
             logger.debug(f"Number of workers to stop: {len(self.workers)}")
             
-            async def stop_worker_with_timeout(repo_name, worker, timeout=5):
+            async def stop_worker_with_timeout(repo_name, worker, timeout=8):
                 """Stop a worker with overall timeout"""
                 try:
                     logger.info(f"About to stop worker for {repo_name}...")
                     logger.debug(f"Worker {repo_name} - PID: {worker.process.pid if worker.process else 'None'}")
                     logger.debug(f"Worker {repo_name} - Port: {worker.port}")
                     
-                    # Wrap the stop_worker call in asyncio.wait_for for timeout
-                    def sync_stop_worker():
-                        return self.stop_worker(worker, timeout=3)
-                    
-                    # Run in thread pool to avoid blocking
+                    # Call stop_worker with timeout
+                    logger.debug(f"Calling stop_worker for {repo_name}...")
                     success = await asyncio.wait_for(
-                        asyncio.get_event_loop().run_in_executor(None, sync_stop_worker),
+                        self.stop_worker(worker, timeout=3),
                         timeout=timeout
                     )
+                    logger.debug(f"stop_worker call completed for {repo_name}")
                     
                     logger.debug(f"stop_worker returned: {success} for {repo_name}")
                     if success:
@@ -458,12 +471,22 @@ class GitHubMCPMaster:
                             logger.warning(f"Force killing hung worker {repo_name} (PID: {worker.process.pid})")
                             worker.process.kill()
                             worker.process = None
+                            
+                            # Port will be freed shortly - deploy script handles port checking
                         except Exception as e:
                             logger.error(f"Failed to force kill worker {repo_name}: {e}")
                     return False
                 except Exception as e:
                     logger.error(f"Exception stopping worker for {repo_name}: {e}")
                     logger.error(f"Worker stop exception traceback: {traceback.format_exc()}")
+                    # Force kill the worker even if there was an exception
+                    if worker.process:
+                        try:
+                            logger.warning(f"Force killing worker {repo_name} due to exception")
+                            worker.process.kill()
+                            worker.process = None
+                        except Exception as kill_error:
+                            logger.error(f"Failed to force kill worker {repo_name}: {kill_error}")
                     return False
             
             # Stop all workers concurrently
@@ -474,8 +497,24 @@ class GitHubMCPMaster:
             
             if stop_tasks:
                 logger.debug(f"Starting {len(stop_tasks)} concurrent stop tasks...")
-                results = await asyncio.gather(*stop_tasks, return_exceptions=True)
-                logger.debug(f"All stop tasks completed with results: {results}")
+                try:
+                    # Add overall timeout to prevent hanging
+                    results = await asyncio.wait_for(
+                        asyncio.gather(*stop_tasks, return_exceptions=True),
+                        timeout=20  # Maximum 20 seconds for all workers to stop
+                    )
+                    logger.debug(f"All stop tasks completed with results: {results}")
+                except asyncio.TimeoutError:
+                    logger.error("Overall shutdown timeout after 20s - forcing exit")
+                    # Force kill any remaining workers
+                    for repo_name, worker in self.workers.items():
+                        if worker.process:
+                            try:
+                                logger.warning(f"Force killing remaining worker {repo_name} due to shutdown timeout")
+                                worker.process.kill()
+                                worker.process = None
+                            except Exception as e:
+                                logger.error(f"Error force killing {repo_name}: {e}")
             else:
                 logger.debug("No workers to stop")
             
