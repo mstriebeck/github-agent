@@ -25,19 +25,69 @@ from typing import Dict, Optional
 from dataclasses import dataclass
 from pathlib import Path
 
-# Configure logging (use system-appropriate log location)
+# Import shutdown coordination components
+from shutdown_core import ShutdownCoordinator, setup_signal_handlers, ExitCodes
+from system_utils import log_system_state
+
+# Configure logging with enhanced microsecond precision
+from datetime import datetime
+
 log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
 log_dir.mkdir(parents=True, exist_ok=True)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(log_dir / 'master.log', mode='a')
-    ]
-)
+class MicrosecondFormatter(logging.Formatter):
+    """Custom formatter that provides microsecond precision timestamps"""
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created)
+        return dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]  # Keep 3 decimal places (milliseconds)
+
+def setup_enhanced_logging(logger, log_file_path=None):
+    """Enhance an existing logger with microsecond precision formatting
+    
+    This is called from the master process to enhance the main logger
+    that will be passed to all components throughout the system.
+    """
+    # Prevent duplicate handlers
+    if logger.handlers:
+        logger.handlers.clear()
+    
+    # Detailed formatter with microseconds
+    detailed_formatter = MicrosecondFormatter(
+        '%(asctime)s [%(levelname)8s] %(name)s.%(funcName)s:%(lineno)d - %(message)s'
+    )
+    
+    # Console formatter with microseconds
+    console_formatter = MicrosecondFormatter(
+        '%(asctime)s [%(levelname)s] %(message)s'
+    )
+    
+    # File handler for detailed debug logs (use provided path or default)
+    if log_file_path is None:
+        log_file_path = log_dir / 'master.log'
+    
+    file_handler = logging.FileHandler(log_file_path, mode='a')
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(detailed_formatter)
+    
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(console_formatter)
+    
+    # Add handlers to logger
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    logger.info(f"Enhanced logging initialized with microsecond precision")
+    logger.debug(f"Log file: {log_file_path}")
+    logger.debug(f"Log level set to: {logging.getLevelName(logger.level)}")
+    
+    return logger
+
+# Create and setup the master logger
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+logger = setup_enhanced_logging(logger)
 
 @dataclass
 class WorkerProcess:
@@ -94,7 +144,9 @@ class GitHubMCPMaster:
         self.config_path = config_path
         self.workers: Dict[str, WorkerProcess] = {}
         self.running = False
-        self.shutdown_event = asyncio.Event()
+        
+        # Initialize shutdown coordination with our logger
+        self.shutdown_coordinator = ShutdownCoordinator(logger)
         
         # Use system-appropriate log location
         self.log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
@@ -335,17 +387,20 @@ class GitHubMCPMaster:
             logger.debug("Worker monitoring task ending")
     
     def signal_handler(self, signum, frame):
-        """Handle shutdown signals - minimal implementation to avoid signal handler issues"""
-        # Avoid complex operations in signal handler - just set flags
+        """Handle shutdown signals using the shutdown coordinator"""
+        # Use the shutdown coordinator for proper signal handling
+        signal_name = signal.Signals(signum).name
         self.running = False
+        
         # Use call_soon_threadsafe to safely signal from signal handler context
         try:
-            self.loop.call_soon_threadsafe(self.shutdown_event.set)
-            # Only log after setting up the shutdown to avoid hanging in signal handler
-            self.loop.call_soon_threadsafe(logger.info, f"Received signal {signum}, initiating graceful shutdown...")
+            self.loop.call_soon_threadsafe(
+                self.shutdown_coordinator.shutdown, 
+                f"signal_{signal_name}"
+            )
         except Exception:
-            # If we can't use the loop, fall back to direct call (might be unsafe but better than hanging)
-            self.shutdown_event.set()
+            # If we can't use the loop, fall back to direct call
+            self.shutdown_coordinator.shutdown(f"signal_{signal_name}")
     
     async def start(self):
         """Start the master process"""
@@ -387,16 +442,21 @@ class GitHubMCPMaster:
             if repo_name in running_workers:
                 logger.info(f"  - {repo_name}: http://localhost:{worker.port}/mcp/")
         
-        # Wait for shutdown signal
+        # Wait for shutdown signal using shutdown coordinator
         logger.debug("About to wait for shutdown signal...")
-        logger.debug(f"shutdown_event state before wait: {self.shutdown_event.is_set()}")
+        logger.debug(f"shutdown coordinator state: {self.shutdown_coordinator.is_shutting_down()}")
+        
+        # Log system state before waiting
+        log_system_state(logger, "MASTER_WAITING_FOR_SHUTDOWN")
         
         try:
-            logger.debug("Calling await self.shutdown_event.wait()...")
-            await self.shutdown_event.wait()
-            logger.debug("shutdown_event.wait() returned successfully")
+            logger.debug("Waiting for shutdown coordinator...")
+            # Convert the synchronous wait to async
+            while not self.shutdown_coordinator.is_shutting_down():
+                await asyncio.sleep(0.1)
+            logger.debug("Shutdown coordinator signaled shutdown")
         except Exception as e:
-            logger.error(f"Exception in shutdown_event.wait(): {e}")
+            logger.error(f"Exception waiting for shutdown: {e}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             return False
         

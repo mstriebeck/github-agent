@@ -32,6 +32,8 @@ from github_tools import (
     execute_get_current_branch, execute_get_current_commit,
     execute_read_swiftlint_logs, execute_read_build_logs, execute_get_build_status
 )
+from shutdown_core import ShutdownCoordinator
+from system_utils import log_system_state
 
 class GitHubMCPWorker:
     """Worker process for handling a single repository"""
@@ -44,29 +46,55 @@ class GitHubMCPWorker:
         self.port = port
         self.description = description
         
-        # Set up logging for this worker (use system-appropriate location)
+        # Set up enhanced logging for this worker (use system-appropriate location)
         from pathlib import Path
+        from datetime import datetime
+        
         log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         
+        # Setup enhanced logging with microsecond precision
+        class MicrosecondFormatter(logging.Formatter):
+            """Custom formatter that provides microsecond precision timestamps"""
+            def formatTime(self, record, datefmt=None):
+                dt = datetime.fromtimestamp(record.created)
+                return dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]  # Keep 3 decimal places (milliseconds)
+        
         self.logger = logging.getLogger(f"worker-{repo_name}")
+        self.logger.setLevel(logging.DEBUG)  # Use DEBUG level for more visibility
+        
+        # Clear any existing handlers
+        if self.logger.handlers:
+            self.logger.handlers.clear()
+        
+        # Detailed formatter with microseconds
+        detailed_formatter = MicrosecondFormatter(
+            '%(asctime)s [%(levelname)8s] %(name)s.%(funcName)s:%(lineno)d - %(message)s'
+        )
+        
+        # Console formatter with microseconds
+        console_formatter = MicrosecondFormatter(
+            '%(asctime)s [%(levelname)s] %(message)s'
+        )
         
         # Add console handler for immediate feedback
         console_handler = logging.StreamHandler()
-        console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         console_handler.setFormatter(console_formatter)
+        console_handler.setLevel(logging.INFO)
         self.logger.addHandler(console_handler)
         
         # Add file handler
         file_handler = logging.FileHandler(log_dir / f'{repo_name}.log')
-        file_handler.setFormatter(console_formatter)
+        file_handler.setFormatter(detailed_formatter)
+        file_handler.setLevel(logging.DEBUG)
         self.logger.addHandler(file_handler)
-        
-        self.logger.setLevel(logging.DEBUG)  # Use DEBUG level for more visibility
         
         self.logger.info(f"Worker initializing for {repo_name} on port {port}")
         self.logger.info(f"Repository path: {repo_path}")
         self.logger.info(f"Log directory: {log_dir}")
+        
+        # Initialize shutdown coordination
+        self.shutdown_coordinator = ShutdownCoordinator(self.logger)
         
         # Validate repository path early
         if not os.path.exists(repo_path):
@@ -486,11 +514,17 @@ class GitHubMCPWorker:
         return app
     
     def signal_handler(self, signum, frame):
-        """Handle shutdown signals"""
-        self.logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+        """Handle shutdown signals using shutdown coordinator"""
+        signal_name = signal.Signals(signum).name
+        self.logger.info(f"Received signal {signum} ({signal_name}), initiating graceful shutdown...")
+        
+        # Use shutdown coordinator
+        self.shutdown_coordinator.shutdown(f"signal_{signal_name}")
+        
         if self.server:
             self.logger.info("Stopping uvicorn server...")
             self.server.should_exit = True
+        
         # Set the shutdown event to wake up the main loop
         if hasattr(self, 'shutdown_event'):
             asyncio.create_task(self._set_shutdown_event())
@@ -512,6 +546,9 @@ class GitHubMCPWorker:
         self.logger.info(f"Starting worker for {self.repo_name} on port {self.port}")
         self.logger.info(f"Repository path: {self.repo_path}")
         self.logger.info(f"MCP endpoint: http://localhost:{self.port}/mcp/")
+        
+        # Log initial system state
+        log_system_state(self.logger, f"WORKER_{self.repo_name.upper()}_STARTING")
         
         # Note: Port availability is checked by the master process before starting workers
         

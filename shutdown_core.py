@@ -15,56 +15,7 @@ from datetime import datetime
 from abc import ABC, abstractmethod
 
 
-class MicrosecondFormatter(logging.Formatter):
-    """Custom formatter that provides microsecond precision timestamps"""
-    def formatTime(self, record, datefmt=None):
-        dt = datetime.fromtimestamp(record.created)
-        return dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]  # Keep 3 decimal places (milliseconds)
 
-
-def setup_enhanced_logging(logger, log_file_path=None):
-    """Enhance an existing logger with microsecond precision formatting
-    
-    This should be called from the master process to enhance the main logger
-    that will be passed to all components throughout the system.
-    """
-    # Prevent duplicate handlers
-    if logger.handlers:
-        logger.handlers.clear()
-    
-    # Detailed formatter with microseconds
-    detailed_formatter = MicrosecondFormatter(
-        '%(asctime)s [%(levelname)8s] %(name)s.%(funcName)s:%(lineno)d - %(message)s'
-    )
-    
-    # Console formatter with microseconds
-    console_formatter = MicrosecondFormatter(
-        '%(asctime)s [%(levelname)s] %(message)s'
-    )
-    
-    # File handler for detailed debug logs (use provided path or default)
-    if log_file_path is None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-        log_file_path = f'/tmp/mcp_server_{timestamp}.log'
-    
-    file_handler = logging.FileHandler(log_file_path)
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(detailed_formatter)
-    
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(console_formatter)
-    
-    # Add handlers to logger
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-    
-    logger.info(f"Enhanced logging initialized with microsecond precision")
-    logger.debug(f"Log file: {log_file_path}")
-    logger.debug(f"Log level set to: {logging.getLevelName(logger.level)}")
-    
-    return logger
 
 
 
