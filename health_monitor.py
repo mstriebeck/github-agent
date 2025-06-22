@@ -154,16 +154,39 @@ class HealthMonitor:
             # Write atomically by writing to temp file then moving
             temp_file = self.health_file_path.with_suffix('.tmp')
             
-            # Ensure parent directory exists
-            temp_file.parent.mkdir(parents=True, exist_ok=True)
-            
-            with open(temp_file, 'w') as f:
-                json.dump(asdict(report), f, indent=2, default=str)
+            try:
+                # Ensure parent directory exists
+                temp_file.parent.mkdir(parents=True, exist_ok=True)
                 
-            temp_file.replace(self.health_file_path)
+                with open(temp_file, 'w') as f:
+                    json.dump(asdict(report), f, indent=2, default=str)
+                
+                # Verify temp file exists before moving
+                if not temp_file.exists():
+                    raise FileNotFoundError(f"Temporary file was not created: {temp_file}")
+                
+                temp_file.replace(self.health_file_path)
+                
+            except Exception as write_error:
+                # Clean up temp file if it exists
+                if temp_file.exists():
+                    try:
+                        temp_file.unlink()
+                    except:
+                        pass
+                raise write_error
             
         except Exception as e:
             self.logger.error(f"Failed to update health file: {e}")
+            # Fallback: try direct write without atomic operation
+            try:
+                self.logger.info("Attempting direct health file write as fallback")
+                report = self._generate_health_report()
+                with open(self.health_file_path, 'w') as f:
+                    json.dump(asdict(report), f, indent=2, default=str)
+                self.logger.info("Direct health file write succeeded")
+            except Exception as fallback_error:
+                self.logger.error(f"Fallback health file write also failed: {fallback_error}")
             
     def _generate_health_report(self) -> HealthReport:
         """Generate a complete health report."""

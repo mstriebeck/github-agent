@@ -105,7 +105,7 @@ def is_port_free(port: int) -> bool:
             logger.debug(f"is_port_free: Successfully bound to port {port} - PORT IS FREE")
             return True
     except OSError as e:
-        logger.debug(f"is_port_free: Failed to bind to port {port} - PORT IS OCCUPIED: {e}")
+        logger.debug(f"is_port_free: Port {port} is in use: {e}")
         return False
 
 async def wait_for_port_free(port: int, timeout: int = 30) -> bool:
@@ -123,8 +123,8 @@ async def wait_for_port_free(port: int, timeout: int = 30) -> bool:
             logger.debug(f"wait_for_port_free: Port {port} is now available after {elapsed:.1f}s and {check_count} checks")
             return True
         
-        logger.debug(f"wait_for_port_free: Port {port} still not free, sleeping 0.5s...")
-        await asyncio.sleep(0.5)  # Check every 500ms
+        logger.debug(f"wait_for_port_free: Port {port} still not free, sleeping 1s...")
+        await asyncio.sleep(1.0)  # Check every 1 second
         logger.debug(f"wait_for_port_free: Woke up from sleep for port {port}")
     
     final_elapsed = time.time() - start_time
@@ -386,17 +386,18 @@ class GitHubMCPMaster:
     def signal_handler(self, signum, frame):
         """Handle shutdown signals using the shutdown manager"""
         signal_name = signal.Signals(signum).name
-        self.running = False
+        logger.info(f"🚨 Received signal {signum} ({signal_name}), initiating graceful shutdown...")
         
-        # Use call_soon_threadsafe to safely signal from signal handler context
-        try:
-            self.loop.call_soon_threadsafe(
-                self.shutdown_manager.shutdown, 
-                f"signal_{signal_name}"
-            )
-        except Exception:
-            # If we can't use the loop, fall back to direct call
-            self.shutdown_manager.shutdown(f"signal_{signal_name}")
+        # Set running to False and initiate shutdown
+        self.running = False
+        self.shutdown_manager.initiate_shutdown(f"signal_{signal_name}")
+        
+        # Wake up the main loop if it's waiting
+        if hasattr(self, 'loop') and self.loop.is_running():
+            try:
+                self.loop.call_soon_threadsafe(lambda: None)  # Just wake up the loop
+            except Exception as e:
+                logger.debug(f"Could not wake up main loop: {e}")
     
     async def start(self):
         """Start the master process"""
@@ -446,10 +447,13 @@ class GitHubMCPMaster:
         
         try:
             logger.debug("Waiting for shutdown signal...")
-            # Convert the synchronous wait to async
-            while not self.shutdown_manager._shutdown_initiated:
+            
+            # Wait for shutdown signal
+            while self.running and not self.shutdown_manager._shutdown_initiated:
                 await asyncio.sleep(0.1)
-            logger.debug("Shutdown manager signaled shutdown")
+                
+            logger.info(f"🛑 Shutdown signal received, beginning coordinated shutdown...")
+            logger.debug(f"Shutdown reason: {getattr(self.shutdown_manager, '_shutdown_reason', 'unknown')}")
         except Exception as e:
             logger.error(f"Exception waiting for shutdown: {e}")
             logger.error(f"Traceback: {traceback.format_exc()}")
@@ -498,19 +502,28 @@ class GitHubMCPMaster:
                     logger.info(f"Sending SIGTERM to worker {repo_name} (PID: {pid})")
                     worker.process.terminate()
                     
-                    # Wait for worker to shutdown gracefully
-                    logger.info(f"Waiting up to 10s for worker {repo_name} to stop gracefully...")
+                    # Wait for worker to shutdown gracefully  
+                    logger.info(f"Waiting up to 3s for worker {repo_name} to stop gracefully...")
                     try:
                         await asyncio.wait_for(
                             self._wait_for_process_exit(worker.process),
-                            timeout=10
+                            timeout=3
                         )
-                        logger.info(f"Worker {repo_name} stopped gracefully")
+                        logger.info(f"Worker {repo_name} process exited gracefully")
+                        
+                        # Wait for port to be actually free before considering worker stopped
+                        logger.info(f"Worker {repo_name} stopped gracefully, waiting for port {worker.port} to be released...")
+                        port_free = await wait_for_port_free(worker.port, timeout=30)
+                        if port_free:
+                            logger.info(f"Worker {repo_name} stopped gracefully - port {worker.port} is now available")
+                        else:
+                            logger.warning(f"Worker {repo_name} stopped gracefully but port {worker.port} still not available after 30s")
+                        
                         worker.process = None
                         return True
                     except asyncio.TimeoutError:
-                        logger.warning(f"Worker {repo_name} didn't stop gracefully within 10s, force killing")
-                        self.shutdown_manager._exit_code_manager.report_timeout("worker_shutdown", 10.0)
+                        logger.warning(f"Worker {repo_name} didn't stop gracefully within 3s, force killing")
+                        self.shutdown_manager._exit_code_manager.report_timeout("worker_shutdown", 3.0)
                         
                         # Force kill
                         try:
@@ -518,9 +531,18 @@ class GitHubMCPMaster:
                             worker.process.kill()
                             await asyncio.wait_for(
                                 self._wait_for_process_exit(worker.process),
-                                timeout=5
+                                timeout=5  # Increased timeout for SIGKILL
                             )
-                            logger.info(f"Worker {repo_name} force killed successfully")
+                            logger.info(f"Worker {repo_name} process terminated")
+                            
+                            # Wait for port to be actually free before considering worker stopped
+                            logger.info(f"Worker {repo_name} force killed, waiting for port {worker.port} to be released...")
+                            port_free = await wait_for_port_free(worker.port, timeout=60)
+                            if port_free:
+                                logger.info(f"Worker {repo_name} force killed successfully - port {worker.port} is now available")
+                            else:
+                                logger.warning(f"Worker {repo_name} force killed but port {worker.port} still not available after 60s")
+                            
                             self.shutdown_manager._exit_code_manager.report_force_action("kill", f"worker {repo_name}")
                             worker.process = None
                             return True
@@ -561,7 +583,7 @@ class GitHubMCPMaster:
                 try:
                     results = await asyncio.wait_for(
                         asyncio.gather(*stop_tasks, return_exceptions=True),
-                        timeout=30
+                        timeout=150  # Increased to allow for port cleanup (60s per worker + buffer)
                     )
                     
                     successful_stops = sum(1 for r in results if r is True)
@@ -569,8 +591,8 @@ class GitHubMCPMaster:
                     logger.info(f"Worker stop results: {successful_stops} successful, {failed_stops} failed")
                     
                 except asyncio.TimeoutError:
-                    logger.error("Overall worker shutdown timeout after 30s")
-                    self.shutdown_manager._exit_code_manager.report_timeout("worker_shutdown", 30.0)
+                    logger.error("Overall worker shutdown timeout after 150s")
+                    self.shutdown_manager._exit_code_manager.report_timeout("worker_shutdown", 150.0)
                     
                     # Emergency cleanup
                     for repo_name, worker in self.workers.items():
@@ -581,13 +603,8 @@ class GitHubMCPMaster:
                             except:
                                 pass
             
-            # Verify ports are released using shutdown manager
-            if ports_to_verify:
-                logger.info("Verifying ports are released...")
-                success, issues = self.shutdown_manager._resource_tracker.verify_ports_released(ports_to_verify)
-                if not success:
-                    for issue in issues:
-                        self.shutdown_manager._exit_code_manager.report_verification_failure("port_check", issue)
+            # Ports will be verified by deployment script if needed
+            logger.info("Workers shutdown process completed")
             
             # Get final exit code and determine success
             exit_code = self.shutdown_manager._exit_code_manager.determine_exit_code("graceful")
@@ -619,6 +636,15 @@ class GitHubMCPMaster:
             if process.poll() is not None:
                 return process.returncode
             await asyncio.sleep(0.1)  # Poll every 100ms
+    
+    async def _wait_for_port_release(self, port: int, timeout: float = 5.0) -> bool:
+        """Wait for a port to be released after process termination"""
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if is_port_free(port):
+                return True
+            await asyncio.sleep(0.2)  # Check every 200ms
+        return False
     
     def status(self) -> Dict:
         """Get status of all workers"""

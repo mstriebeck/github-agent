@@ -167,6 +167,8 @@ else
     <true/>
     <key>KeepAlive</key>
     <true/>
+    <key>ExitTimeOut</key>
+    <integer>180</integer>
 </dict>
 </plist>
 EOF

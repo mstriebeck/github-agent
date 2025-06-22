@@ -508,11 +508,11 @@ class ShutdownManager:
         """Get the current exit code based on shutdown status"""
         return self._exit_code_manager.determine_exit_code("shutdown")
         
-    def shutdown(self, reason: str = "manual") -> bool:
-        """Synchronous shutdown method for compatibility"""
+    def initiate_shutdown(self, reason: str = "manual") -> bool:
+        """Synchronous shutdown initiation method for signal handlers"""
         # This will initiate shutdown but not wait for completion
         # in master/worker architecture where processes handle their own shutdown
-        self.logger.info(f"Shutdown initiated: {reason}")
+        self.logger.debug(f"Shutdown initiated: {reason}")
         self._shutdown_initiated = True
         self._shutdown_reason = reason
         return True

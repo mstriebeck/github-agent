@@ -516,7 +516,7 @@ class GitHubMCPWorker:
         self.logger.info(f"Received signal {signum} ({signal_name}), initiating graceful shutdown...")
         
         # Use shutdown manager for proper coordinated shutdown
-        self.shutdown_manager.shutdown(f"signal_{signal_name}")
+        self.shutdown_manager.initiate_shutdown(f"signal_{signal_name}")
         
         if self.server:
             self.logger.info("Stopping uvicorn server...")
@@ -587,7 +587,7 @@ class GitHubMCPWorker:
         finally:
             # Ensure cleanup happens
             self.logger.info("Performing final cleanup...")
-            self.shutdown_manager.shutdown("server_stopped")
+            self.shutdown_manager.initiate_shutdown("server_stopped")
 
 def main():
     """Main entry point for worker process"""
