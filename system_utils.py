@@ -5,8 +5,10 @@ This module provides system monitoring and diagnostic utilities that can be used
 throughout the MCP server system, including in health endpoints and shutdown procedures.
 """
 
+import asyncio
 import psutil
 import threading
+import time
 from datetime import datetime
 
 
@@ -139,3 +141,33 @@ def format_system_state_for_health(system_state):
         'python_threads_count': system_state['threads']['count'],
         'timestamp': system_state['timestamp']
     }
+
+
+class SystemMonitor:
+    """System monitoring utilities for async operations"""
+    
+    def __init__(self):
+        pass
+    
+    async def log_system_state(self, logger, phase: str) -> None:
+        """Async version of log_system_state"""
+        # Run the synchronous system state collection in a thread pool
+        # to avoid blocking the event loop
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, log_system_state, logger, phase)
+    
+    def get_system_metrics(self) -> dict:
+        """Get basic system metrics"""
+        return get_system_state()
+    
+    async def wait_for_condition(self, condition_func, timeout: float = 5.0, 
+                                check_interval: float = 0.1) -> bool:
+        """Wait for condition to be true with timeout"""
+        end_time = time.time() + timeout
+        
+        while time.time() < end_time:
+            if condition_func():
+                return True
+            await asyncio.sleep(check_interval)
+        
+        return False
