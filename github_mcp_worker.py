@@ -36,7 +36,7 @@ from github_tools import (
     execute_get_current_branch, execute_get_current_commit,
     execute_read_swiftlint_logs, execute_read_build_logs, execute_get_build_status
 )
-from shutdown_core import ShutdownCoordinator
+from shutdown_manager import ShutdownManager
 from system_utils import log_system_state, MicrosecondFormatter
 
 class GitHubMCPWorker:
@@ -90,7 +90,10 @@ class GitHubMCPWorker:
         self.logger.info(f"Log directory: {log_dir}")
         
         # Initialize shutdown coordination
-        self.shutdown_coordinator = ShutdownCoordinator(self.logger)
+        self.shutdown_manager = ShutdownManager(self.logger, mode="worker")
+        
+        # Start health monitoring
+        self.shutdown_manager._health_monitor.start_monitoring()
         
         # Validate repository path early
         if not os.path.exists(repo_path):
@@ -508,12 +511,12 @@ class GitHubMCPWorker:
         return app
     
     def signal_handler(self, signum, frame):
-        """Handle shutdown signals using shutdown coordinator"""
+        """Handle shutdown signals using shutdown manager"""
         signal_name = signal.Signals(signum).name
         self.logger.info(f"Received signal {signum} ({signal_name}), initiating graceful shutdown...")
         
-        # Use shutdown coordinator
-        self.shutdown_coordinator.shutdown(f"signal_{signal_name}")
+        # Use shutdown manager for proper coordinated shutdown
+        self.shutdown_manager.shutdown(f"signal_{signal_name}")
         
         if self.server:
             self.logger.info("Stopping uvicorn server...")
@@ -552,6 +555,7 @@ class GitHubMCPWorker:
             self.logger.debug("Uvicorn config created successfully")
         except Exception as e:
             self.logger.error(f"Failed to create uvicorn config: {e}")
+            self.shutdown_manager._exit_code_manager.report_system_error("uvicorn_config", e)
             raise
         
         self.logger.debug("Creating uvicorn server...")
@@ -560,6 +564,7 @@ class GitHubMCPWorker:
             self.logger.debug("Uvicorn server created successfully")
         except Exception as e:
             self.logger.error(f"Failed to create uvicorn server: {e}")
+            self.shutdown_manager._exit_code_manager.report_system_error("uvicorn_server", e)
             raise
         
         # Set up signal handlers
@@ -571,9 +576,18 @@ class GitHubMCPWorker:
         self.logger.info(f"Starting uvicorn server on port {self.port}...")
         try:
             await self.server.serve()
+            
+            # If we get here, server stopped normally
+            self.logger.info("Uvicorn server stopped normally")
+            
         except Exception as e:
             self.logger.error(f"Failed to start uvicorn server: {e}")
+            self.shutdown_manager._exit_code_manager.report_system_error("uvicorn_serve", e)
             raise
+        finally:
+            # Ensure cleanup happens
+            self.logger.info("Performing final cleanup...")
+            self.shutdown_manager.shutdown("server_stopped")
 
 def main():
     """Main entry point for worker process"""
@@ -622,8 +636,16 @@ def main():
     worker.logger.info("Starting worker async loop...")
     try:
         asyncio.run(worker.start())
+        
+        # Get final exit code from shutdown manager
+        exit_code = worker.shutdown_manager.get_exit_code()
+        worker.logger.info(f"Worker shutting down with exit code: {exit_code} ({exit_code.name})")
+        sys.exit(exit_code.value)
+        
     except KeyboardInterrupt:
         worker.logger.info("Worker stopped by user")
+        exit_code = worker.shutdown_manager.get_exit_code()
+        sys.exit(exit_code.value)
     except Exception as e:
         worker.logger.error(f"Worker failed: {e}")
         traceback.print_exc()

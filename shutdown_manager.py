@@ -31,9 +31,16 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+try:
+    import aiohttp
+except ImportError:
+    aiohttp = None
+
 # Import core utilities
 from shutdown_core import ShutdownCoordinator, ExitCodes, IProcessSpawner, RealProcessSpawner
 from system_utils import SystemMonitor, log_system_state
+from exit_codes import ExitCodeManager, ShutdownExitCode
+from health_monitor import HealthMonitor
 
 
 # === DATA STRUCTURES ===
@@ -377,10 +384,14 @@ class ShutdownManager:
         self.mode = mode
         self.shutdown_in_progress = False
         self.shutdown_start_time = None
+        self._shutdown_initiated = False
+        self._shutdown_reason = None
         
         # Core components
         self.shutdown_coordinator = ShutdownCoordinator(logger)
         self.system_monitor = SystemMonitor()
+        self._exit_code_manager = ExitCodeManager(logger)
+        self._health_monitor = HealthMonitor(logger)
         
         # Resource and client tracking
         self._resource_tracker = _ResourceTracker(logger)
@@ -492,6 +503,23 @@ class ShutdownManager:
         if self.mode != "master":
             return []
         return list(self._workers.values())
+        
+    def get_exit_code(self) -> ShutdownExitCode:
+        """Get the current exit code based on shutdown status"""
+        return self._exit_code_manager.determine_exit_code("shutdown")
+        
+    def shutdown(self, reason: str = "manual") -> bool:
+        """Synchronous shutdown method for compatibility"""
+        # This will initiate shutdown but not wait for completion
+        # in master/worker architecture where processes handle their own shutdown
+        self.logger.info(f"Shutdown initiated: {reason}")
+        self._shutdown_initiated = True
+        self._shutdown_reason = reason
+        return True
+        
+    def is_shutdown_initiated(self) -> bool:
+        """Check if shutdown has been initiated"""
+        return getattr(self, '_shutdown_initiated', False)
     
     # === STATUS AND MONITORING ===
     
@@ -721,10 +749,13 @@ class ShutdownManager:
         try:
             # Phase 1: Try graceful shutdown via HTTP
             try:
-                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-                    async with session.post(f"http://localhost:{worker.port}/shutdown") as response:
-                        if response.status == 200:
-                            self.logger.debug(f"Sent shutdown request to worker {worker.repo_name}")
+                if aiohttp:
+                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+                        async with session.post(f"http://localhost:{worker.port}/shutdown") as response:
+                            if response.status == 200:
+                                self.logger.debug(f"Sent shutdown request to worker {worker.repo_name}")
+                else:
+                    self.logger.debug("aiohttp not available, skipping HTTP shutdown")
                 
                 # Wait for graceful shutdown
                 grace_end = time.time() + grace_period
