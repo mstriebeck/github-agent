@@ -1197,3 +1197,158 @@ The existing system (`github_mcp_master.py` and `github_mcp_worker.py`) has:
 - Backwards compatibility maintained throughout implementation
 - Gradual rollout with monitoring and rollback capabilities
 - Performance testing to ensure no regression in normal operations
+---
+
+# **Appendix A: Evolved Design - Consolidated WorkerManager Approach**
+
+## **A.1 Design Evolution**
+
+After implementing the original 7-step design outlined above, we discovered that the resulting architecture was overly fractured with shutdown logic scattered across multiple managers:
+
+- `ShutdownCoordinator` (signal handling, exit codes)
+- `WorkerManager` (worker process shutdown) 
+- `ResourceManager` (resource cleanup)
+- `ClientManager` (client disconnection)
+- `IntegratedShutdownManager` (orchestration)
+
+This created an opaque system where developers needed to understand 4-5 different classes to handle shutdown operations. Based on implementation experience and code review feedback, we evolved to a **consolidated approach**.
+
+## **A.2 Consolidated Design Principles**
+
+### **Core Principle: Single Responsibility**
+The `WorkerManager` becomes the **single entry point** for all shutdown operations, absorbing the functionality of other managers rather than orchestrating them.
+
+### **Clear Master/Worker Separation**
+- **Master Mode**: Coordinates worker shutdown, calls one method per worker, waits for completion, then kills processes
+- **Worker Mode**: Handles own shutdown (ports, resources, clients), returns when ready to be killed
+
+### **Internal Composition Over External Orchestration**
+Rather than having separate manager classes that need to be coordinated, the `WorkerManager` internally manages all shutdown-related functionality using private methods and internal classes.
+
+## **A.3 Consolidated Architecture**
+
+```python
+class WorkerManager:
+    """Single manager for all shutdown operations in both master and worker modes"""
+    
+    def __init__(self, logger, mode="master"):
+        self.mode = mode  # "master" or "worker"
+        self.logger = logger
+        
+        # Master-specific: manage worker processes
+        if mode == "master":
+            self._workers: Dict[str, WorkerProcess] = {}
+            
+        # Always present: manage this process's resources
+        self._resources: Dict[str, Any] = {}
+        self._clients: Dict[str, Any] = {} 
+        self._file_handles: Dict[str, Any] = {}
+        self._cleanup_callbacks: List[Callable] = []
+        
+        # Absorbed signal handling
+        self._setup_signal_handlers()
+    
+    # === SINGLE PUBLIC API ===
+    async def shutdown(self, grace_period: float = 10.0) -> bool:
+        """Single entry point for all shutdown operations"""
+        if self.mode == "master":
+            return await self._shutdown_master(grace_period)
+        else:
+            return await self._shutdown_worker(grace_period)
+    
+    # === ABSORBED FUNCTIONALITY ===
+    def add_worker(self, repo_name: str, port: int, path: str): ...
+    def add_resource(self, name: str, resource: Any): ...
+    def add_client(self, client_id: str, transport): ...
+    def add_cleanup_callback(self, callback: Callable): ...
+    
+    # === INTERNAL SHUTDOWN LOGIC ===
+    async def _shutdown_master(self, grace_period: float) -> bool:
+        """Master shutdown: coordinate workers + cleanup master resources"""
+        # 1. Gracefully shutdown all workers (they handle their internals)
+        # 2. Wait for workers or timeout and force kill
+        # 3. Cleanup master's own resources
+        # 4. Final verification
+        
+    async def _shutdown_worker(self, grace_period: float) -> bool:
+        """Worker shutdown: clean everything, then return (ready to be killed)"""
+        # 1. Disconnect clients gracefully
+        # 2. Release ports  
+        # 3. Cleanup resources (databases, files, etc.)
+        # 4. Execute cleanup callbacks
+        # 5. Return success (master can safely kill process)
+```
+
+## **A.4 Benefits of Consolidated Design**
+
+### **Reduced Complexity**
+- ✅ **Single point of truth** for shutdown operations
+- ✅ **One API** to understand instead of 4-5 managers
+- ✅ **Clear integration** path for existing code
+- ✅ **Simpler testing** - mock one class instead of orchestrating multiple
+
+### **Better Encapsulation**
+- ✅ **Internal organization** without external complexity
+- ✅ **Mode-aware behavior** handled internally
+- ✅ **Absorbed signal handling** and coordination
+- ✅ **Clean separation** of master vs worker responsibilities
+
+### **Maintainable Architecture**
+- ✅ **Single entry point** for all shutdown operations
+- ✅ **Consolidated documentation** in one place
+- ✅ **Unified error handling** and logging
+- ✅ **Consistent API** across master and worker modes
+
+## **A.5 Integration Points**
+
+### **Master Process Integration**
+```python
+# In github_mcp_master.py
+worker_manager = WorkerManager(logger, mode="master")
+
+# Add workers as they're started
+for repo_config in repositories:
+    worker_manager.add_worker(repo_config.name, repo_config.port, repo_config.path)
+
+# Add master-level resources
+worker_manager.add_resource("config_file", config_handle)
+worker_manager.add_cleanup_callback("cleanup_logs", cleanup_log_files)
+
+# Single shutdown call
+await worker_manager.shutdown(grace_period=10.0)
+```
+
+### **Worker Process Integration**
+```python
+# In github_mcp_worker.py  
+worker_manager = WorkerManager(logger, mode="worker")
+
+# Add worker-specific resources
+worker_manager.add_resource("database", db_connection)
+worker_manager.add_client("mcp_client_1", client_transport)
+
+# Single shutdown call
+await worker_manager.shutdown(grace_period=5.0)
+```
+
+## **A.6 Migration Strategy**
+
+The consolidated approach provides backward compatibility while simplifying the architecture:
+
+1. **Replace multiple managers** with single `WorkerManager` instance
+2. **Absorb existing functionality** from `ResourceManager`, `ClientManager`, etc.
+3. **Maintain same shutdown phases** but execute them internally
+4. **Keep comprehensive logging** and verification from original design
+5. **Preserve signal handling** and exit codes for monitoring
+
+## **A.7 Conclusion**
+
+The evolved consolidated design maintains all the robustness and verification capabilities of the original 7-step design while providing:
+
+- **Simplified architecture** with single responsibility
+- **Cleaner integration** points for existing code
+- **Better testability** with focused mocking
+- **Reduced cognitive load** for developers
+- **Maintained reliability** with comprehensive shutdown phases
+
+This evolution demonstrates the value of implementing and testing designs to discover optimal architectures through practical experience.
