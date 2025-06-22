@@ -208,7 +208,7 @@ class MCPClient:
 
 
 class ClientConnectionManager:
-    """Manages all MCP client connections during shutdown"""
+    """Manages all MCP client connections throughout their lifecycle"""
     
     def __init__(self, logger: logging.Logger):
         self.logger = logger
@@ -447,9 +447,4 @@ class ClientConnectionManager:
         self._closed = True
 
 
-# Convenience function for easy integration
-async def graceful_client_shutdown(client_manager: ClientConnectionManager,
-                                 grace_period: float = 10.0,
-                                 force_timeout: float = 5.0) -> bool:
-    """Convenience function for graceful client shutdown"""
-    return await client_manager.graceful_shutdown(grace_period, force_timeout)
+

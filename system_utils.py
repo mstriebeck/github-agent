@@ -6,10 +6,18 @@ throughout the MCP server system, including in health endpoints and shutdown pro
 """
 
 import asyncio
+import logging
 import psutil
 import threading
 import time
 from datetime import datetime
+
+
+class MicrosecondFormatter(logging.Formatter):
+    """Custom formatter that provides microsecond precision timestamps"""
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created)
+        return dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]  # Keep 3 decimal places (milliseconds)
 
 
 def get_system_state():

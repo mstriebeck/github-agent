@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from client_manager import (
     ClientConnectionManager, MCPClient, ClientState, DisconnectionReason,
-    ClientInfo, graceful_client_shutdown
+    ClientInfo
 )
 
 
@@ -546,7 +546,7 @@ class TestGracefulShutdown(unittest.TestCase):
         transport = MockTransport()
         self.manager.add_client("client1", transport)
         
-        success = await graceful_client_shutdown(self.manager, grace_period=0.1, force_timeout=0.1)
+        success = await self.manager.graceful_shutdown(grace_period=0.1, force_timeout=0.1)
         
         self.assertTrue(self.manager._closed)
 

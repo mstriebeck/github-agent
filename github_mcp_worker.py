@@ -37,7 +37,7 @@ from github_tools import (
     execute_read_swiftlint_logs, execute_read_build_logs, execute_get_build_status
 )
 from shutdown_core import ShutdownCoordinator
-from system_utils import log_system_state
+from system_utils import log_system_state, MicrosecondFormatter
 
 class GitHubMCPWorker:
     """Worker process for handling a single repository"""
@@ -55,14 +55,9 @@ class GitHubMCPWorker:
         log_dir.mkdir(parents=True, exist_ok=True)
         
         # Setup enhanced logging with microsecond precision
-        class MicrosecondFormatter(logging.Formatter):
-            """Custom formatter that provides microsecond precision timestamps"""
-            def formatTime(self, record, datefmt=None):
-                dt = datetime.fromtimestamp(record.created)
-                return dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]  # Keep 3 decimal places (milliseconds)
-        
         self.logger = logging.getLogger(f"worker-{repo_name}")
-        self.logger.setLevel(logging.DEBUG)  # Use DEBUG level for more visibility
+        # Logging level should be set by master, default to INFO if not specified
+        self.logger.setLevel(logging.INFO)
         
         # Clear any existing handlers
         if self.logger.handlers:
@@ -159,7 +154,7 @@ class GitHubMCPWorker:
         """Set up a temporary repository manager for this worker's repository"""
         self.logger.debug("Setting up github_tools module...")
         try:
-            # Create a temporary in-memory repository manager with just this repository
+            # Configure github_tools with repository configuration
             self.logger.debug("Successfully accessed github_tools")
             
             # Configure github_tools logger immediately after import
@@ -617,23 +612,21 @@ def main():
             port=args.port,
             description=args.description
         )
-        print("[WORKER MAIN] Worker instance created successfully")
+        worker.logger.info("Worker instance created successfully")
     except Exception as e:
+        # Use print for critical startup errors before logger is available
         print(f"[WORKER MAIN] Failed to create worker: {e}")
         traceback.print_exc()
         sys.exit(1)
     
-    print("[WORKER MAIN] Starting worker async loop...")
+    worker.logger.info("Starting worker async loop...")
     try:
         asyncio.run(worker.start())
     except KeyboardInterrupt:
-        print("[WORKER MAIN] Worker stopped by user")
         worker.logger.info("Worker stopped by user")
     except Exception as e:
-        print(f"[WORKER MAIN] Worker failed: {e}")
+        worker.logger.error(f"Worker failed: {e}")
         traceback.print_exc()
-        if 'worker' in locals():
-            worker.logger.error(f"Worker failed: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

@@ -27,19 +27,13 @@ from pathlib import Path
 
 # Import shutdown coordination components
 from shutdown_core import ShutdownCoordinator, setup_signal_handlers, ExitCodes
-from system_utils import log_system_state
+from system_utils import log_system_state, MicrosecondFormatter
 
 # Configure logging with enhanced microsecond precision
 from datetime import datetime
 
 log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
 log_dir.mkdir(parents=True, exist_ok=True)
-
-class MicrosecondFormatter(logging.Formatter):
-    """Custom formatter that provides microsecond precision timestamps"""
-    def formatTime(self, record, datefmt=None):
-        dt = datetime.fromtimestamp(record.created)
-        return dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]  # Keep 3 decimal places (milliseconds)
 
 def setup_enhanced_logging(logger, log_file_path=None):
     """Enhance an existing logger with microsecond precision formatting
