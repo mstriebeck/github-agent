@@ -153,6 +153,10 @@ class HealthMonitor:
             
             # Write atomically by writing to temp file then moving
             temp_file = self.health_file_path.with_suffix('.tmp')
+            
+            # Ensure parent directory exists
+            temp_file.parent.mkdir(parents=True, exist_ok=True)
+            
             with open(temp_file, 'w') as f:
                 json.dump(asdict(report), f, indent=2, default=str)
                 
