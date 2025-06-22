@@ -221,62 +221,53 @@ class GitHubMCPMaster:
             return False
     
     async def stop_worker(self, worker: WorkerProcess, timeout: int = 5) -> bool:
-        """Stop a worker process with timeout"""
-        logger.debug(f"stop_worker called for {worker.repo_name} with timeout {timeout}")
+        """Stop a worker process with timeout (simplified for individual worker shutdown)"""
         try:
-            logger.debug(f"Checking if worker {worker.repo_name} is running...")
-            logger.debug(f"worker.process: {worker.process}")
-            
-            if not worker.process:
-                logger.info(f"Worker for {worker.repo_name} has no process object")
-                return True
-                
-            poll_result = worker.process.poll()
-            logger.debug(f"worker.process.poll() returned: {poll_result}")
-            
-            if poll_result is not None:
-                logger.info(f"Worker for {worker.repo_name} is not running (exit code: {poll_result})")
+            if not worker.process or worker.process.poll() is not None:
+                logger.info(f"Worker for {worker.repo_name} is already stopped")
                 worker.process = None
                 return True
             
             pid = worker.process.pid
-            logger.debug(f"About to stop worker for {worker.repo_name} (PID: {pid})")
+            logger.info(f"Stopping worker {worker.repo_name} (PID: {pid})")
             
             # Send SIGTERM for graceful shutdown
-            logger.debug(f"Sending SIGTERM to worker {worker.repo_name} (PID: {pid})")
             worker.process.terminate()
-            logger.debug(f"SIGTERM sent to worker {worker.repo_name}")
             
             # Wait for graceful shutdown with timeout
-            logger.debug(f"Waiting up to {timeout}s for worker {worker.repo_name} to stop gracefully...")
             try:
-                worker.process.wait(timeout=timeout)
+                await asyncio.wait_for(
+                    asyncio.create_task(self._wait_for_process_exit(worker.process)),
+                    timeout=timeout
+                )
                 logger.info(f"Worker for {worker.repo_name} stopped gracefully")
-                logger.debug(f"Final poll after graceful stop: {worker.process.poll()}")
-            except subprocess.TimeoutExpired:
+                worker.process = None
+                return True
+            except asyncio.TimeoutError:
                 # Force kill if doesn't respond
                 logger.warning(f"Worker for {worker.repo_name} didn't respond to SIGTERM within {timeout}s, force killing")
-                logger.debug(f"Sending SIGKILL to worker {worker.repo_name} (PID: {pid})")
-                worker.process.kill()
-                logger.debug(f"SIGKILL sent to worker {worker.repo_name}")
                 try:
-                    logger.debug(f"Waiting up to 2s for force kill to complete...")
-                    worker.process.wait(timeout=2)
-                    logger.debug(f"Force kill completed for worker {worker.repo_name}")
-                except subprocess.TimeoutExpired:
+                    worker.process.kill()
+                    await asyncio.wait_for(
+                        asyncio.create_task(self._wait_for_process_exit(worker.process)),
+                        timeout=2
+                    )
+                    logger.info(f"Worker for {worker.repo_name} force killed successfully")
+                    worker.process = None
+                    return True
+                except asyncio.TimeoutError:
                     logger.error(f"Worker for {worker.repo_name} couldn't be killed even with SIGKILL")
                     return False
             
-            # Port will be freed shortly after process termination - deploy script handles port checking
-            
-            logger.debug(f"Setting worker.process = None for {worker.repo_name}")
-            worker.process = None
-            logger.debug(f"Worker for {worker.repo_name} stopped successfully")
-            return True
-            
         except Exception as e:
-            logger.error(f"Exception in stop_worker for {worker.repo_name}: {e}")
-            logger.error(f"stop_worker exception traceback: {traceback.format_exc()}")
+            logger.error(f"Exception stopping worker {worker.repo_name}: {e}")
+            # Emergency cleanup
+            if worker.process:
+                try:
+                    worker.process.kill()
+                    worker.process = None
+                except:
+                    pass
             return False
     
     def is_worker_healthy(self, worker: WorkerProcess) -> bool:
@@ -409,123 +400,158 @@ class GitHubMCPMaster:
             logger.error(f"Traceback: {traceback.format_exc()}")
             return False
         
-        logger.info("Shutdown signal received, beginning shutdown process...")
-        logger.debug(f"self.running is now: {self.running}")
-        logger.debug(f"shutdown_event.is_set() is now: {self.shutdown_event.is_set()}")
+        logger.info("Shutdown signal received, beginning graceful shutdown...")
         
+        # **CRITICAL FIX**: Stop health monitoring FIRST to prevent worker restarts during shutdown
+        logger.info("Step 1: Stopping health monitoring to prevent worker restarts...")
         try:
-            # Cancel monitoring
-            logger.info("About to cancel worker monitoring task...")
-            logger.debug(f"monitor_task object: {monitor_task}")
-            logger.debug(f"monitor_task.cancelled(): {monitor_task.cancelled() if hasattr(monitor_task, 'cancelled') else 'N/A'}")
-            logger.debug(f"monitor_task.done(): {monitor_task.done() if hasattr(monitor_task, 'done') else 'N/A'}")
-            
-            logger.debug("Calling monitor_task.cancel()...")
             monitor_task.cancel()
-            logger.debug("monitor_task.cancel() completed")
-            logger.debug(f"monitor_task.cancelled() after cancel(): {monitor_task.cancelled()}")
-            
-            logger.debug("About to await monitor_task...")
             try:
                 await monitor_task
-                logger.debug("await monitor_task completed normally")
             except asyncio.CancelledError:
-                logger.debug("Monitor task cancelled successfully (CancelledError caught)")
+                logger.info("Health monitoring stopped successfully")
             except Exception as e:
-                logger.error(f"Unexpected error awaiting monitor task: {e}")
-                logger.error(f"Monitor task exception traceback: {traceback.format_exc()}")
-            
-            logger.info("Monitor task cancellation complete, proceeding to stop workers")
-            
-            # Stop all workers in parallel to avoid race conditions
-            logger.info("About to stop all workers in parallel...")
-            logger.debug(f"Number of workers to stop: {len(self.workers)}")
-            
-            async def stop_worker_with_timeout(repo_name, worker, timeout=8):
-                """Stop a worker with overall timeout"""
+                logger.error(f"Error stopping health monitoring: {e}")
+        except Exception as e:
+            logger.error(f"Critical error stopping health monitoring: {e}")
+        
+        # **Step 2**: Stop all workers with proper timeouts and connection draining
+        logger.info("Step 2: Stopping all worker processes with connection draining...")
+        return await self._shutdown_workers()
+    
+    async def _shutdown_workers(self) -> bool:
+        """Shutdown all workers with proper connection draining and timeouts"""
+        try:
+            async def stop_worker_gracefully(repo_name: str, worker: WorkerProcess) -> bool:
+                """Stop a single worker with proper connection draining"""
+                logger.info(f"stop_worker_gracefully called for {repo_name}")
                 try:
-                    logger.info(f"About to stop worker for {repo_name}...")
-                    logger.debug(f"Worker {repo_name} - PID: {worker.process.pid if worker.process else 'None'}")
-                    logger.debug(f"Worker {repo_name} - Port: {worker.port}")
+                    if not worker.process or worker.process.poll() is not None:
+                        logger.info(f"Worker {repo_name} already stopped")
+                        return True
                     
-                    # Call stop_worker with timeout
-                    logger.debug(f"Calling stop_worker for {repo_name}...")
-                    success = await asyncio.wait_for(
-                        self.stop_worker(worker, timeout=3),
-                        timeout=timeout
-                    )
-                    logger.debug(f"stop_worker call completed for {repo_name}")
+                    pid = worker.process.pid
+                    logger.info(f"Stopping worker {repo_name} (PID: {pid}) on port {worker.port}")
                     
-                    logger.debug(f"stop_worker returned: {success} for {repo_name}")
-                    if success:
-                        logger.info(f"Successfully stopped worker for {repo_name}")
-                    else:
-                        logger.error(f"Failed to stop worker for {repo_name}")
-                    return success
+                    # Send SIGTERM for graceful shutdown
+                    logger.info(f"Sending SIGTERM to worker {repo_name} (PID: {pid})")
+                    worker.process.terminate()
                     
-                except asyncio.TimeoutError:
-                    logger.error(f"Timeout stopping worker for {repo_name} after {timeout}s")
-                    # Force kill if timeout
-                    if worker.process:
+                    # Wait for worker to shutdown gracefully with shorter timeout
+                    logger.info(f"Waiting up to 5s for worker {repo_name} to stop gracefully...")
+                    try:
+                        await asyncio.wait_for(
+                            self._wait_for_process_exit(worker.process),
+                            timeout=5  # Reduced to 5 seconds for faster deployment
+                        )
+                        logger.info(f"Worker {repo_name} stopped gracefully")
+                        worker.process = None
+                        return True
+                    except asyncio.TimeoutError:
+                        logger.warning(f"Worker {repo_name} didn't stop gracefully within 5s, force killing (PID: {pid})")
+                        
+                        # Force kill
                         try:
-                            logger.warning(f"Force killing hung worker {repo_name} (PID: {worker.process.pid})")
+                            logger.info(f"Sending SIGKILL to worker {repo_name} (PID: {pid})")
                             worker.process.kill()
+                            logger.info(f"Waiting up to 2s for force kill to complete for worker {repo_name}")
+                            await asyncio.wait_for(
+                                self._wait_for_process_exit(worker.process),
+                                timeout=2
+                            )
+                            logger.info(f"Worker {repo_name} force killed successfully")
                             worker.process = None
-                            
-                            # Port will be freed shortly - deploy script handles port checking
+                            return True
+                        except asyncio.TimeoutError:
+                            logger.error(f"Worker {repo_name} couldn't be killed even with SIGKILL after 2s")
+                            # Set to None anyway to avoid hanging
+                            worker.process = None
+                            return False
                         except Exception as e:
-                            logger.error(f"Failed to force kill worker {repo_name}: {e}")
-                    return False
+                            logger.error(f"Error force killing worker {repo_name}: {e}")
+                            worker.process = None
+                            return False
+                            
                 except Exception as e:
-                    logger.error(f"Exception stopping worker for {repo_name}: {e}")
-                    logger.error(f"Worker stop exception traceback: {traceback.format_exc()}")
-                    # Force kill the worker even if there was an exception
+                    logger.error(f"Exception stopping worker {repo_name}: {e}")
+                    logger.error(f"Exception traceback: {traceback.format_exc()}")
+                    # Emergency cleanup
                     if worker.process:
                         try:
-                            logger.warning(f"Force killing worker {repo_name} due to exception")
+                            logger.warning(f"Emergency cleanup: killing worker {repo_name}")
                             worker.process.kill()
                             worker.process = None
-                        except Exception as kill_error:
-                            logger.error(f"Failed to force kill worker {repo_name}: {kill_error}")
+                        except Exception as cleanup_error:
+                            logger.error(f"Emergency cleanup failed for {repo_name}: {cleanup_error}")
+                            worker.process = None
                     return False
             
-            # Stop all workers concurrently
+            # Stop all workers concurrently for faster shutdown
+            if not self.workers:
+                logger.info("No workers to stop")
+                return True
+            
+            logger.info(f"Stopping {len(self.workers)} workers concurrently...")
             stop_tasks = [
-                stop_worker_with_timeout(repo_name, worker)
+                stop_worker_gracefully(repo_name, worker)
                 for repo_name, worker in self.workers.items()
             ]
             
-            if stop_tasks:
-                logger.debug(f"Starting {len(stop_tasks)} concurrent stop tasks...")
-                try:
-                    # Add overall timeout to prevent hanging
-                    results = await asyncio.wait_for(
-                        asyncio.gather(*stop_tasks, return_exceptions=True),
-                        timeout=20  # Maximum 20 seconds for all workers to stop
-                    )
-                    logger.debug(f"All stop tasks completed with results: {results}")
-                except asyncio.TimeoutError:
-                    logger.error("Overall shutdown timeout after 20s - forcing exit")
-                    # Force kill any remaining workers
-                    for repo_name, worker in self.workers.items():
-                        if worker.process:
-                            try:
-                                logger.warning(f"Force killing remaining worker {repo_name} due to shutdown timeout")
-                                worker.process.kill()
-                                worker.process = None
-                            except Exception as e:
-                                logger.error(f"Error force killing {repo_name}: {e}")
-            else:
-                logger.debug("No workers to stop")
+            # Execute all stop operations with reduced overall timeout for faster deployment
+            logger.info("Starting concurrent worker stop tasks...")
+            try:
+                results = await asyncio.wait_for(
+                    asyncio.gather(*stop_tasks, return_exceptions=True),
+                    timeout=15  # Reduced to 15 seconds total for faster deployment
+                )
+                
+                # Check results
+                successful_stops = sum(1 for r in results if r is True)
+                failed_stops = len(self.workers) - successful_stops
+                logger.info(f"Worker stop results: {successful_stops} successful, {failed_stops} failed")
+                
+                if successful_stops == len(self.workers):
+                    logger.info("All workers stopped successfully")
+                else:
+                    logger.warning(f"{failed_stops} workers failed to stop properly, but continuing shutdown")
+                
+            except asyncio.TimeoutError:
+                logger.error("Overall worker shutdown timeout after 15s - forcing emergency cleanup")
+                # Emergency cleanup for any remaining processes
+                for repo_name, worker in self.workers.items():
+                    if worker.process:
+                        try:
+                            logger.warning(f"Emergency kill of worker {repo_name} (PID: {worker.process.pid})")
+                            worker.process.kill()
+                            worker.process = None
+                        except Exception as e:
+                            logger.error(f"Emergency kill failed for {repo_name}: {e}")
+                            worker.process = None
             
-            logger.info("All workers stop attempts completed")
+            logger.info("Worker shutdown process completed")
             logger.info("GitHub MCP Master Process shutdown complete")
             return True
             
         except Exception as e:
-            logger.error(f"Critical error during shutdown: {e}")
-            logger.error(f"Critical error traceback: {traceback.format_exc()}")
+            logger.error(f"Critical error during worker shutdown: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Emergency cleanup of all workers
+            for repo_name, worker in self.workers.items():
+                if worker.process:
+                    try:
+                        logger.warning(f"Critical error cleanup: killing worker {repo_name}")
+                        worker.process.kill()
+                        worker.process = None
+                    except:
+                        worker.process = None
             return False
+    
+    async def _wait_for_process_exit(self, process: subprocess.Popen):
+        """Async wrapper for process.wait() with polling"""
+        while True:
+            if process.poll() is not None:
+                return process.returncode
+            await asyncio.sleep(0.1)  # Poll every 100ms
     
     def status(self) -> Dict:
         """Get status of all workers"""
