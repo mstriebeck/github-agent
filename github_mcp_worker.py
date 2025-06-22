@@ -18,20 +18,26 @@ import logging
 import argparse
 import sys
 import signal
+import queue
+import traceback
+import uvicorn
+from datetime import datetime
+from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-import queue
-from datetime import datetime
 
 # Import shared functionality
 from repository_manager import RepositoryConfig, RepositoryManager
+import github_tools
 from github_tools import (
     GitHubAPIContext,
     execute_find_pr_for_branch, execute_get_pr_comments, execute_post_pr_reply,
     execute_get_current_branch, execute_get_current_commit,
     execute_read_swiftlint_logs, execute_read_build_logs, execute_get_build_status
 )
+from shutdown_manager import ShutdownManager
+from system_utils import log_system_state, MicrosecondFormatter
 
 class GitHubMCPWorker:
     """Worker process for handling a single repository"""
@@ -44,29 +50,50 @@ class GitHubMCPWorker:
         self.port = port
         self.description = description
         
-        # Set up logging for this worker (use system-appropriate location)
-        from pathlib import Path
+        # Set up enhanced logging for this worker (use system-appropriate location)
         log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         
+        # Setup enhanced logging with microsecond precision
         self.logger = logging.getLogger(f"worker-{repo_name}")
+        # Logging level should be set by master, default to INFO if not specified
+        self.logger.setLevel(logging.INFO)
+        
+        # Clear any existing handlers
+        if self.logger.handlers:
+            self.logger.handlers.clear()
+        
+        # Detailed formatter with microseconds
+        detailed_formatter = MicrosecondFormatter(
+            '%(asctime)s [%(levelname)8s] %(name)s.%(funcName)s:%(lineno)d - %(message)s'
+        )
+        
+        # Console formatter with microseconds
+        console_formatter = MicrosecondFormatter(
+            '%(asctime)s [%(levelname)s] %(message)s'
+        )
         
         # Add console handler for immediate feedback
         console_handler = logging.StreamHandler()
-        console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         console_handler.setFormatter(console_formatter)
+        console_handler.setLevel(logging.INFO)
         self.logger.addHandler(console_handler)
         
         # Add file handler
         file_handler = logging.FileHandler(log_dir / f'{repo_name}.log')
-        file_handler.setFormatter(console_formatter)
+        file_handler.setFormatter(detailed_formatter)
+        file_handler.setLevel(logging.DEBUG)
         self.logger.addHandler(file_handler)
-        
-        self.logger.setLevel(logging.DEBUG)  # Use DEBUG level for more visibility
         
         self.logger.info(f"Worker initializing for {repo_name} on port {port}")
         self.logger.info(f"Repository path: {repo_path}")
         self.logger.info(f"Log directory: {log_dir}")
+        
+        # Initialize shutdown coordination
+        self.shutdown_manager = ShutdownManager(self.logger, mode="worker")
+        
+        # Start health monitoring
+        self.shutdown_manager._health_monitor.start_monitoring()
         
         # Validate repository path early
         if not os.path.exists(repo_path):
@@ -85,7 +112,6 @@ class GitHubMCPWorker:
             self.logger.debug("Repository configuration created successfully")
         except Exception as e:
             self.logger.error(f"Failed to create repository configuration: {e}")
-            import traceback
             self.logger.error(f"Traceback: {traceback.format_exc()}")
             raise
         
@@ -129,11 +155,10 @@ class GitHubMCPWorker:
         
     def _setup_repository_manager(self):
         """Set up a temporary repository manager for this worker's repository"""
-        self.logger.debug("Importing github_tools module...")
+        self.logger.debug("Setting up github_tools module...")
         try:
-            # Create a temporary in-memory repository manager with just this repository
-            import github_tools
-            self.logger.debug("Successfully imported github_tools")
+            # Configure github_tools with repository configuration
+            self.logger.debug("Successfully accessed github_tools")
             
             # Configure github_tools logger immediately after import
             github_tools_logger = logging.getLogger('github_tools')
@@ -486,11 +511,17 @@ class GitHubMCPWorker:
         return app
     
     def signal_handler(self, signum, frame):
-        """Handle shutdown signals"""
-        self.logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+        """Handle shutdown signals using shutdown manager"""
+        signal_name = signal.Signals(signum).name
+        self.logger.info(f"Received signal {signum} ({signal_name}), initiating graceful shutdown...")
+        
+        # Use shutdown manager for proper coordinated shutdown
+        self.shutdown_manager.initiate_shutdown(f"signal_{signal_name}")
+        
         if self.server:
             self.logger.info("Stopping uvicorn server...")
             self.server.should_exit = True
+        
         # Set the shutdown event to wake up the main loop
         if hasattr(self, 'shutdown_event'):
             asyncio.create_task(self._set_shutdown_event())
@@ -501,17 +532,14 @@ class GitHubMCPWorker:
     
     async def start(self):
         """Start the worker process"""
-        self.logger.debug("Importing uvicorn...")
-        try:
-            import uvicorn
-            self.logger.debug("Successfully imported uvicorn")
-        except Exception as e:
-            self.logger.error(f"Failed to import uvicorn: {e}")
-            raise
+        self.logger.debug("Setting up uvicorn...")
         
         self.logger.info(f"Starting worker for {self.repo_name} on port {self.port}")
         self.logger.info(f"Repository path: {self.repo_path}")
         self.logger.info(f"MCP endpoint: http://localhost:{self.port}/mcp/")
+        
+        # Log initial system state
+        log_system_state(self.logger, f"WORKER_{self.repo_name.upper()}_STARTING")
         
         # Note: Port availability is checked by the master process before starting workers
         
@@ -527,6 +555,7 @@ class GitHubMCPWorker:
             self.logger.debug("Uvicorn config created successfully")
         except Exception as e:
             self.logger.error(f"Failed to create uvicorn config: {e}")
+            self.shutdown_manager._exit_code_manager.report_system_error("uvicorn_config", e)
             raise
         
         self.logger.debug("Creating uvicorn server...")
@@ -535,6 +564,7 @@ class GitHubMCPWorker:
             self.logger.debug("Uvicorn server created successfully")
         except Exception as e:
             self.logger.error(f"Failed to create uvicorn server: {e}")
+            self.shutdown_manager._exit_code_manager.report_system_error("uvicorn_server", e)
             raise
         
         # Set up signal handlers
@@ -546,9 +576,18 @@ class GitHubMCPWorker:
         self.logger.info(f"Starting uvicorn server on port {self.port}...")
         try:
             await self.server.serve()
+            
+            # If we get here, server stopped normally
+            self.logger.info("Uvicorn server stopped normally")
+            
         except Exception as e:
             self.logger.error(f"Failed to start uvicorn server: {e}")
+            self.shutdown_manager._exit_code_manager.report_system_error("uvicorn_serve", e)
             raise
+        finally:
+            # Ensure cleanup happens
+            self.logger.info("Performing final cleanup...")
+            self.shutdown_manager.initiate_shutdown("server_stopped")
 
 def main():
     """Main entry point for worker process"""
@@ -587,25 +626,29 @@ def main():
             port=args.port,
             description=args.description
         )
-        print("[WORKER MAIN] Worker instance created successfully")
+        worker.logger.info("Worker instance created successfully")
     except Exception as e:
+        # Use print for critical startup errors before logger is available
         print(f"[WORKER MAIN] Failed to create worker: {e}")
-        import traceback
         traceback.print_exc()
         sys.exit(1)
     
-    print("[WORKER MAIN] Starting worker async loop...")
+    worker.logger.info("Starting worker async loop...")
     try:
         asyncio.run(worker.start())
+        
+        # Get final exit code from shutdown manager
+        exit_code = worker.shutdown_manager.get_exit_code()
+        worker.logger.info(f"Worker shutting down with exit code: {exit_code} ({exit_code.name})")
+        sys.exit(exit_code.value)
+        
     except KeyboardInterrupt:
-        print("[WORKER MAIN] Worker stopped by user")
         worker.logger.info("Worker stopped by user")
+        exit_code = worker.shutdown_manager.get_exit_code()
+        sys.exit(exit_code.value)
     except Exception as e:
-        print(f"[WORKER MAIN] Worker failed: {e}")
-        import traceback
+        worker.logger.error(f"Worker failed: {e}")
         traceback.print_exc()
-        if 'worker' in locals():
-            worker.logger.error(f"Worker failed: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

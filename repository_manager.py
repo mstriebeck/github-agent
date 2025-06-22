@@ -11,6 +11,8 @@ import json
 import os
 import logging
 import time
+import threading
+import re
 from pathlib import Path
 from typing import Dict, Optional, List, Callable
 from dataclasses import dataclass
@@ -347,8 +349,6 @@ class RepositoryManager:
         Args:
             check_interval: How often to check for changes in seconds
         """
-        import threading
-        
         def watch_loop():
             while True:
                 try:
@@ -397,6 +397,5 @@ def validate_repo_name(repo_name: str) -> bool:
         return False
     
     # Basic validation - alphanumeric, hyphens, underscores
-    import re
     pattern = r'^[a-zA-Z0-9_-]+$'
     return bool(re.match(pattern, repo_name))

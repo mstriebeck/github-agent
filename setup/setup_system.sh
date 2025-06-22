@@ -87,6 +87,7 @@ install_python_deps() {
             "gitpython"
             "requests"
             "pydantic"
+            "pytest"
             "python-dotenv"
             "fastapi"
             "uvicorn"

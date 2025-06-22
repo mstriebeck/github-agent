@@ -1,1 +1,1 @@
-# Test package for github_mcp_server
+# Tests package for MCP Server shutdown components

@@ -1,56 +1,218 @@
-# Tests for github_mcp_server.py
+# Shutdown System Test Suite
 
-This directory contains unit tests for the parsing functions in `github_mcp_server.py`.
+This directory contains a comprehensive test suite for the MCP server shutdown system. The tests are organized to provide thorough coverage of all shutdown scenarios, edge cases, and integration points.
 
-## What's Tested
+## Test Organization
 
-The tests focus on pure functions that don't require external dependencies:
+### Unit Tests
+- **`test_exit_codes.py`** - Tests exit code system and error classification
+- **`test_health_monitor.py`** - Tests health monitoring and status reporting
+- **`test_shutdown_manager.py`** - Tests the consolidated shutdown manager
 
-### SwiftLint Violation Parsing (`test_log_parsing.py`)
-- `extract_file_from_violation()` - Extracts file paths from SwiftLint output
-- `extract_line_number_from_violation()` - Extracts line numbers from SwiftLint output  
-- `extract_severity_from_violation()` - Extracts error/warning severity
-- `extract_message_from_violation()` - Extracts violation messages
-- `extract_rule_from_violation()` - Extracts SwiftLint rule names
+### Integration Tests  
+- **`test_shutdown_integration.py`** - End-to-end shutdown scenarios with mock processes
+- **`test_abstracts.py`** - Abstract base classes for mocking system operations
 
-### Build Output Parsing (`test_log_parsing.py`)
-- Regex patterns for compiler errors, warnings, and test failures
-- Pattern validation to ensure they match only the correct line types
+### Edge Case Tests
+- **`test_edge_cases.py`** - Unusual scenarios, race conditions, and error handling
 
-### Utility Functions (`test_utilities.py`)
-- `parse_github_remote_url()` - Parses GitHub SSH and HTTPS remote URLs
-- `find_matching_workflow_run()` - Workflow run matching with fallback strategy
-- `find_file_with_alternatives()` - File finding with alternative names
-- `is_swiftlint_violation_line()` - SwiftLint violation pattern matching
+### Test Infrastructure
+- **`conftest.py`** - Pytest configuration and shared fixtures
+- **`test_runner.py`** - Comprehensive test runner with reporting
+- **`README.md`** - This documentation
 
 ## Running Tests
 
+### Quick Start
 ```bash
-# Run all tests
-python tests/run_tests.py
+# Run all core tests
+python tests/test_runner.py
 
-# Run specific test file
-python -m unittest tests.test_log_parsing
+# Verbose output
+python tests/test_runner.py -v
 
-# Run with verbose output
-python tests/run_tests.py -v
+# Run specific test suites
+python tests/test_runner.py --unit
+python tests/test_runner.py --integration
+python tests/test_runner.py --edge-cases
 ```
 
-## Test Data
+### Comprehensive Testing
+```bash
+# Run everything including performance and coverage
+python tests/test_runner.py --all
 
-The tests use realistic sample data based on actual SwiftLint and Xcode build output patterns:
+# Just add performance tests
+python tests/test_runner.py --performance
 
-- SwiftLint violations with various file paths, line numbers, severities, messages and rules
-- Compiler errors and warnings from Swift builds
-- XCTest failure messages
-- Edge cases with malformed or partially valid input
+# Just add coverage analysis
+python tests/test_runner.py --coverage
+```
 
-## Adding More Tests
+### Using Pytest Directly
+```bash
+# Activate virtual environment
+source .venv/bin/activate
 
-If you have actual log output from your builds, you can easily add more test cases:
+# Run specific test file
+python -m pytest tests/test_exit_codes.py -v
 
-1. Add sample lines to the `setUp()` methods in `test_log_parsing.py`
-2. Add corresponding expected results
-3. The test framework will automatically validate all combinations
+# Run with coverage
+python -m pytest tests/ --cov=../ --cov-report=html
 
-The parsing functions are designed to be robust and handle edge cases gracefully.
+# Run only integration tests
+python -m pytest tests/ -m integration
+
+# Run only fast tests (exclude slow/edge cases)
+python -m pytest tests/ -m "not slow"
+```
+
+## Test Categories
+
+### Markers
+Tests are marked with the following categories:
+- `@pytest.mark.integration` - Integration tests with mock processes
+- `@pytest.mark.edge_case` - Edge case and stress tests  
+- `@pytest.mark.slow` - Tests that may take several seconds
+
+### Test Scenarios Covered
+
+#### Happy Path Scenarios
+- ✅ Clean shutdown with cooperative workers
+- ✅ Clean shutdown with cooperative clients  
+- ✅ Clean resource cleanup
+- ✅ Proper port release
+- ✅ Health monitoring integration
+
+#### Error Scenarios
+- ✅ Worker timeout and force termination
+- ✅ Unresponsive client connections
+- ✅ Port release failures
+- ✅ Resource cleanup failures
+- ✅ Zombie process detection
+
+#### Edge Cases
+- ✅ Rapid signal delivery
+- ✅ Concurrent shutdown attempts
+- ✅ Process resurrection scenarios
+- ✅ Permission denied errors
+- ✅ System resource limits
+- ✅ Race conditions in state updates
+
+#### Integration Scenarios
+- ✅ Master mode shutdown (4 phases)
+- ✅ Worker mode shutdown (3 phases)
+- ✅ Mixed cooperative/unresponsive processes
+- ✅ Partial failure recovery
+- ✅ Health monitoring throughout shutdown
+
+## Mock Process System
+
+The test suite uses a sophisticated mock process system defined in `test_abstracts.py`:
+
+### Mock Process Types
+- **`CooperativeMockProcess`** - Responds to signals gracefully
+- **`UnresponsiveMockProcess`** - Ignores shutdown signals
+- **`ZombieMockProcess`** - Becomes zombie instead of terminating
+- **`CooperativeMockPort`** - Releases cleanly when requested
+- **`StickyMockPort`** - Refuses to release (simulates stuck ports)
+- **`CooperativeMockClient`** - Disconnects when requested
+- **`UnresponsiveMockClient`** - Ignores disconnect requests
+
+### Mock Registry
+The `MockProcessRegistry` manages all mock objects and provides:
+- Process creation with different behaviors
+- Automatic cleanup after tests
+- Simulation of various system conditions
+- Thread-safe concurrent operations
+
+## Test Coverage Goals
+
+The test suite aims for:
+- **100% line coverage** on shutdown components
+- **All exit codes** tested and verified
+- **All shutdown phases** tested in isolation and integration
+- **All error paths** covered with appropriate mocking
+- **Performance characteristics** validated
+- **Concurrency safety** verified
+
+## Expected Test Results
+
+### Success Criteria
+All tests should pass with:
+- No hanging tests (all complete within timeouts)
+- No resource leaks (threads, files, ports)
+- Consistent results across multiple runs
+- Clear error messages for any failures
+
+### Performance Expectations
+- Unit tests: < 1 second each
+- Integration tests: < 10 seconds each  
+- Edge case tests: < 30 seconds each
+- Full suite: < 5 minutes total
+
+## Debugging Failed Tests
+
+### Common Issues
+1. **Import errors** - Ensure all dependencies are installed
+2. **Port conflicts** - Tests use high port numbers to avoid conflicts
+3. **Threading issues** - Tests include automatic thread cleanup
+4. **Mock setup** - Check that process registry is properly initialized
+
+### Debug Strategies
+```bash
+# Run single test with full output
+python -m pytest tests/test_shutdown_manager.py::TestShutdownManager::test_clean_shutdown -v -s
+
+# Run with Python debugger
+python -m pytest tests/test_shutdown_manager.py --pdb
+
+# Show test duration details
+python -m pytest tests/ --durations=0
+```
+
+### Log Analysis
+Tests create detailed logs for analysis:
+- Mock process state transitions
+- Shutdown phase progression
+- Error condition handling
+- Resource cleanup verification
+
+## Test Development Guidelines
+
+### Adding New Tests
+1. Use appropriate test category (unit/integration/edge_case)
+2. Follow naming convention: `test_<scenario>_<condition>`
+3. Use provided fixtures for consistent setup
+4. Include both positive and negative test cases
+5. Add proper cleanup in fixtures
+
+### Mock Usage
+1. Use `MockProcessRegistry` for process simulation
+2. Configure mock behavior to match test scenario
+3. Verify mock state after test completion
+4. Include error injection for negative tests
+
+### Performance Testing
+1. Mark slow tests with `@pytest.mark.slow`
+2. Use timeout protection for potentially hanging operations
+3. Verify resource cleanup in performance tests
+4. Test concurrent operations safely
+
+## Continuous Integration
+
+The test suite is designed to run in CI environments:
+- No external dependencies (uses mocks)
+- Deterministic results (no random timing)
+- Comprehensive reporting
+- Clear pass/fail criteria
+- Suitable for automated deployment gates
+
+## Contributing
+
+When adding new shutdown functionality:
+1. Add corresponding unit tests
+2. Add integration test scenarios
+3. Consider edge cases and add appropriate tests
+4. Update test documentation
+5. Verify test suite still completes in reasonable time

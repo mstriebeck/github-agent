@@ -77,10 +77,66 @@ is_port_free() {
     ! lsof -i ":$port" >/dev/null 2>&1
 }
 
+# Function to check for TIME_WAIT connections on a port
+has_time_wait_connections() {
+    local port="$1"
+    netstat -an | grep ":$port " | grep -q "TIME_WAIT"
+}
+
+# Function to wait for TIME_WAIT connections to be cleaned up
+wait_for_time_wait_cleanup() {
+    local ports="$1"
+    local max_wait=30
+    local elapsed=0
+    
+    echo "Checking for TIME_WAIT connections that need cleanup..."
+    
+    local has_time_wait=false
+    for port in $ports; do
+        if has_time_wait_connections "$port"; then
+            echo "Found TIME_WAIT connections on port $port"
+            has_time_wait=true
+        fi
+    done
+    
+    if [[ "$has_time_wait" == false ]]; then
+        echo "No TIME_WAIT connections found, proceeding..."
+        return 0
+    fi
+    
+    echo "Waiting for TIME_WAIT connections to be cleaned up..."
+    while [[ $elapsed -lt $max_wait ]]; do
+        local all_clear=true
+        
+        for port in $ports; do
+            if has_time_wait_connections "$port"; then
+                all_clear=false
+                break
+            fi
+        done
+        
+        if [[ "$all_clear" == true ]]; then
+            echo "All TIME_WAIT connections cleared after ${elapsed}s"
+            return 0
+        fi
+        
+        sleep 1
+        elapsed=$((elapsed + 1))
+        
+        # Log progress every 5 seconds
+        if [[ $((elapsed % 5)) -eq 0 ]]; then
+            echo "Still waiting for TIME_WAIT cleanup... (${elapsed}s elapsed)"
+        fi
+    done
+    
+    echo "Warning: Some TIME_WAIT connections may still exist after ${max_wait}s"
+    return 0  # Don't fail the deployment for this
+}
+
 # Function to wait for ports to be freed
 wait_for_ports_free() {
     local config_file="$1"
-    local timeout="${2:-30}"  # Default 30 seconds
+    local timeout="${2:-60}"   # Default 60 seconds (reduced since shutdown waits for ports)
     local check_interval=1
     local elapsed=0
     
@@ -129,17 +185,29 @@ echo "Stopping service..."
 if [[ "$USE_SYSTEMD" == true ]]; then
     systemctl stop pr-agent 2>/dev/null || echo "Service not running"
 else
+    echo "🛑 Stopping GitHub MCP server (may take up to 60 seconds for graceful port cleanup)..."
     launchctl unload ~/Library/LaunchAgents/com.mstriebeck.github_mcp_server.plist 2>/dev/null || echo "Service not running"
+    echo "✅ Server stopped successfully"
 fi
 
 # Wait for ports to be freed (skip during install since no config exists yet)
 if [[ "$INSTALL_MODE" == false ]]; then
     config_file="$INSTALL_DIR/repositories.json"
     if [[ -f "$config_file" ]]; then
-        if ! wait_for_ports_free "$config_file" 30; then
-            echo "Error: Failed to free up ports. Deployment aborted." >&2
-            echo "Please manually stop any conflicting processes and try again." >&2
-            exit 1
+        # Get the ports that need to be checked
+        ports=$(get_ports_from_config "$config_file")
+        if [[ $? -eq 0 ]] && [[ -n "$ports" ]]; then
+            # First, wait for any TIME_WAIT connections to be cleaned up
+            wait_for_time_wait_cleanup "$ports"
+            
+            # Then wait for ports to be completely free
+            if ! wait_for_ports_free "$config_file" 30; then
+                echo "Error: Failed to free up ports. Deployment aborted." >&2
+                echo "Please manually stop any conflicting processes and try again." >&2
+                exit 1
+            fi
+        else
+            echo "Warning: Could not get ports from config, skipping port check"
         fi
     else
         echo "Warning: Config file not found at $config_file, skipping port check"
@@ -157,6 +225,12 @@ cd "$PROJECT_ROOT"
 [ -f "$INSTALL_DIR/repository_manager.py" ] && rm -f "$INSTALL_DIR/repository_manager.py"
 [ -f "$INSTALL_DIR/repository_cli.py" ] && rm -f "$INSTALL_DIR/repository_cli.py"
 [ -f "$INSTALL_DIR/requirements.txt" ] && rm -f "$INSTALL_DIR/requirements.txt"
+# Remove shutdown system files
+[ -f "$INSTALL_DIR/shutdown_manager.py" ] && rm -f "$INSTALL_DIR/shutdown_manager.py"
+[ -f "$INSTALL_DIR/exit_codes.py" ] && rm -f "$INSTALL_DIR/exit_codes.py"
+[ -f "$INSTALL_DIR/health_monitor.py" ] && rm -f "$INSTALL_DIR/health_monitor.py"
+[ -f "$INSTALL_DIR/shutdown_core.py" ] && rm -f "$INSTALL_DIR/shutdown_core.py"
+[ -f "$INSTALL_DIR/system_utils.py" ] && rm -f "$INSTALL_DIR/system_utils.py"
 
 # Copy updated files
 cp github_mcp_master.py "$INSTALL_DIR/"
@@ -165,6 +239,12 @@ cp github_tools.py "$INSTALL_DIR/"
 cp repository_manager.py "$INSTALL_DIR/"
 cp repository_cli.py "$INSTALL_DIR/"
 cp requirements.txt "$INSTALL_DIR/"
+# Copy shutdown system files
+cp shutdown_manager.py "$INSTALL_DIR/"
+cp exit_codes.py "$INSTALL_DIR/"
+cp health_monitor.py "$INSTALL_DIR/"
+cp shutdown_core.py "$INSTALL_DIR/"
+cp system_utils.py "$INSTALL_DIR/"
 
 # Update dependencies if requirements changed
 echo "Updating Python dependencies..."
