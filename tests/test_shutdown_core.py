@@ -13,7 +13,13 @@ import os
 import signal
 import threading
 import time
+import re
+from datetime import datetime
 from unittest.mock import patch, MagicMock
+
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shutdown_core import (
     ShutdownCoordinator,
@@ -59,8 +65,6 @@ class TestCentralLogging(unittest.TestCase):
     def test_microsecond_formatter(self):
         """Test the microsecond formatter class"""
         # Since the enhanced logging is now in the master file, we'll test a simplified version
-        from datetime import datetime
-        
         class MicrosecondFormatter(logging.Formatter):
             def formatTime(self, record, datefmt=None):
                 dt = datetime.fromtimestamp(record.created)
@@ -78,7 +82,6 @@ class TestCentralLogging(unittest.TestCase):
         formatted = formatter.format(record)
         
         # Check that it contains a timestamp with milliseconds
-        import re
         timestamp_pattern = r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}'
         self.assertTrue(re.search(timestamp_pattern, formatted))
     

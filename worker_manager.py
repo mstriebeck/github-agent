@@ -12,6 +12,7 @@ import socket
 import os
 import time
 import asyncio
+import aiohttp
 from datetime import datetime
 from typing import Dict, Optional, List
 from dataclasses import dataclass
@@ -257,7 +258,6 @@ class WorkerManager:
     async def _send_worker_shutdown_request(self, port: int):
         """Send HTTP shutdown request to worker"""
         try:
-            import aiohttp
             timeout = aiohttp.ClientTimeout(total=5)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 shutdown_url = f"http://localhost:{port}/shutdown"

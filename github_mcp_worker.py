@@ -18,14 +18,18 @@ import logging
 import argparse
 import sys
 import signal
+import queue
+import traceback
+import uvicorn
+from datetime import datetime
+from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-import queue
-from datetime import datetime
 
 # Import shared functionality
 from repository_manager import RepositoryConfig, RepositoryManager
+import github_tools
 from github_tools import (
     GitHubAPIContext,
     execute_find_pr_for_branch, execute_get_pr_comments, execute_post_pr_reply,
@@ -47,9 +51,6 @@ class GitHubMCPWorker:
         self.description = description
         
         # Set up enhanced logging for this worker (use system-appropriate location)
-        from pathlib import Path
-        from datetime import datetime
-        
         log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         
@@ -113,7 +114,6 @@ class GitHubMCPWorker:
             self.logger.debug("Repository configuration created successfully")
         except Exception as e:
             self.logger.error(f"Failed to create repository configuration: {e}")
-            import traceback
             self.logger.error(f"Traceback: {traceback.format_exc()}")
             raise
         
@@ -157,11 +157,10 @@ class GitHubMCPWorker:
         
     def _setup_repository_manager(self):
         """Set up a temporary repository manager for this worker's repository"""
-        self.logger.debug("Importing github_tools module...")
+        self.logger.debug("Setting up github_tools module...")
         try:
             # Create a temporary in-memory repository manager with just this repository
-            import github_tools
-            self.logger.debug("Successfully imported github_tools")
+            self.logger.debug("Successfully accessed github_tools")
             
             # Configure github_tools logger immediately after import
             github_tools_logger = logging.getLogger('github_tools')
@@ -535,13 +534,7 @@ class GitHubMCPWorker:
     
     async def start(self):
         """Start the worker process"""
-        self.logger.debug("Importing uvicorn...")
-        try:
-            import uvicorn
-            self.logger.debug("Successfully imported uvicorn")
-        except Exception as e:
-            self.logger.error(f"Failed to import uvicorn: {e}")
-            raise
+        self.logger.debug("Setting up uvicorn...")
         
         self.logger.info(f"Starting worker for {self.repo_name} on port {self.port}")
         self.logger.info(f"Repository path: {self.repo_path}")
@@ -627,7 +620,6 @@ def main():
         print("[WORKER MAIN] Worker instance created successfully")
     except Exception as e:
         print(f"[WORKER MAIN] Failed to create worker: {e}")
-        import traceback
         traceback.print_exc()
         sys.exit(1)
     
@@ -639,7 +631,6 @@ def main():
         worker.logger.info("Worker stopped by user")
     except Exception as e:
         print(f"[WORKER MAIN] Worker failed: {e}")
-        import traceback
         traceback.print_exc()
         if 'worker' in locals():
             worker.logger.error(f"Worker failed: {e}")

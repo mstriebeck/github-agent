@@ -11,8 +11,13 @@ import asyncio
 import logging
 import time
 import socket
+import sys
+import os
 from unittest.mock import Mock, MagicMock, patch, AsyncMock
 from datetime import datetime
+
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from worker_manager import WorkerManager, WorkerProcess
 from shutdown_core import IProcessSpawner
