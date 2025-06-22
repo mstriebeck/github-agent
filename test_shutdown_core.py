@@ -16,13 +16,14 @@ import time
 from unittest.mock import patch, MagicMock
 
 from shutdown_core import (
-    setup_central_logger,
-    log_system_state,
+    setup_enhanced_logging,
+    MicrosecondFormatter,
     ShutdownCoordinator,
     setup_signal_handlers,
     ExitCodes,
     RealProcessSpawner
 )
+from system_utils import log_system_state, get_system_state, format_system_state_for_health
 
 
 class TestCentralLogging(unittest.TestCase):
@@ -31,35 +32,41 @@ class TestCentralLogging(unittest.TestCase):
     def setUp(self):
         self.test_logger_name = f"test_logger_{int(time.time() * 1000000)}"
     
-    def test_setup_central_logger(self):
-        """Test that central logger is created with correct configuration"""
-        logger = setup_central_logger(name=self.test_logger_name, level=logging.DEBUG)
+    def test_setup_enhanced_logging(self):
+        """Test that enhanced logging is properly configured"""
+        logger = logging.getLogger(self.test_logger_name)
+        logger.setLevel(logging.DEBUG)
         
-        # Verify logger is created
-        self.assertIsInstance(logger, logging.Logger)
-        self.assertEqual(logger.name, self.test_logger_name)
-        self.assertEqual(logger.level, logging.DEBUG)
+        # Setup enhanced logging
+        enhanced_logger = setup_enhanced_logging(logger)
         
-        # Verify handlers are added
-        self.assertEqual(len(logger.handlers), 3)  # file, shutdown, console
+        # Verify logger is enhanced
+        self.assertIsInstance(enhanced_logger, logging.Logger)
+        self.assertEqual(enhanced_logger.name, self.test_logger_name)
+        self.assertEqual(enhanced_logger.level, logging.DEBUG)
+        
+        # Verify handlers are added (file and console)
+        self.assertEqual(len(enhanced_logger.handlers), 2)  # file, console
         
         # Test logging with microsecond precision
-        logger.info("Test message for microsecond precision")
-        logger.debug("Debug message")
+        enhanced_logger.info("Test message for microsecond precision")
+        enhanced_logger.debug("Debug message")
         
         # Cleanup
-        for handler in logger.handlers[:]:
+        for handler in enhanced_logger.handlers[:]:
             handler.close()
-            logger.removeHandler(handler)
+            enhanced_logger.removeHandler(handler)
     
     def test_microsecond_precision(self):
         """Test that log messages include microsecond precision"""
-        logger = setup_central_logger(name=self.test_logger_name)
+        logger = logging.getLogger(self.test_logger_name)
+        logger.setLevel(logging.DEBUG)
+        logger = setup_enhanced_logging(logger)
         
         # Find the file handler to read log content
         file_handler = None
         for handler in logger.handlers:
-            if isinstance(handler, logging.FileHandler) and 'debug' in handler.baseFilename:
+            if isinstance(handler, logging.FileHandler):
                 file_handler = handler
                 break
         
@@ -109,7 +116,9 @@ class TestCentralLogging(unittest.TestCase):
         mock_proc.children.return_value = []
         mock_process.return_value = mock_proc
         
-        logger = setup_central_logger(name=self.test_logger_name)
+        logger = logging.getLogger(self.test_logger_name)
+        logger.setLevel(logging.DEBUG)
+        logger = setup_enhanced_logging(logger)
         
         # Test system state logging
         log_system_state(logger, "TEST_PHASE")
@@ -127,7 +136,9 @@ class TestShutdownCoordinator(unittest.TestCase):
     """Test the shutdown coordinator"""
     
     def setUp(self):
-        self.logger = setup_central_logger(name=f"test_coordinator_{int(time.time() * 1000000)}")
+        logger = logging.getLogger(f"test_coordinator_{int(time.time() * 1000000)}")
+        logger.setLevel(logging.DEBUG)
+        self.logger = setup_enhanced_logging(logger)
         self.coordinator = ShutdownCoordinator(self.logger)
     
     def tearDown(self):
@@ -182,7 +193,9 @@ class TestSignalHandling(unittest.TestCase):
     """Test signal handling setup"""
     
     def setUp(self):
-        self.logger = setup_central_logger(name=f"test_signals_{int(time.time() * 1000000)}")
+        logger = logging.getLogger(f"test_signals_{int(time.time() * 1000000)}")
+        logger.setLevel(logging.DEBUG)
+        self.logger = setup_enhanced_logging(logger)
         self.coordinator = ShutdownCoordinator(self.logger)
     
     def tearDown(self):
@@ -226,6 +239,48 @@ class TestExitCodes(unittest.TestCase):
         self.assertEqual(ExitCodes.ZOMBIE_PROCESSES, 5)
         self.assertEqual(ExitCodes.RESOURCE_CLEANUP_FAILURE, 6)
         self.assertEqual(ExitCodes.INTERNAL_ERROR, 100)
+
+
+class TestSystemUtils(unittest.TestCase):
+    """Test system utilities"""
+    
+    def test_get_system_state(self):
+        """Test getting system state"""
+        system_state = get_system_state()
+        
+        # Should have required keys
+        self.assertIn('process', system_state)
+        self.assertIn('memory', system_state)
+        self.assertIn('children', system_state)
+        self.assertIn('threads', system_state)
+        self.assertIn('timestamp', system_state)
+        
+        # Process info should have expected structure
+        process_info = system_state['process']
+        self.assertIn('pid', process_info)
+        self.assertIn('status', process_info)
+        
+        # Memory info should have expected structure
+        memory_info = system_state['memory']
+        self.assertIn('rss_mb', memory_info)
+        self.assertIn('vms_mb', memory_info)
+    
+    def test_format_system_state_for_health(self):
+        """Test formatting system state for health endpoint"""
+        # Test with valid system state
+        system_state = get_system_state()
+        health_format = format_system_state_for_health(system_state)
+        
+        self.assertEqual(health_format['status'], 'healthy')
+        self.assertIn('process', health_format)
+        self.assertIn('timestamp', health_format)
+        
+        # Test with error state
+        error_state = {'error': 'test error', 'timestamp': '2024-01-01T00:00:00'}
+        health_format = format_system_state_for_health(error_state)
+        
+        self.assertEqual(health_format['status'], 'error')
+        self.assertEqual(health_format['error'], 'test error')
 
 
 class TestRealProcessSpawner(unittest.TestCase):

@@ -15,25 +15,25 @@ from datetime import datetime
 from abc import ABC, abstractmethod
 
 
-def setup_central_logger(name='mcp_server', level=logging.DEBUG):
-    """Setup centralized logger with microsecond precision that gets passed to all components"""
+class MicrosecondFormatter(logging.Formatter):
+    """Custom formatter that provides microsecond precision timestamps"""
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created)
+        return dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]  # Keep 3 decimal places (milliseconds)
+
+
+def setup_enhanced_logging(logger, log_file_path=None):
+    """Enhance an existing logger with microsecond precision formatting
     
-    # Create logger
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-    
+    This should be called from the master process to enhance the main logger
+    that will be passed to all components throughout the system.
+    """
     # Prevent duplicate handlers
     if logger.handlers:
         logger.handlers.clear()
     
-    # True microsecond precision formatter using datetime
-    class MicrosecondFormatter(logging.Formatter):
-        def formatTime(self, record, datefmt=None):
-            dt = datetime.fromtimestamp(record.created)
-            return dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]  # Keep 3 decimal places (milliseconds)
-    
     # Detailed formatter with microseconds
-    microsecond_formatter = MicrosecondFormatter(
+    detailed_formatter = MicrosecondFormatter(
         '%(asctime)s [%(levelname)8s] %(name)s.%(funcName)s:%(lineno)d - %(message)s'
     )
     
@@ -42,76 +42,30 @@ def setup_central_logger(name='mcp_server', level=logging.DEBUG):
         '%(asctime)s [%(levelname)s] %(message)s'
     )
     
-    # File handler for detailed debug logs
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]  # Include microseconds
-    debug_file = f'/tmp/mcp_server_debug_{timestamp}.log'
-    file_handler = logging.FileHandler(debug_file)
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(microsecond_formatter)
+    # File handler for detailed debug logs (use provided path or default)
+    if log_file_path is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        log_file_path = f'/tmp/mcp_server_{timestamp}.log'
     
-    # Shutdown-specific log file
-    shutdown_file = f'/tmp/mcp_server_shutdown_{timestamp}.log'
-    shutdown_handler = logging.FileHandler(shutdown_file)
-    shutdown_handler.setLevel(logging.INFO)
-    shutdown_handler.setFormatter(microsecond_formatter)
+    file_handler = logging.FileHandler(log_file_path)
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(detailed_formatter)
     
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(console_formatter)
     
-    # Add all handlers
+    # Add handlers to logger
     logger.addHandler(file_handler)
-    logger.addHandler(shutdown_handler)
     logger.addHandler(console_handler)
     
-    # Log the initialization with microsecond precision
-    logger.info(f"Central logger initialized with microsecond precision")
-    logger.debug(f"Debug log: {debug_file}")
-    logger.debug(f"Shutdown log: {shutdown_file}")
-    logger.debug(f"Log level set to: {logging.getLevelName(level)}")
+    logger.info(f"Enhanced logging initialized with microsecond precision")
+    logger.debug(f"Log file: {log_file_path}")
+    logger.debug(f"Log level set to: {logging.getLevelName(logger.level)}")
     
     return logger
 
-
-def log_system_state(logger, phase):
-    """Log comprehensive system state with microsecond timing"""
-    start_time = datetime.now()
-    logger.debug(f"=== SYSTEM STATE: {phase} (at {start_time.strftime('%H:%M:%S.%f')[:-3]}) ===")
-    
-    try:
-        import psutil
-        import threading
-        
-        # Process info
-        proc = psutil.Process()
-        logger.debug(f"PID: {proc.pid}, Status: {proc.status()}")
-        logger.debug(f"Memory: RSS={proc.memory_info().rss/1024/1024:.1f}MB, VMS={proc.memory_info().vms/1024/1024:.1f}MB")
-        logger.debug(f"CPU: {proc.cpu_percent()}%")
-        logger.debug(f"Threads: {proc.num_threads()}")
-        logger.debug(f"Open files: {len(proc.open_files())}")
-        logger.debug(f"Connections: {len(proc.connections())}")
-        
-        # Children
-        children = proc.children(recursive=True)
-        logger.debug(f"Child processes: {len(children)}")
-        for child in children:
-            try:
-                logger.debug(f"  Child PID {child.pid}: {child.name()} ({child.status()})")
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-        
-        # Threading info
-        logger.debug(f"Active Python threads: {threading.active_count()}")
-        for thread in threading.enumerate():
-            logger.debug(f"  Thread: {thread.name} (alive: {thread.is_alive()})")
-            
-    except Exception as e:
-        logger.error(f"Error logging system state: {e}")
-    
-    end_time = datetime.now()
-    duration = (end_time - start_time).total_seconds() * 1000  # milliseconds
-    logger.debug(f"=== END SYSTEM STATE: {phase} (duration: {duration:.2f}ms) ===")
 
 
 class ShutdownCoordinator:
