@@ -261,15 +261,24 @@ async def execute_post_pr_reply(repo_name: str, comment_id: int, message: str) -
 
 async def execute_get_current_branch(repo_name: str) -> str:
     """Get current branch for the specified repository"""
+    logger.error(f"TEST: execute_get_current_branch called for repo '{repo_name}'")  # Using ERROR level to ensure it shows up
+    logger.info(f"Getting current branch for repository '{repo_name}'")
+    
     try:
+        logger.debug("Getting GitHub context...")
         context = get_github_context(repo_name)
+        
+        logger.debug("Getting current branch from git...")
         branch = context.get_current_branch()
+        
+        logger.info(f"Current branch for {repo_name}: {branch}")
         return json.dumps({
             "branch": branch,
             "repo": context.repo_name,
             "repo_config": repo_name
         })
     except Exception as e:
+        logger.error(f"Failed to get current branch for {repo_name}: {str(e)}", exc_info=True)
         return json.dumps({"error": f"Failed to get current branch for {repo_name}: {str(e)}"})
 
 
@@ -290,30 +299,40 @@ async def execute_get_current_commit(repo_name: str) -> str:
 # Build/Lint helper functions (simplified - removed legacy single-repo functions)
 async def execute_read_swiftlint_logs(build_id: str = None) -> str:
     """Read SwiftLint violation logs from GitHub Actions artifacts"""
+    logger.info(f"Reading SwiftLint logs (build_id: {build_id})")
+    logger.warning("SwiftLint logs not implemented in multi-repo mode yet")
     return json.dumps({"error": "SwiftLint logs not implemented in multi-repo mode yet"})
 
 
 async def execute_read_build_logs(build_id: str = None) -> str:
     """Read build logs and extract Swift compiler errors, warnings, and test failures"""
+    logger.info(f"Reading build logs (build_id: {build_id})")
+    logger.warning("Build logs not implemented in multi-repo mode yet")
     return json.dumps({"error": "Build logs not implemented in multi-repo mode yet"})
 
 async def execute_get_build_status(repo_name: str, commit_sha: Optional[str] = None) -> str:
     """Get build status for commit"""
+    logger.info(f"Getting build status for repository '{repo_name}'" + (f" commit {commit_sha}" if commit_sha else " (current commit)"))
+    
     try:
         if not repo_manager or repo_name not in repo_manager.repositories:
+            logger.error(f"Repository {repo_name} not found in configuration")
             return json.dumps({"error": f"Repository {repo_name} not found"})
         
+        logger.debug("Creating GitHub context...")
         repo_config = repo_manager.repositories[repo_name]
         context = GitHubAPIContext(repo_config)
         
         if not context.repo:
+            logger.error("GitHub repository not configured")
             return json.dumps({"error": "GitHub repository not configured"})
 
         if not commit_sha:
-            if not context.git_repo:
-                return json.dumps({"error": "Not in a Git repository"})
-            commit_sha = context._current_commit or context.git_repo.head.commit.hexsha
+            logger.debug("No commit SHA provided, getting current commit...")
+            commit_sha = context.get_current_commit()
+            logger.debug(f"Using commit SHA: {commit_sha}")
 
+        logger.debug(f"Fetching commit details for {commit_sha}...")
         commit = context.repo.get_commit(commit_sha)
 
         # Initialize overall_state here; it will be updated based on check runs
@@ -321,10 +340,14 @@ async def execute_get_build_status(repo_name: str, commit_sha: Optional[str] = N
         has_failures = False
         check_runs_data = []
 
+        logger.debug("Attempting to get check runs...")
         try:
             # Prefer check runs for detailed build status
             # This is more robust against the 'Resource not accessible' error for combined_status
-            for run in commit.get_check_runs():
+            check_runs = list(commit.get_check_runs())
+            logger.info(f"Found {len(check_runs)} check runs")
+            
+            for run in check_runs:
                 check_run_info = {
                     "name": run.name,
                     "status": run.status,
@@ -332,48 +355,57 @@ async def execute_get_build_status(repo_name: str, commit_sha: Optional[str] = N
                     "url": run.html_url
                 }
                 check_runs_data.append(check_run_info)
+                logger.debug(f"Check run: {run.name} - status: {run.status}, conclusion: {run.conclusion}")
 
                 if run.conclusion in ["failure", "timed_out", "cancelled", "stale"]:
                     has_failures = True
+                    logger.debug(f"Found failure in check run: {run.name}")
                 elif run.status == "completed" and run.conclusion == "success" and overall_state == "pending":
                     overall_state = "success"  # Set to success if at least one successful completed run and no failures yet
+                    logger.debug("Setting overall state to success based on completed run")
                 elif run.status != "completed":  # If any check is still running, overall is in_progress
                     overall_state = "in_progress"
+                    logger.debug("Found in-progress check run")
 
         except Exception as e:
             # Log this if needed, but allow to proceed to combined_status fallback or default
-            logger.debug(f"Warning: Failed to get check runs, trying combined status fallback: {e}")
-            pass  # Continue to try combined_status if check_runs fails
+            logger.warning(f"Failed to get check runs, trying combined status fallback: {e}")
 
         # Fallback to get_combined_status if check_runs_data is empty or if check_runs failed
-        # This part might still throw the 403, but it's a fallback.
-        # If check_runs_data is populated, we might skip this
         if not check_runs_data:
+            logger.debug("No check runs found, trying combined status fallback...")
             try:
                 status = commit.get_combined_status()
                 overall_state = status.state
+                logger.debug(f"Combined status state: {status.state}")
+                
                 has_failures = any(
                     s.state in ["failure", "error", "pending"] and s.context != "expected"  # Refine logic if needed
                     for s in status.statuses
                 )
+                
                 # Populate check_runs_data from statuses if check_runs failed
-                # This part is redundant if check_runs already populated data
-                if not check_runs_data:
-                    for s in status.statuses:
-                        check_runs_data.append({
-                            "name": s.context,
-                            "status": s.state,
-                            "conclusion": s.state,  # Map status state to conclusion for consistency
-                            "url": s.target_url
-                        })
+                logger.info(f"Found {len(status.statuses)} status checks")
+                for s in status.statuses:
+                    check_runs_data.append({
+                        "name": s.context,
+                        "status": s.state,
+                        "conclusion": s.state,  # Map status state to conclusion for consistency
+                        "url": s.target_url
+                    })
+                    logger.debug(f"Status check: {s.context} - state: {s.state}")
+                    
             except Exception as e:
-                logger.debug(f"Error: Failed to get combined status even as fallback: {e}")
+                logger.error(f"Failed to get combined status even as fallback: {e}", exc_info=True)
                 overall_state = "error"  # Indicate an error if both fail
                 has_failures = True
 
         # Ensure overall_state reflects failures if any
         if has_failures:
             overall_state = "failure"
+            logger.info("Overall state set to failure due to detected failures")
+
+        logger.info(f"Build status summary: overall_state={overall_state}, has_failures={has_failures}, checks={len(check_runs_data)}")
 
         result = {
             "commit_sha": commit_sha,
@@ -385,4 +417,5 @@ async def execute_get_build_status(repo_name: str, commit_sha: Optional[str] = N
         return json.dumps(result)
 
     except Exception as e:
+        logger.error(f"Failed to get build status: {str(e)}", exc_info=True)
         return json.dumps({"error": f"Failed to get build status: {str(e)}"})
