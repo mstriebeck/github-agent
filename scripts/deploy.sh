@@ -157,6 +157,12 @@ cd "$PROJECT_ROOT"
 [ -f "$INSTALL_DIR/repository_manager.py" ] && rm -f "$INSTALL_DIR/repository_manager.py"
 [ -f "$INSTALL_DIR/repository_cli.py" ] && rm -f "$INSTALL_DIR/repository_cli.py"
 [ -f "$INSTALL_DIR/requirements.txt" ] && rm -f "$INSTALL_DIR/requirements.txt"
+# Remove shutdown system files
+[ -f "$INSTALL_DIR/shutdown_manager.py" ] && rm -f "$INSTALL_DIR/shutdown_manager.py"
+[ -f "$INSTALL_DIR/exit_codes.py" ] && rm -f "$INSTALL_DIR/exit_codes.py"
+[ -f "$INSTALL_DIR/health_monitor.py" ] && rm -f "$INSTALL_DIR/health_monitor.py"
+[ -f "$INSTALL_DIR/shutdown_core.py" ] && rm -f "$INSTALL_DIR/shutdown_core.py"
+[ -f "$INSTALL_DIR/system_utils.py" ] && rm -f "$INSTALL_DIR/system_utils.py"
 
 # Copy updated files
 cp github_mcp_master.py "$INSTALL_DIR/"
@@ -165,6 +171,12 @@ cp github_tools.py "$INSTALL_DIR/"
 cp repository_manager.py "$INSTALL_DIR/"
 cp repository_cli.py "$INSTALL_DIR/"
 cp requirements.txt "$INSTALL_DIR/"
+# Copy shutdown system files
+cp shutdown_manager.py "$INSTALL_DIR/"
+cp exit_codes.py "$INSTALL_DIR/"
+cp health_monitor.py "$INSTALL_DIR/"
+cp shutdown_core.py "$INSTALL_DIR/"
+cp system_utils.py "$INSTALL_DIR/"
 
 # Update dependencies if requirements changed
 echo "Updating Python dependencies..."
