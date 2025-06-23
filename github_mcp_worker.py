@@ -34,7 +34,9 @@ from github_tools import (
     GitHubAPIContext,
     execute_find_pr_for_branch, execute_get_pr_comments, execute_post_pr_reply,
     execute_get_current_branch, execute_get_current_commit,
-    execute_read_swiftlint_logs, execute_read_build_logs, execute_get_build_status
+    execute_read_swiftlint_logs, execute_read_build_logs, execute_get_build_status,
+    execute_post_pr_reply_queue, execute_list_unhandled_comments, 
+    execute_ack_reply, execute_process_comment_batch
 )
 from shutdown_manager import ShutdownManager
 from system_utils import log_system_state, MicrosecondFormatter
@@ -429,8 +431,76 @@ class GitHubMCPWorker:
                                         },
                                         "required": []
                                     }
-                                }
-                            ]
+                                    },
+                                        {
+                                     "name": "post_pr_reply_queue",
+                                     "description": f"Queue a reply to a PR comment for background processing in {self.repo_name}. Instead of posting immediately, this queues the reply for later processing to handle rate limiting and batch operations. Essential for managing multiple responses without hitting GitHub API limits.",
+                                     "inputSchema": {
+                                         "type": "object",
+                                         "properties": {
+                                             "comment_id": {
+                                                 "type": "integer",
+                                                 "description": "GitHub comment ID to reply to"
+                                             },
+                                             "path": {
+                                                 "type": "string",
+                                                 "description": "File path where the comment was made"
+                                             },
+                                             "line": {
+                                                 "type": "integer",
+                                                 "description": "Line number where the comment was made (optional)"
+                                             },
+                                             "body": {
+                                                 "type": "string",
+                                                 "description": "Reply message content"
+                                             }
+                                         },
+                                         "required": ["comment_id", "path", "body"]
+                                     }
+                                 },
+                                 {
+                                     "name": "list_unhandled_comments",
+                                     "description": f"List PR comments that haven't been replied to yet in {self.repo_name}. Compares all PR comments against the reply queue database to identify comments that still need responses. Essential for tracking pending work and ensuring no comments are missed.",
+                                     "inputSchema": {
+                                         "type": "object",
+                                         "properties": {
+                                             "pr_number": {
+                                                 "type": "integer",
+                                                 "description": "GitHub Pull Request number (optional - if not provided, uses current branch PR)"
+                                             }
+                                         },
+                                         "required": []
+                                     }
+                                 },
+                                 {
+                                     "name": "ack_reply",
+                                     "description": f"Mark a comment as handled/acknowledged in {self.repo_name}. Updates the internal tracking system to mark a comment as processed, preventing it from appearing in unhandled comment lists. Useful for manual tracking and cleanup.",
+                                     "inputSchema": {
+                                         "type": "object",
+                                         "properties": {
+                                             "comment_id": {
+                                                 "type": "integer",
+                                                 "description": "GitHub comment ID to mark as handled"
+                                             }
+                                         },
+                                         "required": ["comment_id"]
+                                     }
+                                 },
+                                 {
+                                     "name": "process_comment_batch",
+                                     "description": f"Process multiple PR comment replies in batch for {self.repo_name}. Parses specially formatted comment data containing multiple replies and posts them all at once. Efficient for handling multiple responses from AI analysis sessions.",
+                                     "inputSchema": {
+                                         "type": "object",
+                                         "properties": {
+                                             "comments_data": {
+                                                 "type": "string",
+                                                 "description": "Formatted string containing multiple comment replies in the format: [comment_id: ID - path:line - original_comment: \"text\"] Reply: response"
+                                             }
+                                         },
+                                         "required": ["comments_data"]
+                                     }
+                                 }
+                             ]
                         }
                     }
                     self.message_queue.put(response)
@@ -484,6 +554,34 @@ class GitHubMCPWorker:
                         commit_sha = tool_args.get("commit_sha")
                         result = await execute_get_build_status(self.repo_name, commit_sha)
                         
+                    elif tool_name == "post_pr_reply_queue":
+                        comment_id = tool_args.get("comment_id")
+                        path = tool_args.get("path")
+                        line = tool_args.get("line")
+                        body = tool_args.get("body")
+                        if not comment_id or not path or not body:
+                            result = json.dumps({"error": "comment_id, path, and body are required"})
+                        else:
+                            result = await execute_post_pr_reply_queue(self.repo_name, comment_id, path, line, body)
+                            
+                    elif tool_name == "list_unhandled_comments":
+                        pr_number = tool_args.get("pr_number")
+                        result = await execute_list_unhandled_comments(self.repo_name, pr_number)
+                        
+                    elif tool_name == "ack_reply":
+                        comment_id = tool_args.get("comment_id")
+                        if not comment_id:
+                            result = json.dumps({"error": "comment_id is required"})
+                        else:
+                            result = await execute_ack_reply(self.repo_name, comment_id)
+                            
+                    elif tool_name == "process_comment_batch":
+                        comments_data = tool_args.get("comments_data")
+                        if not comments_data:
+                            result = json.dumps({"error": "comments_data is required"})
+                        else:
+                            result = await execute_process_comment_batch(self.repo_name, comments_data)
+                    
                     else:
                         result = json.dumps({"error": f"Tool '{tool_name}' not implemented"})
                     
