@@ -389,8 +389,8 @@ class GitHubMCPWorker:
                                     }
                                 },
                                 {
-                                    "name": "github_get_build_and_test_errors",
-                                    "description": f"Extract and return build errors, warnings, and test failures from GitHub Actions CI logs for {self.repo_name}. Analyzes CI/CD pipeline results to identify compilation errors, build warnings, failed tests, and other build issues from the latest GitHub Actions run. Essential for debugging failing builds, understanding test failures, and identifying compilation problems across different programming languages.",
+                                "name": "github_get_build_and_test_errors",
+                                "description": f"🔧 BUILD ERROR RESOLVER: Use this tool when builds fail, tests fail, or when asked to 'fix build errors'. Extracts detailed compilation errors, build warnings, and test failures from GitHub Actions CI logs for {self.repo_name}. Essential for: debugging failed CI builds, fixing compilation errors, resolving test failures, understanding build warnings. Gets exact error messages, file locations, and line numbers from CI logs. Use this INSTEAD of running local builds when investigating CI build failures.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {
@@ -403,8 +403,8 @@ class GitHubMCPWorker:
                                     }
                                 },
                                 {
-                                    "name": "github_get_lint_errors",
-                                    "description": f"Extract and return linting errors and code quality violations from GitHub Actions CI logs for {self.repo_name}. Parses GitHub Actions build output to extract linting violations, style issues, and code quality problems from various linters (SwiftLint, ESLint, Pylint, etc.). Helps identify code style inconsistencies, potential bugs, and maintainability issues across different programming languages.",
+                                "name": "github_get_lint_errors",
+                                "description": f"🔍 LINT ERROR RESOLVER: Use this tool when the build has lint errors, CI fails due to linting issues, or when asked to 'fix lint errors'. Extracts detailed linting violations from GitHub Actions CI logs for {self.repo_name}, including SwiftLint, ESLint, Pylint errors. Essential for: fixing build failures caused by lint issues, identifying specific code style violations that need to be corrected, getting exact file locations and line numbers for lint problems. Use this INSTEAD of running local linting tools when lint errors come from CI/CD builds.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {
@@ -417,8 +417,8 @@ class GitHubMCPWorker:
                                     }
                                 },
                                 {
-                                    "name": "github_get_build_status",
-                                    "description": f"Get comprehensive CI/CD build status and check results for a commit in {self.repo_name}. Retrieves GitHub Actions workflow status, check runs, and build conclusions from GitHub API. Shows overall build state (success/failure/pending/in_progress), individual check run details, and failure indicators. Essential for monitoring build health, understanding CI pipeline status, and identifying failing checks.",
+                                "name": "github_get_build_status",
+                                "description": f"📊 BUILD STATUS CHECKER: Use this tool to check if builds are passing/failing, investigate CI status, or when asked about 'build status'. Gets comprehensive CI/CD build status and check results for commits in {self.repo_name}. Shows overall build state (success/failure/pending/in_progress), individual check run details, and failure indicators. Essential for: checking if builds are ready, determining which checks failed, monitoring CI pipeline status before making changes. Use this FIRST when investigating build issues to understand what's failing.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {
