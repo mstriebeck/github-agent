@@ -1,14 +1,14 @@
-# PR Agent HTTP Server
+# GitHub Agent Multi-Repository HTTP Server
 
-Complete deployment and API documentation for the unified PR Agent HTTP server.
+Complete deployment and API documentation for the GitHub Agent multi-repository HTTP server system.
 
 ## Overview
 
-The PR Agent runs as a single HTTP service that provides:
+The GitHub Agent runs as a multi-repository HTTP service system that provides:
 
-1. **PR Management Tools** - All MCP tools accessible via HTTP API
-2. **Background Worker** - Automatic processing of queued PR replies
-3. **Management Interface** - Control and monitoring endpoints
+1. **PR Management Tools** - All MCP tools accessible via HTTP API per repository
+2. **Multi-Repository Support** - Each repository gets its own dedicated worker and port
+3. **Management Interface** - Master server with health monitoring and worker management
 
 ## Installation
 
@@ -21,9 +21,10 @@ The PR Agent runs as a single HTTP service that provides:
 
 ### Quick Installation
 
-1. **Clone and enter repository:**
+1. **Clone repository:**
    ```bash
-   cd your-github-repo  # Must be a git repo with GitHub remote
+   git clone <repository-url>
+   cd github-agent
    ```
 
 2. **Install dependencies:**
@@ -31,13 +32,19 @@ The PR Agent runs as a single HTTP service that provides:
    pip install -r requirements.txt
    ```
 
-3. **Configure GitHub token:**
+3. **Configure repositories:**
+   ```bash
+   # Edit repositories.json to add your repositories
+   # Each repository gets its own port and worker
+   ```
+
+4. **Configure GitHub token:**
    ```bash
    cp config/services.env .env
    # Edit .env and set GITHUB_TOKEN=your_token_here
    ```
 
-4. **Install as service (optional):**
+5. **Install as service (optional):**
    ```bash
    # Linux (requires sudo)
    sudo ./install-services.sh
@@ -48,114 +55,115 @@ The PR Agent runs as a single HTTP service that provides:
 
 ## Configuration
 
-The server auto-detects your GitHub repository from `git remote origin`. Only the GitHub token is required:
+The system uses two configuration files:
 
+### 1. repositories.json
+Define which repositories to manage and their ports:
+```json
+{
+  "repositories": {
+    "github-agent": {
+      "path": "/path/to/github-agent",
+      "port": 8081,
+      "description": "GitHub Agent repository"
+    },
+    "my-project": {
+      "path": "/path/to/my-project", 
+      "port": 8082,
+      "description": "My Project repository"
+    }
+  }
+}
+```
+
+### 2. Environment (.env)
 ```bash
 # Required
 GITHUB_TOKEN=ghp_your_token_here
 
 # Optional
-SERVER_PORT=8080
-POLL_INTERVAL=30
-AUTO_START_WORKER=true
 LOG_LEVEL=INFO
 ```
 
 **Configuration locations:**
-- **Development:** `.env` in current directory
-- **Service (Linux):** `/opt/github-agent/.env`  
-- **Service (macOS):** `~/.local/share/github-agent/.env`
+- **Development:** `.env` and `repositories.json` in current directory
+- **Service (Linux):** `/opt/github-agent/.env` and `/opt/github-agent/repositories.json`
+- **Service (macOS):** `~/.local/share/github-agent/.env` and `~/.local/share/github-agent/repositories.json`
 
 ## Running the Server
 
 ### Development Mode
 ```bash
-python github_mcp_server.py
+python github_mcp_master.py
 ```
+
+This starts the master server which automatically launches worker processes for each repository defined in `repositories.json`.
 
 ### Service Mode
 
 **Linux (systemd):**
 ```bash
-sudo systemctl start pr-agent     # Start
-sudo systemctl status pr-agent    # Check status
-sudo systemctl stop pr-agent      # Stop
+sudo systemctl start github-agent     # Start
+sudo systemctl status github-agent    # Check status
+sudo systemctl stop github-agent      # Stop
 ```
 
 **macOS (launchd):**
 ```bash
-launchctl start com.github.pr-agent    # Start
-launchctl list | grep pr-agent         # Check status  
-launchctl stop com.github.pr-agent     # Stop
+launchctl start com.github.agent         # Start
+launchctl list | grep github-agent       # Check status  
+launchctl stop com.github.agent          # Stop
 ```
 
 ## API Usage
 
-### Core Endpoints
+### Master Server Endpoints (Port 8080)
 
-**Health Check:**
+**Master Health Check:**
 ```bash
 curl http://localhost:8080/health
 ```
 
-**Execute Any Tool:**
-```bash
-curl -X POST http://localhost:8080/execute \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "git_get_current_branch",
-    "arguments": {}
-  }'
-```
-
-**Server Status:**
+**System Status (all workers):**
 ```bash
 curl http://localhost:8080/status
 ```
 
-### Queue Management
+### Repository Worker Endpoints
 
-**Check Queue:**
+Each repository defined in `repositories.json` gets its own worker with dedicated endpoints:
+
+**Repository Root Info:**
 ```bash
-curl http://localhost:8080/queue
+curl http://localhost:8081/    # For github-agent repository
+curl http://localhost:8082/    # For second repository
 ```
 
-**Control Worker:**
+**Repository Health Check:**
 ```bash
-curl -X POST http://localhost:8080/worker/control \
-  -H "Content-Type: application/json" \
-  -d '{"action": "process_now"}'
+curl http://localhost:8081/health    # For github-agent repository
+curl http://localhost:8082/health    # For second repository
 ```
 
-**Worker Status:**
+**MCP Endpoint (tools and communication):**
 ```bash
-curl http://localhost:8080/worker/status
+# Each repository has its own MCP endpoint
+curl http://localhost:8081/mcp/    # For github-agent repository
+curl http://localhost:8082/mcp/    # For second repository
 ```
 
 ## VS Code/Amp Integration
 
 ### MCP HTTP Transport
 
-The server provides an **MCP HTTP transport** in addition to the original stdio transport. Configure your MCP client to use:
+Each repository worker provides an **MCP HTTP transport** endpoint. Configure your MCP client to connect to the specific repository you want to work with:
 
-**MCP Server URL:** `http://localhost:8080/execute`
+**MCP Server URLs (per repository):**
+- `http://localhost:8081/mcp/` (for github-agent repository)
+- `http://localhost:8082/mcp/` (for second repository)
+- etc.
 
-**Request Format:**
-```json
-{
-  "name": "tool_name",
-  "arguments": { "param": "value" }
-}
-```
-
-**Response Format:**
-```json
-{
-  "success": true,
-  "data": { ... },
-  "error": null
-}
-```
+The MCP endpoint supports both GET (Server-Sent Events) and POST (JSON-RPC) methods as required by the MCP Streamable HTTP transport protocol.
 
 ### Available Tools
 
@@ -174,35 +182,36 @@ All original MCP tools work via HTTP:
 - `github_get_build_and_test_errors` - Extract build errors, warnings, and test failures
 - `process_comment_batch` - Process multiple replies in batch
 
-## Queue System
+## Multi-Repository Architecture
 
 ### How It Works
-1. Use `post_pr_reply_queue` to queue replies instead of posting immediately
-2. Background worker automatically processes queued replies every 30 seconds
-3. Monitor queue status via `/queue` endpoint
-4. Control worker via `/worker/control` endpoint
+1. Master server (port 8080) manages multiple worker processes
+2. Each repository gets its own dedicated worker process and port
+3. Workers are automatically started/stopped/restarted by the master
+4. Each worker provides its own MCP endpoint at `http://localhost:<port>/mcp/`
+5. Configure repositories in `repositories.json`
 
 ### Benefits
-- **Reliability** - Retries failed posts automatically
-- **Rate Limiting** - Avoids GitHub API rate limits
-- **Async Processing** - Don't block main workflow
-- **Monitoring** - Full visibility into queue status
+- **Isolation** - Each repository runs independently
+- **Scalability** - Add repositories without affecting others
+- **Reliability** - If one worker fails, others continue running
+- **Clean URLs** - Simple per-repository endpoint management
 
 ## Logging
 
 **Log Locations:**
 - **Development:** Console output
-- **Linux Service:** `/var/log/github_mcp_server.log` + systemd journal
-- **macOS Service:** `~/.local/share/github-agent/logs/github_mcp_server.log`
+- **Linux Service:** `/var/log/github_agent_master.log` + systemd journal
+- **macOS Service:** `~/.local/share/github-agent/logs/github_agent_master.log`
 
 **View Logs:**
 ```bash
 # Linux
-sudo journalctl -u pr-agent -f
-tail -f /var/log/github_mcp_server.log
+sudo journalctl -u github-agent -f
+tail -f /var/log/github_agent_master.log
 
 # macOS  
-tail -f ~/.local/share/github-agent/logs/github_mcp_server.log
+tail -f ~/.local/share/github-agent/logs/github_agent_master.log
 
 # Development
 # Logs appear in terminal
@@ -216,11 +225,11 @@ tail -f ~/.local/share/github-agent/logs/github_mcp_server.log
 3. **Check dependencies:** Run `pip install -r requirements.txt`
 4. **View logs:** See log locations above
 
-### Worker Not Processing Queue
-1. **Check worker status:** `curl http://localhost:8080/worker/status`
-2. **Manual trigger:** `curl -X POST http://localhost:8080/worker/control -d '{"action":"process_now"}'`
+### Worker Not Responding
+1. **Check system status:** `curl http://localhost:8080/status`
+2. **Check individual worker:** `curl http://localhost:8081/health` (replace with actual port)
 3. **GitHub permissions:** Verify token has `repo` scope
-4. **Check logs:** Worker errors appear in main log
+4. **Check logs:** Worker errors appear in master and worker logs
 
 ### Database Issues
 - Database file created automatically at `./pr_replies.db` (or service directory)
@@ -228,9 +237,9 @@ tail -f ~/.local/share/github-agent/logs/github_mcp_server.log
 - SQLite is included with Python
 
 ### GitHub API Errors
-- **Rate limiting:** Use queue system (`post_pr_reply_queue`) 
 - **403 Forbidden:** Check token permissions and repository access
-- **404 Not Found:** Verify repository name detection with `/status`
+- **404 Not Found:** Verify repository paths in `repositories.json`
+- **Rate limiting:** GitHub API has rate limits, workers handle retries automatically
 
 ## Security Considerations
 
@@ -244,7 +253,7 @@ tail -f ~/.local/share/github-agent/logs/github_mcp_server.log
 Run directly for development:
 ```bash
 export GITHUB_TOKEN=your_token
-python github_mcp_server.py
+python github_mcp_master.py
 ```
 
 ## Uninstallation
@@ -273,40 +282,45 @@ The uninstall script will:
 **Manual Uninstall (if script fails):**
 ```bash
 # Stop the service
-sudo systemctl stop pr-agent     # Linux
-launchctl unload com.github.pr-agent  # macOS
+sudo systemctl stop github-agent     # Linux
+launchctl unload com.github.agent  # macOS
 
 # Remove installation
 sudo rm -rf /opt/github-agent    # Linux
 rm -rf ~/.local/share/github-agent  # macOS
 
 # Remove service files
-sudo rm /etc/systemd/system/pr-agent.service  # Linux
-rm ~/Library/LaunchAgents/com.github.pr-agent.plist  # macOS
+sudo rm /etc/systemd/system/github-agent.service  # Linux
+rm ~/Library/LaunchAgents/com.github.agent.plist  # macOS
 
 # Kill any remaining processes
-pkill -f github_mcp_server
+pkill -f github_mcp_master
+pkill -f github_mcp_worker
 ```
 
-The server will auto-detect your repository and start on http://localhost:8080
+The master server starts on http://localhost:8080 and manages workers for each configured repository.
 
 ## MCP Integration with Amp
 
-The server provides MCP (Model Context Protocol) support for integration with Amp and other MCP clients.
+The system provides MCP (Model Context Protocol) support for integration with Amp and other MCP clients.
 
 ### MCP Endpoints
 
-- **Streamable HTTP (Recommended):** `http://localhost:8080/mcp` - Supports both POST messages and GET SSE streams
+Each repository gets its own MCP endpoint:
+- **Repository 1:** `http://localhost:8081/mcp/` (supports both POST and GET SSE)
+- **Repository 2:** `http://localhost:8082/mcp/` (supports both POST and GET SSE)
+- etc.
 
 ### Configuring Amp
 
-To add the GitHub PR Agent to Amp, enter this URL:
+To add a specific repository to Amp, use its dedicated MCP endpoint:
 
 ```
-http://localhost:8080/mcp
+http://localhost:8081/mcp/    # For the first repository
+http://localhost:8082/mcp/    # For the second repository
 ```
 
-This single endpoint provides both HTTP POST (for tool calls) and GET SSE (for streaming) as required by the MCP Streamable HTTP transport protocol.
+Each endpoint provides both HTTP POST (for tool calls) and GET SSE (for streaming) as required by the MCP Streamable HTTP transport protocol.
 
 ### Available MCP Tools
 
