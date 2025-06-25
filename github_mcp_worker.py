@@ -359,16 +359,16 @@ class GitHubMCPWorker:
                                 },
                                 {
                                     "name": "github_find_pr_for_branch",
-                                    "description": f"Find and retrieve the GitHub Pull Request associated with a specific branch in {self.repo_name}. Searches GitHub API for open PRs that have the specified branch as their head branch. Returns PR details including number, title, URL, status, and merge information. Useful for connecting local branches to GitHub PRs.",
+                                    "description": f"Find and retrieve the GitHub Pull Request associated with a specific branch in {self.repo_name}. Searches GitHub API for open PRs that have the specified branch as their head branch. Returns PR details including number, title, URL, status, and merge information. Useful for connecting local branches to GitHub PRs. If branch_name is not provided, uses the currently checked out local branch.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {
                                             "branch_name": {
                                                 "type": "string",
-                                                "description": "Git branch name to search for (e.g., 'feature/new-login', 'main', 'develop')"
+                                                "description": "Git branch name to search for (e.g., 'feature/new-login', 'main', 'develop'). Optional - if not provided, uses the currently checked out local branch."
                                             }
                                         },
-                                        "required": ["branch_name"]
+                                        "required": []
                                     }
                                 },
                                 {
@@ -462,7 +462,14 @@ class GitHubMCPWorker:
                     if tool_name == "github_find_pr_for_branch":
                         branch_name = tool_args.get("branch_name")
                         if not branch_name:
-                            result = json.dumps({"error": "branch_name is required"})
+                            # Auto-detect current branch
+                            current_branch_result = await execute_get_current_branch(self.repo_name)
+                            current_branch_data = json.loads(current_branch_result)
+                            if current_branch_data.get("error"):
+                                result = json.dumps({"error": f"Failed to get current branch: {current_branch_data.get('error')}"})
+                            else:
+                                branch_name = current_branch_data.get("branch")
+                                result = await execute_find_pr_for_branch(self.repo_name, branch_name)
                         else:
                             result = await execute_find_pr_for_branch(self.repo_name, branch_name)
                             
@@ -510,7 +517,17 @@ class GitHubMCPWorker:
                         
                     elif tool_name == "github_get_build_status":
                         commit_sha = tool_args.get("commit_sha")
-                        result = await execute_get_build_status(self.repo_name, commit_sha)
+                        if not commit_sha:
+                            # Auto-detect current commit
+                            current_commit_result = await execute_get_current_commit(self.repo_name)
+                            current_commit_data = json.loads(current_commit_result)
+                            if current_commit_data.get("error"):
+                                result = json.dumps({"error": f"Failed to get current commit: {current_commit_data.get('error')}"})
+                            else:
+                                commit_sha = current_commit_data.get("sha")
+                                result = await execute_get_build_status(self.repo_name, commit_sha)
+                        else:
+                            result = await execute_get_build_status(self.repo_name, commit_sha)
                         
                     else:
                         result = json.dumps({"error": f"Tool '{tool_name}' not implemented"})
