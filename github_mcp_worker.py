@@ -373,16 +373,16 @@ class GitHubMCPWorker:
                                 },
                                 {
                                     "name": "github_get_pr_comments",
-                                    "description": f"Retrieve all review comments, issue comments, and discussion threads from a GitHub Pull Request in {self.repo_name}. Uses GitHub API to fetch comments with author, timestamp, content, and reply status. Essential for finding unanswered code review comments that need responses, tracking discussion threads, and understanding PR feedback.",
+                                    "description": f"Retrieve all review comments, issue comments, and discussion threads from a GitHub Pull Request in {self.repo_name}. Uses GitHub API to fetch comments with author, timestamp, content, and reply status. Essential for finding unanswered code review comments that need responses, tracking discussion threads, and understanding PR feedback. If pr_number is not provided, automatically finds the PR for the current branch using github_find_pr_for_branch.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {
                                             "pr_number": {
                                                 "type": "integer",
-                                                "description": "GitHub Pull Request number (e.g., 123 for PR #123)"
+                                                "description": "GitHub Pull Request number (e.g., 123 for PR #123). Optional - if not provided, will auto-detect PR for current branch."
                                             }
                                         },
-                                        "required": ["pr_number"]
+                                        "required": []
                                     }
                                 },
                                 {
@@ -469,7 +469,20 @@ class GitHubMCPWorker:
                     elif tool_name == "github_get_pr_comments":
                         pr_number = tool_args.get("pr_number")
                         if not pr_number:
-                            result = json.dumps({"error": "pr_number is required"})
+                            # Auto-detect PR for current branch
+                            current_branch_result = await execute_get_current_branch(self.repo_name)
+                            current_branch_data = json.loads(current_branch_result)
+                            if current_branch_data.get("error"):
+                                result = json.dumps({"error": f"Failed to get current branch: {current_branch_data.get('error')}"})
+                            else:
+                                branch_name = current_branch_data.get("branch")
+                                find_pr_result = await execute_find_pr_for_branch(self.repo_name, branch_name)
+                                find_pr_data = json.loads(find_pr_result)
+                                if find_pr_data.get("error"):
+                                    result = json.dumps({"error": f"No PR found for current branch '{branch_name}': {find_pr_data.get('error')}"})
+                                else:
+                                    pr_number = find_pr_data.get("number")
+                                    result = await execute_get_pr_comments(self.repo_name, pr_number)
                         else:
                             result = await execute_get_pr_comments(self.repo_name, pr_number)
                             
