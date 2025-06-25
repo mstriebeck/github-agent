@@ -258,7 +258,7 @@ class GitHubMCPWorker:
                                 message = self.message_queue.get_nowait()
                                 yield "event: message\n"
                                 yield f"data: {json.dumps(message)}\n\n"
-                        except:
+                        except Exception:
                             pass
                         
                         await asyncio.sleep(0.1)
@@ -270,7 +270,7 @@ class GitHubMCPWorker:
                             keepalive_counter = 0
                         
                 except Exception as e:
-                    yield f"event: error\n"
+                    yield "event: error\n"
                     yield f"data: {{\"error\": \"{str(e)}\"}}\n\n"
             
             return StreamingResponse(

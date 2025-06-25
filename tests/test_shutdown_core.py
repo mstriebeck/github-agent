@@ -8,7 +8,6 @@ signal handling, and shutdown coordination.
 
 import unittest
 import logging
-import tempfile
 import os
 import signal
 import threading
@@ -18,7 +17,6 @@ from datetime import datetime
 from unittest.mock import patch, MagicMock
 
 import sys
-import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shutdown_core import (
@@ -295,12 +293,12 @@ class TestRealProcessSpawner(unittest.TestCase):
         process = spawner.spawn_process(['echo', 'test'])
         
         # Test poll status
-        initial_status = spawner.get_process_poll_status(process)
+        spawner.get_process_poll_status(process)
         
         # Wait for process
         try:
             spawner.wait_for_process(process, timeout=5)
-        except:
+        except Exception:
             pass  # Process might already be done
         
         # Check final status

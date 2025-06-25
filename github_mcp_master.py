@@ -30,7 +30,7 @@ from shutdown_manager import ShutdownManager
 from system_utils import log_system_state, MicrosecondFormatter
 
 # Configure logging with enhanced microsecond precision
-from datetime import datetime
+
 
 log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
 log_dir.mkdir(parents=True, exist_ok=True)
@@ -72,7 +72,7 @@ def setup_enhanced_logging(logger, log_file_path=None):
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
     
-    logger.info(f"Enhanced logging initialized with microsecond precision")
+    logger.info("Enhanced logging initialized with microsecond precision")
     logger.debug(f"Log file: {log_file_path}")
     logger.debug(f"Log level set to: {logging.getLevelName(logger.level)}")
     
@@ -315,7 +315,7 @@ class GitHubMCPMaster:
                 try:
                     worker.process.kill()
                     worker.process = None
-                except:
+                except Exception:
                     pass
             return False
     
@@ -452,7 +452,7 @@ class GitHubMCPMaster:
             while self.running and not self.shutdown_manager._shutdown_initiated:
                 await asyncio.sleep(0.1)
                 
-            logger.info(f"🛑 Shutdown signal received, beginning coordinated shutdown...")
+            logger.info("🛑 Shutdown signal received, beginning coordinated shutdown...")
             logger.debug(f"Shutdown reason: {getattr(self.shutdown_manager, '_shutdown_reason', 'unknown')}")
         except Exception as e:
             logger.error(f"Exception waiting for shutdown: {e}")
@@ -566,7 +566,7 @@ class GitHubMCPMaster:
                         try:
                             worker.process.kill()
                             worker.process = None
-                        except:
+                        except Exception:
                             pass
                     return False
             
@@ -600,7 +600,7 @@ class GitHubMCPMaster:
                             try:
                                 worker.process.kill()
                                 worker.process = None
-                            except:
+                            except Exception:
                                 pass
             
             # Ports will be verified by deployment script if needed
@@ -693,7 +693,7 @@ async def main():
     
     # Start master process
     try:
-        success = await master.start()
+        await master.start()
         
         # Get final exit code from shutdown manager
         exit_code = master.shutdown_manager._exit_code_manager.determine_exit_code("main")

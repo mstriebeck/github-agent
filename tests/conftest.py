@@ -8,7 +8,7 @@ import threading
 import time
 from pathlib import Path
 from unittest.mock import Mock
-from test_abstracts import MockProcessRegistry
+from tests.test_abstracts import MockProcessRegistry
 
 
 @pytest.fixture(scope="session")
@@ -160,7 +160,7 @@ def cleanup_threads():
             try:
                 # Try to join with short timeout
                 thread.join(timeout=0.1)
-            except:
+            except Exception:
                 pass  # Best effort cleanup
 
 

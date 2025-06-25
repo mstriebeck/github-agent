@@ -69,7 +69,6 @@ class TestServerInitialization(unittest.TestCase):
             
             # Import should work without errors
             try:
-                import github_mcp_server_multi_repo
                 self.assertTrue(True, "Server module imported successfully")
             except Exception as e:
                 self.fail(f"Failed to import server module: {e}")

@@ -14,17 +14,15 @@ Key Features:
 import asyncio
 import logging
 import signal
-import sys
 import time
 from typing import Dict, List, Optional, Any, Callable
-from pathlib import Path
 
 # Import all our shutdown components
 from shutdown_core import ShutdownCoordinator, ExitCodes
 from worker_manager import WorkerManager, WorkerProcess
 from resource_manager import ResourceManager
 from client_manager import ClientConnectionManager
-from system_utils import SystemMonitor, log_system_state
+from system_utils import SystemMonitor
 
 
 class IntegratedShutdownManager:

@@ -9,7 +9,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock
 import asyncio
 
 import sys
@@ -75,10 +75,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
         """Test that tool functions accept repository name parameter"""
         from github_mcp_server import (
             execute_get_current_branch, 
-            execute_get_current_commit,
-            execute_find_pr_for_branch,
-            execute_get_pr_comments,
-            execute_post_pr_reply
+            execute_get_current_commit
         )
         
         # Test that functions accept repo_name as first parameter

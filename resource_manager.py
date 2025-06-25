@@ -6,11 +6,9 @@ external services, and other resources that need clean shutdown procedures.
 """
 
 import asyncio
-import time
 import threading
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Callable, Protocol
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from shutdown_core import ExitCodes

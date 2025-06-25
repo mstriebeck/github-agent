@@ -172,7 +172,7 @@ class HealthMonitor:
                 if temp_file.exists():
                     try:
                         temp_file.unlink()
-                    except:
+                    except Exception:
                         pass
                 raise write_error
             

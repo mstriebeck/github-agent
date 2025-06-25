@@ -5,7 +5,6 @@ Verifies that all required Python imports are available and the main server scri
 """
 
 import sys
-import os
 from pathlib import Path
 
 def main():
@@ -19,15 +18,15 @@ def main():
     
     try:
         # Test required imports
-        import mcp
-        import github
-        import git
-        import requests
-        import pydantic
+        import mcp  # noqa: F401
+        import github  # noqa: F401
+        import git  # noqa: F401
+        import requests  # noqa: F401
+        import pydantic  # noqa: F401
         print("All required libraries are available")
         
         # Test main server script import
-        import github_mcp_server
+        import github_mcp_server  # noqa: F401
         print("PR agent server script is valid")
         
         return 0

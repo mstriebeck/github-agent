@@ -18,18 +18,14 @@ Key Features:
 import asyncio
 import logging
 import signal
-import sys
 import time
 import os
 import subprocess
-import socket
 import threading
 import json
-import weakref
 from typing import Dict, List, Optional, Any, Callable, Set
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
 
 try:
     import aiohttp
@@ -37,8 +33,8 @@ except ImportError:
     aiohttp = None
 
 # Import core utilities
-from shutdown_core import ShutdownCoordinator, ExitCodes, IProcessSpawner, RealProcessSpawner
-from system_utils import SystemMonitor, log_system_state
+from shutdown_core import ShutdownCoordinator, RealProcessSpawner
+from system_utils import SystemMonitor
 from exit_codes import ExitCodeManager, ShutdownExitCode
 from health_monitor import HealthMonitor
 

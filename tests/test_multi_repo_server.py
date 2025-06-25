@@ -9,7 +9,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock
 import asyncio
 
 import sys
@@ -372,7 +372,7 @@ class TestRepositoryContextTools(unittest.TestCase):
     @patch.dict(os.environ, {'GITHUB_TOKEN': 'fake_token'})
     def test_execute_get_current_branch(self):
         """Test execute_get_current_branch with repository context"""
-        from repository_manager import RepositoryConfig, RepositoryManager
+        from repository_manager import RepositoryConfig
         from github_mcp_server_multi_repo import execute_get_current_branch
         
         repo_config = RepositoryConfig(
@@ -397,7 +397,7 @@ class TestRepositoryContextTools(unittest.TestCase):
     @patch.dict(os.environ, {'GITHUB_TOKEN': 'fake_token'})
     def test_execute_get_current_commit(self):
         """Test execute_get_current_commit with repository context"""
-        from repository_manager import RepositoryConfig, RepositoryManager
+        from repository_manager import RepositoryConfig
         from github_mcp_server_multi_repo import execute_get_current_commit
         
         repo_config = RepositoryConfig(

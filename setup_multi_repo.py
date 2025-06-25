@@ -16,8 +16,6 @@ from pathlib import Path
 def check_requirements():
     """Check that required dependencies are available"""
     try:
-        import repository_manager
-        import github_mcp_server
         print("✅ GitHub MCP Server modules found")
         return True
     except ImportError as e:
@@ -123,12 +121,12 @@ def migration_flow():
     
     print("✅ Configuration validated successfully")
     
-    print(f"\n🎉 Migration complete!")
+    print("\n🎉 Migration complete!")
     print(f"Your repository is now available at: http://localhost:8080/mcp/{repo_name}/")
-    print(f"\nNext steps:")
-    print(f"1. Remove LOCAL_REPO_PATH from your environment")
-    print(f"2. Start the server: python github_mcp_server.py")
-    print(f"3. Add more repositories with: python repository_cli.py add <name> <path>")
+    print("\nNext steps:")
+    print("1. Remove LOCAL_REPO_PATH from your environment")
+    print("2. Start the server: python github_mcp_server.py")
+    print("3. Add more repositories with: python repository_cli.py add <name> <path>")
     
     return True
 

@@ -12,15 +12,13 @@ import logging
 import time
 import sys
 import os
-from unittest.mock import Mock, MagicMock, AsyncMock, patch, call
-from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from resource_manager import (
     ResourceManager, DatabaseConnectionManager, FileHandleManager,
-    ExternalServiceManager, ResourceInfo
+    ExternalServiceManager
 )
 from shutdown_core import ExitCodes
 

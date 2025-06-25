@@ -11,8 +11,8 @@ import threading
 import signal
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-from test_abstracts import MockProcessRegistry
+from unittest.mock import Mock, patch
+from tests.test_abstracts import MockProcessRegistry
 from shutdown_manager import ShutdownManager
 from exit_codes import ShutdownExitCode, ExitCodeManager
 from health_monitor import HealthMonitor, ServerStatus, ShutdownPhase
