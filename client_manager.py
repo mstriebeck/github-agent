@@ -20,7 +20,7 @@ import threading
 from typing import Dict, List, Any, Optional, Callable, Set
 from dataclasses import dataclass
 from enum import Enum
-import weakref
+
 
 from system_utils import SystemMonitor
 
@@ -255,8 +255,6 @@ class ClientConnectionManager:
             if client_id not in self._clients:
                 self.logger.warning(f"Client {client_id} not found")
                 return False
-            
-            client = self._clients[client_id]
             
             # Remove from groups
             for group_name, group_clients in self._client_groups.items():

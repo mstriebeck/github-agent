@@ -137,11 +137,6 @@ class TestSwiftLintViolationExtraction(unittest.TestCase):
     
     def test_extract_from_partially_valid_lines(self):
         """Test extraction from lines that partially match patterns"""
-        partial_lines = [
-            "/path/to/file.swift:abc:def: error: message (rule)",  # Non-numeric line/column
-            "/path/to/file.swift:25:1: info: message",  # Missing rule parentheses, different severity
-            "relative/path.swift:25:1: warning: message (rule)"  # Relative path (still matches some patterns)
-        ]
         
         # Test line with non-numeric line number
         line_with_non_numeric = "/path/to/file.swift:abc:def: error: message (rule)"

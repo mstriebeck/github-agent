@@ -5,13 +5,9 @@ This module provides the core components for implementing clean shutdown
 procedures for a Python MCP server that manages multiple repository workers.
 """
 
-import logging
-import sys
 import threading
 import signal
-import time
 import os
-from datetime import datetime
 from abc import ABC, abstractmethod
 
 

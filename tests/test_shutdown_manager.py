@@ -3,12 +3,10 @@ Tests for the consolidated ShutdownManager functionality.
 """
 
 import pytest
-import threading
-import time
-from unittest.mock import Mock, patch, MagicMock, call
+from unittest.mock import Mock, patch
 from shutdown_manager import ShutdownManager
-from exit_codes import ShutdownExitCode, ExitCodeManager
-from health_monitor import HealthMonitor, ServerStatus, ShutdownPhase
+from exit_codes import ShutdownExitCode
+from health_monitor import ServerStatus, ShutdownPhase
 
 
 class TestShutdownManager:

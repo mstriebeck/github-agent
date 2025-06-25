@@ -14,7 +14,7 @@ from unittest.mock import patch
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from repository_manager import RepositoryManager, RepositoryConfig, extract_repo_name_from_url
+from repository_manager import RepositoryManager, extract_repo_name_from_url
 
 
 class TestMultiRepositoryIntegration(unittest.TestCase):

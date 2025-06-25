@@ -30,10 +30,12 @@ from shutdown_manager import ShutdownManager
 from system_utils import log_system_state, MicrosecondFormatter
 
 # Configure logging with enhanced microsecond precision
-from datetime import datetime
+
 
 log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
 log_dir.mkdir(parents=True, exist_ok=True)
+
+GLOBAL_LOG_LEVEL = logging.DEBUG
 
 def setup_enhanced_logging(logger, log_file_path=None):
     """Enhance an existing logger with microsecond precision formatting
@@ -60,19 +62,19 @@ def setup_enhanced_logging(logger, log_file_path=None):
         log_file_path = log_dir / 'master.log'
     
     file_handler = logging.FileHandler(log_file_path, mode='a')
-    file_handler.setLevel(logging.DEBUG)
+    file_handler.setLevel(GLOBAL_LOG_LEVEL)
     file_handler.setFormatter(detailed_formatter)
     
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(GLOBAL_LOG_LEVEL)
     console_handler.setFormatter(console_formatter)
     
     # Add handlers to logger
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
     
-    logger.info(f"Enhanced logging initialized with microsecond precision")
+    logger.info("Enhanced logging initialized with microsecond precision")
     logger.debug(f"Log file: {log_file_path}")
     logger.debug(f"Log level set to: {logging.getLevelName(logger.level)}")
     
@@ -80,7 +82,7 @@ def setup_enhanced_logging(logger, log_file_path=None):
 
 # Create and setup the master logger
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(GLOBAL_LOG_LEVEL)
 logger = setup_enhanced_logging(logger)
 
 @dataclass
@@ -315,7 +317,7 @@ class GitHubMCPMaster:
                 try:
                     worker.process.kill()
                     worker.process = None
-                except:
+                except Exception:
                     pass
             return False
     
@@ -452,7 +454,7 @@ class GitHubMCPMaster:
             while self.running and not self.shutdown_manager._shutdown_initiated:
                 await asyncio.sleep(0.1)
                 
-            logger.info(f"🛑 Shutdown signal received, beginning coordinated shutdown...")
+            logger.info("🛑 Shutdown signal received, beginning coordinated shutdown...")
             logger.debug(f"Shutdown reason: {getattr(self.shutdown_manager, '_shutdown_reason', 'unknown')}")
         except Exception as e:
             logger.error(f"Exception waiting for shutdown: {e}")
@@ -566,7 +568,7 @@ class GitHubMCPMaster:
                         try:
                             worker.process.kill()
                             worker.process = None
-                        except:
+                        except Exception:
                             pass
                     return False
             
@@ -600,8 +602,8 @@ class GitHubMCPMaster:
                             try:
                                 worker.process.kill()
                                 worker.process = None
-                            except:
-                                pass
+                            except Exception as e:
+                                logger.warning(f"Failed to kill worker process for {worker.repo_name}: {e}")
             
             # Ports will be verified by deployment script if needed
             logger.info("Workers shutdown process completed")
@@ -693,7 +695,7 @@ async def main():
     
     # Start master process
     try:
-        success = await master.start()
+        await master.start()
         
         # Get final exit code from shutdown manager
         exit_code = master.shutdown_manager._exit_code_manager.determine_exit_code("main")

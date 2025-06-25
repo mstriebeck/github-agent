@@ -6,7 +6,7 @@ can interpret to understand how the server shutdown occurred.
 """
 
 import enum
-from typing import Optional
+
 
 
 class ShutdownExitCode(enum.IntEnum):

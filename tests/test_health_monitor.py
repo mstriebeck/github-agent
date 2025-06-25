@@ -4,19 +4,15 @@ Tests for health monitoring functionality.
 
 import pytest
 import json
-import threading
 import time
 import tempfile
 from pathlib import Path
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from health_monitor import (
     HealthMonitor,
     ServerStatus,
     ShutdownPhase,
-    WorkerStatus,
-    ClientStatus,
-    ResourceStatus,
     HealthReport,
     read_health_status,
     is_server_healthy
@@ -380,7 +376,7 @@ class TestHealthMonitor:
         assert monitor._monitoring_thread is None
         
         # Start monitoring
-        with patch.object(monitor, '_monitoring_loop') as mock_loop:
+        with patch.object(monitor, '_monitoring_loop'):
             monitor.start_monitoring()
             assert monitor._monitoring_thread is not None
             assert monitor._monitoring_thread.is_alive()

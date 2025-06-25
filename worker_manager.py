@@ -6,7 +6,6 @@ graceful shutdown protocols, and comprehensive verification.
 """
 
 import subprocess
-import signal
 import psutil
 import socket
 import os
@@ -16,9 +15,8 @@ import aiohttp
 from datetime import datetime
 from typing import Dict, Optional, List
 from dataclasses import dataclass
-from pathlib import Path
 
-from shutdown_core import ExitCodes, IProcessSpawner, RealProcessSpawner
+from shutdown_core import IProcessSpawner, RealProcessSpawner
 from system_utils import log_system_state
 
 

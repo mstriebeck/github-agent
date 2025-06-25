@@ -23,34 +23,69 @@ class GitHubAPIContext:
     """Context for GitHub API operations with repository information"""
     
     def __init__(self, repo_config: RepositoryConfig):
+        logger.debug(f"GitHubAPIContext.__init__: Starting initialization for path: {repo_config.path}")
         self.repo_config = repo_config
+        
+        # Check for GitHub token
         self.github_token = os.getenv("GITHUB_TOKEN")
+        if not self.github_token:
+            logger.error("GitHubAPIContext.__init__: GITHUB_TOKEN environment variable not set")
+        else:
+            logger.debug(f"GitHubAPIContext.__init__: GITHUB_TOKEN found (length: {len(self.github_token)})")
+        
         self.github = Github(self.github_token) if self.github_token else None
+        if not self.github:
+            logger.error("GitHubAPIContext.__init__: Failed to create GitHub client")
+        else:
+            logger.debug("GitHubAPIContext.__init__: GitHub client created successfully")
         
         # Get repo name from git config
         self.repo_name = None
         self.repo = None
-        if self.github and self.repo_config.path:
-            try:
-                # Get repo name from git remote
-                output = subprocess.check_output(
-                    ["git", "config", "--get", "remote.origin.url"], 
-                    cwd=self.repo_config.path
-                ).decode().strip()
-                
-                if output.startswith("git@"):
-                    _, path = output.split(":", 1)
-                elif output.startswith("https://"):
-                    path = output.split("github.com/", 1)[-1]
-                else:
-                    raise ValueError(f"Unrecognized GitHub remote URL: {output}")
-                
-                self.repo_name = path.replace(".git", "")
-                self.repo = self.github.get_repo(self.repo_name)
-                logger.info(f"Initialized GitHub context for {self.repo_name}")
-                
-            except Exception as e:
-                logger.warning(f"Failed to initialize GitHub context: {e}")
+        
+        if not self.github:
+            logger.error("GitHubAPIContext.__init__: Cannot proceed without GitHub client")
+            return
+            
+        if not self.repo_config.path:
+            logger.error("GitHubAPIContext.__init__: No repository path provided")
+            return
+            
+        logger.debug(f"GitHubAPIContext.__init__: Getting git remote from path: {self.repo_config.path}")
+        try:
+            # Get repo name from git remote
+            cmd = ["git", "config", "--get", "remote.origin.url"]
+            logger.debug(f"GitHubAPIContext.__init__: Running command: {' '.join(cmd)} in {self.repo_config.path}")
+            
+            output = subprocess.check_output(
+                cmd, 
+                cwd=self.repo_config.path
+            ).decode().strip()
+            
+            logger.debug(f"GitHubAPIContext.__init__: Git remote URL: {output}")
+            
+            if output.startswith("git@"):
+                _, path = output.split(":", 1)
+                logger.debug(f"GitHubAPIContext.__init__: Parsed SSH URL, path: {path}")
+            elif output.startswith("https://"):
+                path = output.split("github.com/", 1)[-1]
+                logger.debug(f"GitHubAPIContext.__init__: Parsed HTTPS URL, path: {path}")
+            else:
+                raise ValueError(f"Unrecognized GitHub remote URL: {output}")
+            
+            self.repo_name = path.replace(".git", "")
+            logger.info(f"GitHubAPIContext.__init__: Extracted repo name: {self.repo_name}")
+            
+            # Try to get the repository object
+            logger.debug(f"GitHubAPIContext.__init__: Getting GitHub repo object for {self.repo_name}")
+            self.repo = self.github.get_repo(self.repo_name)
+            logger.info(f"GitHubAPIContext.__init__: Successfully initialized GitHub context for {self.repo_name}")
+            
+        except subprocess.CalledProcessError as e:
+            logger.error(f"GitHubAPIContext.__init__: Git command failed: {e}")
+            logger.error(f"GitHubAPIContext.__init__: Command output: {e.output if hasattr(e, 'output') else 'No output'}")
+        except Exception as e:
+            logger.error(f"GitHubAPIContext.__init__: Failed to initialize GitHub context: {e}", exc_info=True)
     
     def get_current_branch(self) -> str:
         """Get current branch name"""
@@ -69,14 +104,24 @@ class GitHubAPIContext:
 
 def get_github_context(repo_name: str) -> GitHubAPIContext:
     """Get GitHub API context for a specific repository"""
+    logger.debug(f"get_github_context: Getting context for repo '{repo_name}'")
+    
     if not repo_manager:
+        logger.error("get_github_context: Repository manager not initialized")
         raise ValueError("Repository manager not initialized")
     
+    logger.debug(f"get_github_context: Repository manager available, looking for repo '{repo_name}'")
     repo_config = repo_manager.get_repository(repo_name)
     if not repo_config:
+        logger.error(f"get_github_context: Repository '{repo_name}' not found in configuration")
+        available_repos = list(repo_manager.repositories.keys()) if hasattr(repo_manager, 'repositories') else []
+        logger.error(f"get_github_context: Available repositories: {available_repos}")
         raise ValueError(f"Repository '{repo_name}' not found")
     
-    return GitHubAPIContext(repo_config)
+    logger.debug(f"get_github_context: Found repo config for '{repo_name}', path: {repo_config.path}")
+    context = GitHubAPIContext(repo_config)
+    logger.debug(f"get_github_context: Created GitHubAPIContext, repo_name: {context.repo_name}")
+    return context
 
 
 # Tool implementations with repository context
@@ -119,31 +164,62 @@ async def execute_find_pr_for_branch(repo_name: str, branch_name: str) -> str:
 
 async def execute_get_pr_comments(repo_name: str, pr_number: int) -> str:
     """Get all comments from a PR in the specified repository"""
+    logger.info(f"Getting PR comments for repository '{repo_name}', PR #{pr_number}")
+    
     try:
+        logger.debug(f"Getting GitHub context for repository '{repo_name}'")
         context = get_github_context(repo_name)
         if not context.repo:
+            logger.error(f"GitHub repository not configured for {repo_name}")
             return json.dumps({"error": f"GitHub repository not configured for {repo_name}"})
         
+        logger.info(f"GitHub context initialized for repo '{context.repo_name}' (config: {repo_name})")
+        
         # Use GitHub API directly for better error handling
-        headers = {"Authorization": f"token {context.github_token}"}
+        headers = {"Authorization": f"token {context.github_token[:8]}..."}  # Log only first 8 chars for security
+        logger.debug(f"Using GitHub API headers: {headers}")
         
         # Get PR details first
         pr_url = f"https://api.github.com/repos/{context.repo_name}/pulls/{pr_number}"
-        pr_response = requests.get(pr_url, headers=headers)
-        pr_response.raise_for_status()
+        logger.info(f"Making GitHub API call to get PR details: {pr_url}")
+        
+        pr_response = requests.get(pr_url, headers={"Authorization": f"token {context.github_token}"})
+        logger.info(f"PR details API response: status={pr_response.status_code}, headers={dict(pr_response.headers)}")
+        
+        if pr_response.status_code != 200:
+            logger.error(f"Failed to get PR details. Status: {pr_response.status_code}, Response: {pr_response.text}")
+            pr_response.raise_for_status()
+        
         pr_data = pr_response.json()
+        logger.info(f"Successfully got PR details. Title: '{pr_data['title']}', State: {pr_data['state']}")
         
         # Get review comments
         comments_url = pr_data["review_comments_url"]
-        comments_resp = requests.get(comments_url, headers=headers)
-        comments_resp.raise_for_status()
+        logger.info(f"Making GitHub API call to get review comments: {comments_url}")
+        
+        comments_resp = requests.get(comments_url, headers={"Authorization": f"token {context.github_token}"})
+        logger.info(f"Review comments API response: status={comments_resp.status_code}, headers={dict(comments_resp.headers)}")
+        
+        if comments_resp.status_code != 200:
+            logger.error(f"Failed to get review comments. Status: {comments_resp.status_code}, Response: {comments_resp.text}")
+            comments_resp.raise_for_status()
+        
         review_comments = comments_resp.json()
+        logger.info(f"Successfully got {len(review_comments)} review comments")
         
         # Get issue comments
         issue_comments_url = f"https://api.github.com/repos/{context.repo_name}/issues/{pr_number}/comments"
-        issue_resp = requests.get(issue_comments_url, headers=headers)
-        issue_resp.raise_for_status()
+        logger.info(f"Making GitHub API call to get issue comments: {issue_comments_url}")
+        
+        issue_resp = requests.get(issue_comments_url, headers={"Authorization": f"token {context.github_token}"})
+        logger.info(f"Issue comments API response: status={issue_resp.status_code}, headers={dict(issue_resp.headers)}")
+        
+        if issue_resp.status_code != 200:
+            logger.error(f"Failed to get issue comments. Status: {issue_resp.status_code}, Response: {issue_resp.text}")
+            issue_resp.raise_for_status()
+        
         issue_comments = issue_resp.json()
+        logger.info(f"Successfully got {len(issue_comments)} issue comments")
         
         # Format review comments
         formatted_review_comments = []
@@ -171,7 +247,9 @@ async def execute_get_pr_comments(repo_name: str, pr_number: int) -> str:
                 "url": comment["html_url"]
             })
         
-        return json.dumps({
+        logger.info(f"Formatted {len(formatted_review_comments)} review comments and {len(formatted_issue_comments)} issue comments")
+        
+        result = {
             "pr_number": pr_number,
             "title": pr_data["title"],
             "repo": context.repo_name,
@@ -179,9 +257,13 @@ async def execute_get_pr_comments(repo_name: str, pr_number: int) -> str:
             "review_comments": formatted_review_comments,
             "issue_comments": formatted_issue_comments,
             "total_comments": len(formatted_review_comments) + len(formatted_issue_comments)
-        })
+        }
+        
+        logger.info(f"Successfully completed get_pr_comments for {repo_name} PR #{pr_number}")
+        return json.dumps(result)
         
     except Exception as e:
+        logger.error(f"Failed to get PR comments from {repo_name}: {str(e)}", exc_info=True)
         return json.dumps({"error": f"Failed to get PR comments from {repo_name}: {str(e)}"})
 
 

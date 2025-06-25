@@ -26,6 +26,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 
 # Import shared functionality
 from repository_manager import RepositoryConfig, RepositoryManager
@@ -44,6 +45,20 @@ class GitHubMCPWorker:
     
     def __init__(self, repo_name: str, repo_path: str, port: int, description: str):
         print(f"[WORKER INIT] Starting initialization for {repo_name}")  # Use print for immediate output
+        
+        # Load environment variables from .env file first
+        dotenv_path = Path.home() / ".local" / "share" / "github-agent" / ".env"
+        if dotenv_path.exists():
+            print(f"[WORKER INIT] Loading .env from {dotenv_path}")
+            load_dotenv(dotenv_path)
+            print(f"[WORKER INIT] GITHUB_TOKEN loaded: {'Yes' if os.getenv('GITHUB_TOKEN') else 'No'}")
+        else:
+            print(f"[WORKER INIT] No .env file found at {dotenv_path}")
+            # Try current directory as fallback
+            if os.path.exists(".env"):
+                print(f"[WORKER INIT] Loading .env from current directory")
+                load_dotenv()
+                print(f"[WORKER INIT] GITHUB_TOKEN loaded: {'Yes' if os.getenv('GITHUB_TOKEN') else 'No'}")
         
         self.repo_name = repo_name
         self.repo_path = repo_path
@@ -258,8 +273,8 @@ class GitHubMCPWorker:
                                 message = self.message_queue.get_nowait()
                                 yield "event: message\n"
                                 yield f"data: {json.dumps(message)}\n\n"
-                        except:
-                            pass
+                        except Exception as e:
+                            self.logger.warning(f"Failed to process message from queue: {e}")
                         
                         await asyncio.sleep(0.1)
                         
@@ -270,7 +285,7 @@ class GitHubMCPWorker:
                             keepalive_counter = 0
                         
                 except Exception as e:
-                    yield f"event: error\n"
+                    yield "event: error\n"
                     yield f"data: {{\"error\": \"{str(e)}\"}}\n\n"
             
             return StreamingResponse(
@@ -344,30 +359,30 @@ class GitHubMCPWorker:
                                 },
                                 {
                                     "name": "github_find_pr_for_branch",
-                                    "description": f"Find and retrieve the GitHub Pull Request associated with a specific branch in {self.repo_name}. Searches GitHub API for open PRs that have the specified branch as their head branch. Returns PR details including number, title, URL, status, and merge information. Useful for connecting local branches to GitHub PRs.",
+                                    "description": f"Find and retrieve the GitHub Pull Request associated with a specific branch in {self.repo_name}. Searches GitHub API for open PRs that have the specified branch as their head branch. Returns PR details including number, title, URL, status, and merge information. Useful for connecting local branches to GitHub PRs. If branch_name is not provided, uses the currently checked out local branch.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {
                                             "branch_name": {
                                                 "type": "string",
-                                                "description": "Git branch name to search for (e.g., 'feature/new-login', 'main', 'develop')"
+                                                "description": "Git branch name to search for (e.g., 'feature/new-login', 'main', 'develop'). Optional - if not provided, uses the currently checked out local branch."
                                             }
                                         },
-                                        "required": ["branch_name"]
+                                        "required": []
                                     }
                                 },
                                 {
                                     "name": "github_get_pr_comments",
-                                    "description": f"Retrieve all review comments, issue comments, and discussion threads from a GitHub Pull Request in {self.repo_name}. Uses GitHub API to fetch comments with author, timestamp, content, and reply status. Essential for finding unanswered code review comments that need responses, tracking discussion threads, and understanding PR feedback.",
+                                    "description": f"Retrieve all review comments, issue comments, and discussion threads from a GitHub Pull Request in {self.repo_name}. Uses GitHub API to fetch comments with author, timestamp, content, and reply status. Essential for finding unanswered code review comments that need responses, tracking discussion threads, and understanding PR feedback. If pr_number is not provided, automatically finds the PR for the current branch using github_find_pr_for_branch.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {
                                             "pr_number": {
                                                 "type": "integer",
-                                                "description": "GitHub Pull Request number (e.g., 123 for PR #123)"
+                                                "description": "GitHub Pull Request number (e.g., 123 for PR #123). Optional - if not provided, will auto-detect PR for current branch."
                                             }
                                         },
-                                        "required": ["pr_number"]
+                                        "required": []
                                     }
                                 },
                                 {
@@ -447,14 +462,34 @@ class GitHubMCPWorker:
                     if tool_name == "github_find_pr_for_branch":
                         branch_name = tool_args.get("branch_name")
                         if not branch_name:
-                            result = json.dumps({"error": "branch_name is required"})
+                            # Auto-detect current branch
+                            current_branch_result = await execute_get_current_branch(self.repo_name)
+                            current_branch_data = json.loads(current_branch_result)
+                            if current_branch_data.get("error"):
+                                result = json.dumps({"error": f"Failed to get current branch: {current_branch_data.get('error')}"})
+                            else:
+                                branch_name = current_branch_data.get("branch")
+                                result = await execute_find_pr_for_branch(self.repo_name, branch_name)
                         else:
                             result = await execute_find_pr_for_branch(self.repo_name, branch_name)
                             
                     elif tool_name == "github_get_pr_comments":
                         pr_number = tool_args.get("pr_number")
                         if not pr_number:
-                            result = json.dumps({"error": "pr_number is required"})
+                            # Auto-detect PR for current branch
+                            current_branch_result = await execute_get_current_branch(self.repo_name)
+                            current_branch_data = json.loads(current_branch_result)
+                            if current_branch_data.get("error"):
+                                result = json.dumps({"error": f"Failed to get current branch: {current_branch_data.get('error')}"})
+                            else:
+                                branch_name = current_branch_data.get("branch")
+                                find_pr_result = await execute_find_pr_for_branch(self.repo_name, branch_name)
+                                find_pr_data = json.loads(find_pr_result)
+                                if find_pr_data.get("error"):
+                                    result = json.dumps({"error": f"No PR found for current branch '{branch_name}': {find_pr_data.get('error')}"})
+                                else:
+                                    pr_number = find_pr_data.get("number")
+                                    result = await execute_get_pr_comments(self.repo_name, pr_number)
                         else:
                             result = await execute_get_pr_comments(self.repo_name, pr_number)
                             
@@ -482,7 +517,17 @@ class GitHubMCPWorker:
                         
                     elif tool_name == "github_get_build_status":
                         commit_sha = tool_args.get("commit_sha")
-                        result = await execute_get_build_status(self.repo_name, commit_sha)
+                        if not commit_sha:
+                            # Auto-detect current commit
+                            current_commit_result = await execute_get_current_commit(self.repo_name)
+                            current_commit_data = json.loads(current_commit_result)
+                            if current_commit_data.get("error"):
+                                result = json.dumps({"error": f"Failed to get current commit: {current_commit_data.get('error')}"})
+                            else:
+                                commit_sha = current_commit_data.get("sha")
+                                result = await execute_get_build_status(self.repo_name, commit_sha)
+                        else:
+                            result = await execute_get_build_status(self.repo_name, commit_sha)
                         
                     else:
                         result = json.dumps({"error": f"Tool '{tool_name}' not implemented"})

@@ -12,12 +12,12 @@ import time
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from repository_manager import RepositoryManager, RepositoryConfig
+from repository_manager import RepositoryManager
 
 
 class TestRepositoryCLI(unittest.TestCase):
@@ -98,7 +98,19 @@ class TestRepositoryCLI(unittest.TestCase):
             config = json.load(f)
         
         self.assertIn("test-repo", config["repositories"])
-        self.assertEqual(config["repositories"]["test-repo"]["path"], str(self.repo1_path))
+        
+        # Handle macOS symlink resolution where /var may become /private/var
+        expected_path = str(self.repo1_path)
+        actual_path = config["repositories"]["test-repo"]["path"]
+        
+        # Check if paths match either as-is or with /private prefix resolved
+        paths_match = (actual_path == expected_path or 
+                      actual_path == expected_path.replace("/var/", "/private/var/") or
+                      expected_path == actual_path.replace("/var/", "/private/var/"))
+        
+        self.assertTrue(paths_match, 
+                       f"Path mismatch: expected '{expected_path}', got '{actual_path}'")
+        
         self.assertEqual(config["repositories"]["test-repo"]["description"], "Test repository")
     
     def test_cli_list_repositories(self):
@@ -148,9 +160,8 @@ class TestRepositoryCLI(unittest.TestCase):
         with open(self.config_file, 'w') as f:
             json.dump(config, f)
         
-        # Remove repository (simulate user input)
-        with patch('builtins.input', return_value='y'):
-            returncode, stdout, stderr = self._run_cli_command(["remove", "repo1"])
+        # Remove repository using --yes flag to skip confirmation
+        returncode, stdout, stderr = self._run_cli_command(["remove", "repo1", "--yes"])
         
         self.assertEqual(returncode, 0, f"CLI failed: {stderr}")
         self.assertIn("Removed repository 'repo1'", stdout)
@@ -241,14 +252,18 @@ class TestConfigurationHotReload(unittest.TestCase):
         """Test that configuration changes are detected"""
         manager = RepositoryManager(config_path=str(self.config_file))
         manager.load_configuration()
-        
+
         # Initial state
         self.assertEqual(len(manager.list_repositories()), 1)
         self.assertIn("initial-repo", manager.list_repositories())
         
-        # Modify configuration file
-        time.sleep(0.1)  # Ensure different modification time
+        # Initialize the file change tracking by calling check_for_config_changes once
+        manager.check_for_config_changes()
         
+        # Modify configuration file
+        # Force a longer delay to ensure filesystem timestamp resolution
+        time.sleep(1.1)  # Ensure different modification time
+
         updated_config = {
             "repositories": {
                 "initial-repo": {
@@ -261,9 +276,13 @@ class TestConfigurationHotReload(unittest.TestCase):
                 }
             }
         }
-        
+
         with open(self.config_file, 'w') as f:
             json.dump(updated_config, f)
+            # Ensure file is flushed to disk
+            f.flush()
+            import os
+            os.fsync(f.fileno())
         
         # Check for changes
         changed = manager.check_for_config_changes()
@@ -278,17 +297,21 @@ class TestConfigurationHotReload(unittest.TestCase):
         """Test that reload callbacks are called"""
         manager = RepositoryManager(config_path=str(self.config_file))
         manager.load_configuration()
-        
+
         # Add callback
         callback_called = []
         def test_callback():
             callback_called.append(True)
-        
+
         manager.add_reload_callback(test_callback)
         
-        # Modify configuration
-        time.sleep(0.1)
+        # Initialize the file change tracking by calling check_for_config_changes once
+        manager.check_for_config_changes()
         
+        # Modify configuration
+        # Force a longer delay to ensure filesystem timestamp resolution
+        time.sleep(1.1)
+
         updated_config = {
             "repositories": {
                 "different-repo": {
@@ -297,9 +320,13 @@ class TestConfigurationHotReload(unittest.TestCase):
                 }
             }
         }
-        
+
         with open(self.config_file, 'w') as f:
             json.dump(updated_config, f)
+            # Ensure file is flushed to disk
+            f.flush()
+            import os
+            os.fsync(f.fileno())
         
         # Check for changes
         manager.check_for_config_changes()

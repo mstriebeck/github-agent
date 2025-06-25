@@ -8,14 +8,11 @@ classes to simulate various process behaviors and edge cases.
 import pytest
 import time
 import threading
-from unittest.mock import Mock, patch, MagicMock
-from test_abstracts import (
+from unittest.mock import Mock, patch
+from tests.test_abstracts import (
     MockProcessRegistry,
     ProcessState,
-    MockSignal,
-    CooperativeMockProcess,
-    UnresponsiveMockProcess,
-    ZombieMockProcess
+    MockSignal
 )
 from shutdown_manager import ShutdownManager
 from exit_codes import ShutdownExitCode, ExitCodeManager
@@ -331,13 +328,13 @@ class TestIntegratedShutdownFlow:
                                         health_monitor, mock_logger):
         """Test that concurrent shutdown attempts are handled safely."""
         # Create a worker that takes time to shutdown
-        worker1 = process_registry.create_cooperative_process("worker1", shutdown_delay=0.5)
+        process_registry.create_cooperative_process("worker1", shutdown_delay=0.5)
         
         # Mock a slow shutdown process
         shutdown_started = threading.Event()
         shutdown_completed = threading.Event()
         
-        original_shutdown = shutdown_manager.shutdown
+        # Mock a slow shutdown process
         
         def slow_shutdown():
             shutdown_started.set()

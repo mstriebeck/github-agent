@@ -11,8 +11,7 @@ import json
 import logging
 import time
 import unittest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from typing import List, Dict
+
 
 import sys
 import os
@@ -466,7 +465,7 @@ class TestGracefulShutdown(unittest.TestCase):
             
             client.add_disconnect_callback(auto_disconnect)
         
-        success = await self.manager.graceful_shutdown(grace_period=2.0, force_timeout=1.0)
+        await self.manager.graceful_shutdown(grace_period=2.0, force_timeout=1.0)
         
         # Note: This test is complex because we need to simulate clients disconnecting
         # themselves after receiving shutdown notification. In real scenario, clients
@@ -481,7 +480,7 @@ class TestGracefulShutdown(unittest.TestCase):
         for i, transport in enumerate(transports):
             self.manager.add_client(f"unresponsive_client{i}", transport)
         
-        success = await self.manager.graceful_shutdown(grace_period=0.1, force_timeout=0.2)
+        await self.manager.graceful_shutdown(grace_period=0.1, force_timeout=0.2)
         
         # Should force disconnect all clients
         self.assertTrue(self.manager._closed)
@@ -504,7 +503,7 @@ class TestGracefulShutdown(unittest.TestCase):
         for i in range(2, 4):
             self.manager.add_client(f"unresponsive_client{i}", transports[i])
         
-        success = await self.manager.graceful_shutdown(grace_period=0.1, force_timeout=0.2)
+        await self.manager.graceful_shutdown(grace_period=0.1, force_timeout=0.2)
         
         self.assertTrue(self.manager._closed)
         self.assertEqual(len(self.manager.get_all_clients()), 0)
@@ -516,7 +515,7 @@ class TestGracefulShutdown(unittest.TestCase):
         for i, transport in enumerate(failing_transports):
             self.manager.add_client(f"failing_client{i}", transport)
         
-        success = await self.manager.graceful_shutdown(grace_period=0.1, force_timeout=0.2)
+        await self.manager.graceful_shutdown(grace_period=0.1, force_timeout=0.2)
         
         # Should handle failures gracefully
         self.assertTrue(self.manager._closed)
@@ -538,7 +537,7 @@ class TestGracefulShutdown(unittest.TestCase):
         self.assertFalse(success2)
         
         # Wait for first shutdown to complete
-        success1 = await task1
+        await task1
         self.assertTrue(self.manager._closed)
     
     async def test_convenience_function(self):
@@ -546,7 +545,7 @@ class TestGracefulShutdown(unittest.TestCase):
         transport = MockTransport()
         self.manager.add_client("client1", transport)
         
-        success = await self.manager.graceful_shutdown(grace_period=0.1, force_timeout=0.1)
+        await self.manager.graceful_shutdown(grace_period=0.1, force_timeout=0.1)
         
         self.assertTrue(self.manager._closed)
 

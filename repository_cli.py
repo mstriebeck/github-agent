@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 from typing import Dict, Any
 
-from repository_manager import RepositoryManager, RepositoryConfig
+from repository_manager import RepositoryManager
 
 
 def get_default_config_path() -> Path:
@@ -174,10 +174,12 @@ def cmd_remove(args):
     print(f"  Description: {repo_info.get('description', '(none)')}")
     print()
     
-    response = input("Are you sure? [y/N]: ").strip().lower()
-    if response != 'y':
-        print("Cancelled.")
-        sys.exit(0)
+    # Skip confirmation if --yes flag is provided
+    if not getattr(args, 'yes', False):
+        response = input("Are you sure? [y/N]: ").strip().lower()
+        if response != 'y':
+            print("Cancelled.")
+            sys.exit(0)
     
     # Remove repository
     del config_data["repositories"][args.name]
@@ -200,7 +202,7 @@ def cmd_validate(args):
     manager = RepositoryManager(config_path=str(config_path))
     if manager.load_configuration():
         repositories = manager.list_repositories()
-        print(f"✅ Configuration loaded successfully")
+        print("✅ Configuration loaded successfully")
         print(f"✅ Found {len(repositories)} repositories")
         
         if manager.is_multi_repo_mode():
@@ -457,6 +459,7 @@ Examples:
     # Remove command
     parser_remove = subparsers.add_parser('remove', help='Remove a repository')
     parser_remove.add_argument('name', help='Repository name to remove')
+    parser_remove.add_argument('--yes', '-y', action='store_true', help='Skip confirmation prompt')
     parser_remove.set_defaults(func=cmd_remove)
     
     # Validate command
