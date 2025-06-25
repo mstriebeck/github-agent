@@ -26,6 +26,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 
 # Import shared functionality
 from repository_manager import RepositoryConfig, RepositoryManager
@@ -44,6 +45,20 @@ class GitHubMCPWorker:
     
     def __init__(self, repo_name: str, repo_path: str, port: int, description: str):
         print(f"[WORKER INIT] Starting initialization for {repo_name}")  # Use print for immediate output
+        
+        # Load environment variables from .env file first
+        dotenv_path = Path.home() / ".local" / "share" / "github-agent" / ".env"
+        if dotenv_path.exists():
+            print(f"[WORKER INIT] Loading .env from {dotenv_path}")
+            load_dotenv(dotenv_path)
+            print(f"[WORKER INIT] GITHUB_TOKEN loaded: {'Yes' if os.getenv('GITHUB_TOKEN') else 'No'}")
+        else:
+            print(f"[WORKER INIT] No .env file found at {dotenv_path}")
+            # Try current directory as fallback
+            if os.path.exists(".env"):
+                print(f"[WORKER INIT] Loading .env from current directory")
+                load_dotenv()
+                print(f"[WORKER INIT] GITHUB_TOKEN loaded: {'Yes' if os.getenv('GITHUB_TOKEN') else 'No'}")
         
         self.repo_name = repo_name
         self.repo_path = repo_path
@@ -258,8 +273,8 @@ class GitHubMCPWorker:
                                 message = self.message_queue.get_nowait()
                                 yield "event: message\n"
                                 yield f"data: {json.dumps(message)}\n\n"
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            self.logger.warning(f"Failed to process message from queue: {e}")
                         
                         await asyncio.sleep(0.1)
                         

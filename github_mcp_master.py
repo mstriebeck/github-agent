@@ -35,6 +35,8 @@ from system_utils import log_system_state, MicrosecondFormatter
 log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
 log_dir.mkdir(parents=True, exist_ok=True)
 
+GLOBAL_LOG_LEVEL = logging.DEBUG
+
 def setup_enhanced_logging(logger, log_file_path=None):
     """Enhance an existing logger with microsecond precision formatting
     
@@ -60,12 +62,12 @@ def setup_enhanced_logging(logger, log_file_path=None):
         log_file_path = log_dir / 'master.log'
     
     file_handler = logging.FileHandler(log_file_path, mode='a')
-    file_handler.setLevel(logging.DEBUG)
+    file_handler.setLevel(GLOBAL_LOG_LEVEL)
     file_handler.setFormatter(detailed_formatter)
     
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(GLOBAL_LOG_LEVEL)
     console_handler.setFormatter(console_formatter)
     
     # Add handlers to logger
@@ -80,7 +82,7 @@ def setup_enhanced_logging(logger, log_file_path=None):
 
 # Create and setup the master logger
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(GLOBAL_LOG_LEVEL)
 logger = setup_enhanced_logging(logger)
 
 @dataclass
@@ -600,8 +602,8 @@ class GitHubMCPMaster:
                             try:
                                 worker.process.kill()
                                 worker.process = None
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.warning(f"Failed to kill worker process for {worker.repo_name}: {e}")
             
             # Ports will be verified by deployment script if needed
             logger.info("Workers shutdown process completed")

@@ -172,8 +172,8 @@ class HealthMonitor:
                 if temp_file.exists():
                     try:
                         temp_file.unlink()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self.logger.warning(f"Failed to remove temp file {temp_file}: {e}")
                 raise write_error
             
         except Exception as e:

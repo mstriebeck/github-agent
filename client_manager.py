@@ -256,8 +256,6 @@ class ClientConnectionManager:
                 self.logger.warning(f"Client {client_id} not found")
                 return False
             
-            # Client removal handled above
-            
             # Remove from groups
             for group_name, group_clients in self._client_groups.items():
                 group_clients.discard(client_id)
