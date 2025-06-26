@@ -251,22 +251,8 @@ jobs:
 
               # Dependencies are pre-installed in the Docker image via setup script
 
-              # Temporarily rename problematic test files to fix import issues
-              echo 'Temporarily disabling problematic tests...'
-              if [ -d 'tests' ]; then
-                for test_file in tests/test_*.py; do
-                  if [ \"\$test_file\" != \"tests/test_basic.py\" ]; then
-                    mv \"\$test_file\" \"\${test_file}.disabled\" 2>/dev/null || true
-                  fi
-                done
-                # Also temporarily disable conftest.py since it imports disabled modules
-                if [ -f 'tests/conftest.py' ]; then
-                  mv 'tests/conftest.py' 'tests/conftest.py.disabled' 2>/dev/null || true
-                fi
-              fi
-              
-              # Run pytest with coverage - only on test_basic.py that we know works
-              echo 'Running pytest with coverage...'
+              # Run pytest with coverage on all tests
+              echo 'Running pytest with coverage on all tests...'
               pytest \
                 --cov=. \
                 --cov-report=xml:coverage_reports/coverage.xml \
@@ -275,22 +261,7 @@ jobs:
                 --cov-report=html:coverage_reports/html \
                 --junit-xml=coverage_reports/pytest-results.xml \
                 --verbose \
-                tests/test_basic.py
-              
-              # Restore the test files
-              echo 'Restoring test files...'
-              if [ -d 'tests' ]; then
-                for disabled_file in tests/test_*.py.disabled; do
-                  if [ -f \"\$disabled_file\" ]; then
-                    original_file=\${disabled_file%.disabled}
-                    mv \"\$disabled_file\" \"\$original_file\" 2>/dev/null || true
-                  fi
-                done
-                # Restore conftest.py
-                if [ -f 'tests/conftest.py.disabled' ]; then
-                  mv 'tests/conftest.py.disabled' 'tests/conftest.py' 2>/dev/null || true
-                fi
-              fi
+                tests/
               
 
 
