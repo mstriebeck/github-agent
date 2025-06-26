@@ -235,7 +235,7 @@ class _ResourceTracker:
             current_process = psutil.Process()
             # Try to get process information - this can raise PermissionError
             open_files = current_process.open_files()
-            connections = current_process.connections()
+            connections = current_process.net_connections()
             return open_files, connections
         
         try:
@@ -1128,9 +1128,12 @@ class ShutdownManager:
                     # Try to run the shutdown in a new event loop
                     import threading
                     def run_shutdown():
-                        asyncio.run(self.shutdown(
-                            reason=f"signal_{signal_name}"
-                        ))
+                        try:
+                            asyncio.run(self.shutdown(
+                                reason=f"signal_{signal_name}"
+                            ))
+                        except Exception as e:
+                            self.logger.error(f"Signal-triggered shutdown failed: {e}")
                     
                     # Run in a separate thread to avoid blocking
                     shutdown_thread = threading.Thread(target=run_shutdown, daemon=True)

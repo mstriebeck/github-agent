@@ -301,7 +301,7 @@ class TestHealthMonitor:
         # Mock process
         mock_process = Mock()
         mock_process.open_files.return_value = [Mock(), Mock()]  # 2 files
-        mock_process.connections.return_value = [Mock()]  # 1 connection
+        mock_process.net_connections.return_value = [Mock()]  # 1 connection
         mock_process.memory_info.return_value.rss = 1024 * 1024 * 100  # 100MB
         mock_process_class.return_value = mock_process
         

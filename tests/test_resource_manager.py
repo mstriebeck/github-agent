@@ -103,7 +103,8 @@ class TestDatabaseConnectionManager(unittest.TestCase):
         self.assertEqual(status['pools_count'], 1)
         self.assertIn("test_pool", status['pools'])
     
-    async def test_close_all_connections(self):
+
+    async def async_test_close_all_connections(self):
         """Test closing all database connections"""
         mock_conn1 = MockResource("conn1")
         mock_conn2 = MockAsyncResource("conn2")
@@ -125,7 +126,8 @@ class TestDatabaseConnectionManager(unittest.TestCase):
         self.assertEqual(status['connections_count'], 0)
         self.assertEqual(status['pools_count'], 0)
     
-    async def test_close_connections_with_failure(self):
+
+    async def async_test_close_connections_with_failure(self):
         """Test closing connections when some fail"""
         mock_conn_good = MockResource("good_conn")
         mock_conn_bad = MockResource("bad_conn", fail_close=True)
@@ -224,7 +226,8 @@ class TestExternalServiceManager(unittest.TestCase):
         self.assertEqual(status['services_count'], 1)
         self.assertIn("test_service", status['services'])
     
-    async def test_close_all_services(self):
+
+    async def async_test_close_all_services(self):
         """Test closing all external services"""
         mock_service1 = MockResource("service1")
         mock_service2 = MockAsyncResource("service2")
@@ -304,7 +307,8 @@ class TestResourceManager(unittest.TestCase):
         self.assertEqual(status['cleanup_callbacks']['count'], 1)
         self.assertIn("test_callback", status['cleanup_callbacks']['callbacks'])
     
-    async def test_cleanup_all_resources_success(self):
+
+    async def async_test_cleanup_all_resources_success(self):
         """Test successful cleanup of all resources"""
         # Add various resources
         db_conn = MockResource("db_conn")
@@ -335,7 +339,8 @@ class TestResourceManager(unittest.TestCase):
         status = self.resource_manager.get_resource_status()
         self.assertTrue(status['closed'])
     
-    async def test_cleanup_with_failures(self):
+
+    async def async_test_cleanup_with_failures(self):
         """Test cleanup when some resources fail"""
         # Add resources that will fail to close
         bad_db = MockResource("bad_db", fail_close=True)
@@ -357,7 +362,8 @@ class TestResourceManager(unittest.TestCase):
         status = self.resource_manager.get_resource_status()
         self.assertTrue(status['closed'])  # Manager should still be marked as closed
     
-    async def test_resource_priority_ordering(self):
+
+    async def async_test_resource_priority_ordering(self):
         """Test that resources are closed in priority order"""
         close_order = []
         
@@ -414,7 +420,7 @@ async def run_async_tests():
         
         # Find async test methods
         for method_name in dir(test_class):
-            if method_name.startswith('test_') and asyncio.iscoroutinefunction(getattr(test_class, method_name)):
+            if method_name.startswith('async_test_') and asyncio.iscoroutinefunction(getattr(test_class, method_name)):
                 print(f"  Running {method_name}...")
                 test_instance = test_class()
                 test_instance.setUp()
