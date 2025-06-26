@@ -11,6 +11,7 @@ import json
 import logging
 import time
 import unittest
+import pytest
 
 
 import sys
@@ -191,6 +192,7 @@ class TestMCPClient(unittest.TestCase):
         client.set_state(ClientState.DISCONNECTING)
         self.assertEqual(client.info.state, ClientState.DISCONNECTING)
     
+    @pytest.mark.asyncio
     async def test_send_notification_success(self):
         """Test successful notification sending"""
         transport = MockTransport()
@@ -209,6 +211,7 @@ class TestMCPClient(unittest.TestCase):
         self.assertGreater(client.info.bytes_sent, 0)
         self.assertGreater(client.info.last_activity, 0)
     
+    @pytest.mark.asyncio
     async def test_send_notification_failure(self):
         """Test notification sending failure"""
         transport = MockTransport(should_fail=True)
@@ -219,6 +222,7 @@ class TestMCPClient(unittest.TestCase):
         self.assertFalse(success)
         self.assertEqual(client.info.error_count, 1)
     
+    @pytest.mark.asyncio
     async def test_send_shutdown_notification(self):
         """Test sending shutdown notification"""
         transport = MockTransport()
@@ -234,6 +238,7 @@ class TestMCPClient(unittest.TestCase):
         self.assertEqual(sent_message["params"]["reason"], "shutdown")
         self.assertEqual(sent_message["params"]["grace_period_seconds"], 10.0)
     
+    @pytest.mark.asyncio
     async def test_client_disconnect_callbacks(self):
         """Test disconnect callbacks"""
         transport = MockTransport()
@@ -259,6 +264,7 @@ class TestMCPClient(unittest.TestCase):
         self.assertEqual(client.info.state, ClientState.DISCONNECTED)
         self.assertTrue(transport.closed)
     
+    @pytest.mark.asyncio
     async def test_close_connection_failure(self):
         """Test connection close failure"""
         transport = MockTransport(should_fail=True)
@@ -359,6 +365,7 @@ class TestClientConnectionManager(unittest.TestCase):
         nonexistent_clients = self.manager.get_clients_by_group("nonexistent")
         self.assertEqual(len(nonexistent_clients), 0)
     
+    @pytest.mark.asyncio
     async def test_broadcast_notification(self):
         """Test broadcasting notifications"""
         transport1 = MockTransport()
@@ -442,6 +449,7 @@ class TestGracefulShutdown(unittest.TestCase):
         
         self.manager = ClientConnectionManager(self.logger)
     
+    @pytest.mark.asyncio
     async def test_graceful_shutdown_no_clients(self):
         """Test graceful shutdown with no clients"""
         success = await self.manager.graceful_shutdown(grace_period=1.0, force_timeout=0.5)
@@ -449,6 +457,7 @@ class TestGracefulShutdown(unittest.TestCase):
         self.assertTrue(success)
         self.assertTrue(self.manager._closed)
     
+    @pytest.mark.asyncio
     async def test_graceful_shutdown_cooperative_clients(self):
         """Test graceful shutdown with cooperative clients"""
         # Create clients that will disconnect themselves after receiving shutdown notification
@@ -472,6 +481,7 @@ class TestGracefulShutdown(unittest.TestCase):
         # would close their connection after receiving the notification.
         self.assertTrue(self.manager._closed)
     
+    @pytest.mark.asyncio
     async def test_graceful_shutdown_unresponsive_clients(self):
         """Test graceful shutdown with unresponsive clients"""
         # Create clients that won't disconnect themselves
@@ -486,6 +496,7 @@ class TestGracefulShutdown(unittest.TestCase):
         self.assertTrue(self.manager._closed)
         self.assertEqual(len(self.manager.get_all_clients()), 0)
     
+    @pytest.mark.asyncio
     async def test_graceful_shutdown_mixed_clients(self):
         """Test graceful shutdown with mix of responsive and unresponsive clients"""
         transports = [MockTransport() for _ in range(4)]
@@ -508,6 +519,7 @@ class TestGracefulShutdown(unittest.TestCase):
         self.assertTrue(self.manager._closed)
         self.assertEqual(len(self.manager.get_all_clients()), 0)
     
+    @pytest.mark.asyncio
     async def test_graceful_shutdown_with_failing_transports(self):
         """Test graceful shutdown with transport failures"""
         failing_transports = [MockTransport(should_fail=True) for _ in range(2)]
@@ -521,6 +533,7 @@ class TestGracefulShutdown(unittest.TestCase):
         self.assertTrue(self.manager._closed)
         self.assertEqual(len(self.manager.get_all_clients()), 0)
     
+    @pytest.mark.asyncio
     async def test_shutdown_already_in_progress(self):
         """Test calling shutdown when already in progress"""
         transport = MockTransport()
@@ -540,6 +553,7 @@ class TestGracefulShutdown(unittest.TestCase):
         await task1
         self.assertTrue(self.manager._closed)
     
+    @pytest.mark.asyncio
     async def test_convenience_function(self):
         """Test convenience function for graceful shutdown"""
         transport = MockTransport()

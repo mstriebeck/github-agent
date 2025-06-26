@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import List, Dict
 
 
-class TestRunner:
+class SystemTestRunner:
     """Comprehensive test runner for shutdown system."""
     
     def __init__(self, test_dir: Path):
@@ -342,7 +342,7 @@ def main():
     
     # Find test directory
     test_dir = Path(__file__).parent
-    runner = TestRunner(test_dir)
+    runner = SystemTestRunner(test_dir)
     
     if args.all:
         results = runner.run_all_tests(

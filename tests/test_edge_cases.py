@@ -113,7 +113,7 @@ class TestResourceCleanupEdgeCases:
             # Mock permission denied error
             mock_process = Mock()
             mock_process.open_files.side_effect = PermissionError("Access denied")
-            mock_process.connections.side_effect = PermissionError("Access denied")
+            mock_process.net_connections.side_effect = PermissionError("Access denied")
             mock_process_class.return_value = mock_process
             
             success, issues = manager._resource_tracker.cleanup_resources()

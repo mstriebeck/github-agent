@@ -14,6 +14,7 @@ import socket
 import sys
 import os
 from unittest.mock import Mock, patch
+import pytest
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -190,6 +191,7 @@ class TestWorkerManager(unittest.TestCase):
         self.assertFalse(self.manager.is_worker_healthy(worker))
     
     @patch('worker_manager.WorkerManager._is_port_available')
+    @pytest.mark.asyncio
     async def test_shutdown_single_worker_graceful(self, mock_port_check):
         """Test graceful worker shutdown"""
         mock_port_check.return_value = True  # Port becomes available after shutdown
@@ -222,6 +224,7 @@ class TestWorkerManager(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual(self.mock_spawner.process_states[1234], 0)  # Process should be terminated
     
+    @pytest.mark.asyncio
     async def test_shutdown_all_workers(self):
         """Test shutting down all workers"""
         # Add multiple workers

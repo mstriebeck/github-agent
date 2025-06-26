@@ -243,7 +243,7 @@ class HealthMonitor:
             memory_info = process.memory_info()
             
             self._resources.open_files = len(process.open_files())
-            self._resources.open_connections = len(process.connections())
+            self._resources.open_connections = len(process.net_connections())
             self._resources.memory_usage_mb = memory_info.rss / 1024 / 1024
             
         except (psutil.NoSuchProcess, psutil.AccessDenied) as e:

@@ -12,6 +12,7 @@ import logging
 import time
 import sys
 import os
+import pytest
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -103,6 +104,7 @@ class TestDatabaseConnectionManager(unittest.TestCase):
         self.assertEqual(status['pools_count'], 1)
         self.assertIn("test_pool", status['pools'])
     
+    @pytest.mark.asyncio
     async def test_close_all_connections(self):
         """Test closing all database connections"""
         mock_conn1 = MockResource("conn1")
@@ -125,6 +127,7 @@ class TestDatabaseConnectionManager(unittest.TestCase):
         self.assertEqual(status['connections_count'], 0)
         self.assertEqual(status['pools_count'], 0)
     
+    @pytest.mark.asyncio
     async def test_close_connections_with_failure(self):
         """Test closing connections when some fail"""
         mock_conn_good = MockResource("good_conn")
@@ -224,6 +227,7 @@ class TestExternalServiceManager(unittest.TestCase):
         self.assertEqual(status['services_count'], 1)
         self.assertIn("test_service", status['services'])
     
+    @pytest.mark.asyncio
     async def test_close_all_services(self):
         """Test closing all external services"""
         mock_service1 = MockResource("service1")
@@ -304,6 +308,7 @@ class TestResourceManager(unittest.TestCase):
         self.assertEqual(status['cleanup_callbacks']['count'], 1)
         self.assertIn("test_callback", status['cleanup_callbacks']['callbacks'])
     
+    @pytest.mark.asyncio
     async def test_cleanup_all_resources_success(self):
         """Test successful cleanup of all resources"""
         # Add various resources
@@ -335,6 +340,7 @@ class TestResourceManager(unittest.TestCase):
         status = self.resource_manager.get_resource_status()
         self.assertTrue(status['closed'])
     
+    @pytest.mark.asyncio
     async def test_cleanup_with_failures(self):
         """Test cleanup when some resources fail"""
         # Add resources that will fail to close
@@ -357,6 +363,7 @@ class TestResourceManager(unittest.TestCase):
         status = self.resource_manager.get_resource_status()
         self.assertTrue(status['closed'])  # Manager should still be marked as closed
     
+    @pytest.mark.asyncio
     async def test_resource_priority_ordering(self):
         """Test that resources are closed in priority order"""
         close_order = []
