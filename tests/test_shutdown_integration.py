@@ -52,8 +52,9 @@ class TestIntegratedShutdownFlow:
         """Create a shutdown manager."""
         return ShutdownManager(mock_logger, mode="master")
         
-    def test_clean_shutdown_cooperative_workers(self, shutdown_manager, process_registry, 
-                                              health_monitor, exit_code_manager, mock_logger):
+    @pytest.mark.asyncio
+    async def test_clean_shutdown_cooperative_workers(self, shutdown_manager, process_registry, 
+                                       health_monitor, exit_code_manager, mock_logger):
         """Test clean shutdown with cooperative workers."""
         # Create cooperative workers
         worker1 = process_registry.create_cooperative_process("worker1", shutdown_delay=0.1)
@@ -128,7 +129,7 @@ class TestIntegratedShutdownFlow:
             mock_verify.side_effect = mock_verify_impl
             
             # Perform shutdown
-            result = shutdown_manager.shutdown()
+            result = await shutdown_manager.shutdown()
             
             # Verify clean shutdown
             assert result is True
@@ -139,7 +140,8 @@ class TestIntegratedShutdownFlow:
             mock_cleanup_resources.assert_called_once()
             mock_verify.assert_called_once()
             
-    def test_shutdown_with_timeout_escalation(self, shutdown_manager, process_registry,
+    @pytest.mark.asyncio
+    async def test_shutdown_with_timeout_escalation(self, shutdown_manager, process_registry,
                                             health_monitor, exit_code_manager, mock_logger):
         """Test shutdown with timeout and escalation to force termination."""
         # Create one cooperative and one unresponsive worker
@@ -202,7 +204,7 @@ class TestIntegratedShutdownFlow:
             mock_verify.side_effect = mock_verify_impl
             
             # Perform shutdown
-            result = shutdown_manager.shutdown()
+            result = await shutdown_manager.shutdown()
             
             # Should still succeed but with forced actions
             assert result is True
@@ -211,7 +213,8 @@ class TestIntegratedShutdownFlow:
             exit_code = exit_code_manager.determine_exit_code("manual")
             assert exit_code == ShutdownExitCode.FORCE_WORKER_TERMINATION
             
-    def test_shutdown_with_zombie_processes(self, shutdown_manager, process_registry,
+    @pytest.mark.asyncio
+    async def test_shutdown_with_zombie_processes(self, shutdown_manager, process_registry,
                                           health_monitor, exit_code_manager, mock_logger):
         """Test shutdown that results in zombie processes."""
         # Create a zombie process
@@ -244,7 +247,7 @@ class TestIntegratedShutdownFlow:
             mock_verify.side_effect = mock_verify_impl
             
             # Perform shutdown
-            result = shutdown_manager.shutdown()
+            result = await shutdown_manager.shutdown()
             
             # Should fail due to zombie
             assert result is False
@@ -253,7 +256,8 @@ class TestIntegratedShutdownFlow:
             exit_code = exit_code_manager.determine_exit_code("manual")
             assert exit_code == ShutdownExitCode.ZOMBIE_PROCESSES_DETECTED
             
-    def test_shutdown_health_monitoring_integration(self, shutdown_manager, process_registry,
+    @pytest.mark.asyncio
+    async def test_shutdown_health_monitoring_integration(self, shutdown_manager, process_registry,
                                                    health_monitor, mock_logger):
         """Test that shutdown properly updates health monitoring."""
         # Create workers and clients
@@ -314,7 +318,7 @@ class TestIntegratedShutdownFlow:
             
             # Perform shutdown
             health_monitor.set_server_status(ServerStatus.SHUTTING_DOWN)
-            result = shutdown_manager.shutdown()
+            result = await shutdown_manager.shutdown()
             
             # Verify shutdown completed
             assert result is True
@@ -324,7 +328,8 @@ class TestIntegratedShutdownFlow:
             status = health_monitor.get_current_status()
             assert status["shutdown_phase"] == "completed"
             
-    def test_concurrent_shutdown_attempts(self, shutdown_manager, process_registry,
+    @pytest.mark.asyncio
+    async def test_concurrent_shutdown_attempts(self, shutdown_manager, process_registry,
                                         health_monitor, mock_logger):
         """Test that concurrent shutdown attempts are handled safely."""
         # Create a worker that takes time to shutdown
@@ -363,7 +368,8 @@ class TestIntegratedShutdownFlow:
             assert not shutdown_thread2.is_alive()
             assert shutdown_completed.is_set()
             
-    def test_partial_failure_recovery(self, shutdown_manager, process_registry,
+    @pytest.mark.asyncio
+    async def test_partial_failure_recovery(self, shutdown_manager, process_registry,
                                      health_monitor, exit_code_manager, mock_logger):
         """Test recovery from partial shutdown failures."""
         # Create mixed worker types
@@ -428,7 +434,7 @@ class TestIntegratedShutdownFlow:
             mock_verify.side_effect = mock_verify_impl
             
             # Perform shutdown
-            result = shutdown_manager.shutdown()
+            result = await shutdown_manager.shutdown()
             
             # Should fail due to partial failures
             assert result is False

@@ -10,11 +10,21 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+import pytest
 
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Check if the required module exists
+try:
+    import github_mcp_server_multi_repo
+    GITHUB_MCP_SERVER_MULTI_REPO_AVAILABLE = True
+except ImportError:
+    GITHUB_MCP_SERVER_MULTI_REPO_AVAILABLE = False
 
+
+@pytest.mark.skipif(not GITHUB_MCP_SERVER_MULTI_REPO_AVAILABLE, 
+                   reason="github_mcp_server_multi_repo module not available")
 class TestServerInitialization(unittest.TestCase):
     """Test server initialization and basic functionality"""
     

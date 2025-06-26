@@ -52,12 +52,13 @@ class TestShutdownManager:
         with pytest.raises(ValueError, match="Mode must be 'master' or 'worker'"):
             ShutdownManager(mock_logger, mode="invalid")
             
-    def test_shutdown_already_initiated(self, manager_master, mock_logger):
+    @pytest.mark.asyncio
+    async def test_shutdown_already_initiated(self, manager_master, mock_logger):
         """Test that multiple shutdown calls are handled safely."""
         manager_master._shutdown_initiated = True
         manager_master._shutdown_reason = "previous"
         
-        result = manager_master.shutdown("new_reason")
+        result = await manager_master.shutdown("new_reason")
         
         assert result is False
         mock_logger.warning.assert_called_with(
@@ -88,7 +89,8 @@ class TestShutdownManager:
             
             mock_shutdown.assert_called_once_with(f"signal_{signal.SIGTERM}")
             
-    def test_master_shutdown_phases(self, manager_master, mock_logger):
+    @pytest.mark.asyncio
+    async def test_master_shutdown_phases(self, manager_master, mock_logger):
         """Test master shutdown goes through all phases."""
         with patch.object(manager_master, '_stop_workers') as mock_stop_workers, \
              patch.object(manager_master, '_disconnect_clients') as mock_disconnect_clients, \
@@ -102,7 +104,7 @@ class TestShutdownManager:
             mock_cleanup_resources.return_value = (True, [])
             mock_verify.return_value = (True, [])
             
-            result = manager_master.shutdown("test")
+            result = await manager_master.shutdown("test")
             
             assert result is True
             
@@ -120,7 +122,8 @@ class TestShutdownManager:
             assert ShutdownPhase.RESOURCES_CLEANING in phases_set
             assert ShutdownPhase.VERIFICATION in phases_set
             
-    def test_worker_shutdown_phases(self, manager_worker, mock_logger):
+    @pytest.mark.asyncio
+    async def test_worker_shutdown_phases(self, manager_worker, mock_logger):
         """Test worker shutdown skips worker management phase."""
         with patch.object(manager_worker, '_disconnect_clients') as mock_disconnect_clients, \
              patch.object(manager_worker, '_cleanup_resources') as mock_cleanup_resources, \
@@ -132,7 +135,7 @@ class TestShutdownManager:
             mock_cleanup_resources.return_value = (True, [])
             mock_verify.return_value = (True, [])
             
-            result = manager_worker.shutdown("test")
+            result = await manager_worker.shutdown("test")
             
             assert result is True
             
@@ -147,7 +150,8 @@ class TestShutdownManager:
             assert ShutdownPhase.WORKERS_STOPPING not in phases_set
             assert ShutdownPhase.CLIENTS_DISCONNECTING in phases_set
             
-    def test_shutdown_phase_failure_stops_process(self, manager_master, mock_logger):
+    @pytest.mark.asyncio
+    async def test_shutdown_phase_failure_stops_process(self, manager_master, mock_logger):
         """Test that phase failure stops the shutdown process."""
         with patch.object(manager_master, '_stop_workers') as mock_stop_workers, \
              patch.object(manager_master, '_disconnect_clients') as mock_disconnect_clients, \
@@ -156,7 +160,7 @@ class TestShutdownManager:
             # Make workers phase fail
             mock_stop_workers.return_value = (False, ["Worker failed to stop"])
             
-            result = manager_master.shutdown("test")
+            result = await manager_master.shutdown("test")
             
             assert result is False
             
@@ -165,7 +169,8 @@ class TestShutdownManager:
             mock_disconnect_clients.assert_not_called()
             mock_cleanup_resources.assert_not_called()
             
-    def test_exit_code_determination(self, manager_master, mock_logger):
+    @pytest.mark.asyncio
+    async def test_exit_code_determination(self, manager_master, mock_logger):
         """Test exit code determination from shutdown result."""
         with patch.object(manager_master, '_stop_workers') as mock_stop_workers, \
              patch.object(manager_master, '_disconnect_clients') as mock_disconnect_clients, \
@@ -180,12 +185,13 @@ class TestShutdownManager:
             mock_verify.return_value = (True, [])
             mock_determine.return_value = ShutdownExitCode.SUCCESS_CLEAN_SHUTDOWN
             
-            result = manager_master.shutdown("manual")
+            result = await manager_master.shutdown("manual")
             
             assert result is True
             mock_determine.assert_called_once_with("manual")
             
-    def test_health_monitoring_integration(self, manager_master, mock_logger):
+    @pytest.mark.asyncio
+    async def test_health_monitoring_integration(self, manager_master, mock_logger):
         """Test health monitoring is properly integrated."""
         with patch.object(manager_master._health_monitor, 'set_server_status') as mock_set_status, \
              patch.object(manager_master._health_monitor, 'set_shutdown_phase') as mock_set_phase, \
@@ -200,7 +206,7 @@ class TestShutdownManager:
             mock_cleanup_resources.return_value = (True, [])
             mock_verify.return_value = (True, [])
             
-            result = manager_master.shutdown("test")
+            result = await manager_master.shutdown("test")
             
             assert result is True
             
@@ -386,7 +392,8 @@ class TestShutdownManagerErrorHandling:
         """Create a ShutdownManager."""
         return ShutdownManager(mock_logger, mode="master")
         
-    def test_exception_in_stop_workers(self, manager, mock_logger):
+    @pytest.mark.asyncio
+    async def test_exception_in_stop_workers(self, manager, mock_logger):
         """Test exception handling in worker stopping phase."""
         with patch.object(manager, '_stop_workers') as mock_stop_workers, \
              patch.object(manager._exit_code_manager, 'report_system_error') as mock_report_error:
@@ -395,12 +402,13 @@ class TestShutdownManagerErrorHandling:
             test_exception = Exception("Worker stop failed")
             mock_stop_workers.side_effect = test_exception
             
-            result = manager.shutdown("test")
+            result = await manager.shutdown("test")
             
             assert result is False
             mock_report_error.assert_called_once_with("worker_manager", test_exception)
             
-    def test_exception_in_disconnect_clients(self, manager, mock_logger):
+    @pytest.mark.asyncio
+    async def test_exception_in_disconnect_clients(self, manager, mock_logger):
         """Test exception handling in client disconnection phase."""
         with patch.object(manager, '_stop_workers') as mock_stop_workers, \
              patch.object(manager, '_disconnect_clients') as mock_disconnect_clients, \
@@ -411,12 +419,13 @@ class TestShutdownManagerErrorHandling:
             test_exception = Exception("Client disconnect failed")
             mock_disconnect_clients.side_effect = test_exception
             
-            result = manager.shutdown("test")
+            result = await manager.shutdown("test")
             
             assert result is False
             mock_report_error.assert_called_with("client_manager", test_exception)
             
-    def test_exception_in_cleanup_resources(self, manager, mock_logger):
+    @pytest.mark.asyncio
+    async def test_exception_in_cleanup_resources(self, manager, mock_logger):
         """Test exception handling in resource cleanup phase."""
         with patch.object(manager, '_stop_workers') as mock_stop_workers, \
              patch.object(manager, '_disconnect_clients') as mock_disconnect_clients, \
@@ -429,12 +438,13 @@ class TestShutdownManagerErrorHandling:
             test_exception = Exception("Resource cleanup failed")
             mock_cleanup_resources.side_effect = test_exception
             
-            result = manager.shutdown("test")
+            result = await manager.shutdown("test")
             
             assert result is False
             mock_report_error.assert_called_with("resource_manager", test_exception)
             
-    def test_exception_in_verification(self, manager, mock_logger):
+    @pytest.mark.asyncio
+    async def test_exception_in_verification(self, manager, mock_logger):
         """Test exception handling in verification phase."""
         with patch.object(manager, '_stop_workers') as mock_stop_workers, \
              patch.object(manager, '_disconnect_clients') as mock_disconnect_clients, \
@@ -449,7 +459,7 @@ class TestShutdownManagerErrorHandling:
             test_exception = Exception("Verification failed")
             mock_verify.side_effect = test_exception
             
-            result = manager.shutdown("test")
+            result = await manager.shutdown("test")
             
             assert result is False
             mock_report_error.assert_called_with("verification", test_exception)
