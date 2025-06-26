@@ -248,11 +248,7 @@ jobs:
               echo '=== TIMING: Inside container - starting tests ==='
               start_script=\$(date +%s)
 
-              # Install dependencies if requirements.txt exists
-              if [ -f 'requirements.txt' ]; then
-                echo 'Installing dependencies from requirements.txt...'
-                pip install -r requirements.txt
-              fi
+              # Dependencies are pre-installed in the Docker image via setup script
 
               # Temporarily rename problematic test files to fix import issues
               echo 'Temporarily disabling problematic tests...'
@@ -313,7 +309,6 @@ jobs:
           end_time=$(date +%s)
           duration=$((end_time - start_time))
           echo "=== TIMING: Total Python tests completed in ${duration} seconds ==="
-        continue-on-error: false
 
       - name: Check coverage files
         id: coverage_check
@@ -411,11 +406,7 @@ jobs:
             /bin/bash -c "
               echo 'Running mypy type checking...'
               
-              # Install dependencies if requirements.txt exists
-              if [ -f 'requirements.txt' ]; then
-                echo 'Installing dependencies from requirements.txt...'
-                pip install -r requirements.txt
-              fi
+              # Dependencies are pre-installed in the Docker image via setup script
               
               # Run mypy on all Python files, but don't fail if no config exists
               mypy . --ignore-missing-imports --show-error-codes 2>&1 | tee mypy_output/mypy-results.log || true
