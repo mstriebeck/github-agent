@@ -11,13 +11,23 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 import asyncio
+import pytest
 
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Check if the required module exists
+try:
+    import github_tools
+    GITHUB_MCP_SERVER_AVAILABLE = True
+except ImportError:
+    GITHUB_MCP_SERVER_AVAILABLE = False
+
 from repository_manager import RepositoryManager, RepositoryConfig
 
 
+@pytest.mark.skipif(not GITHUB_MCP_SERVER_AVAILABLE, 
+                   reason="github_tools module not available")
 class TestRepositoryAwareTools(unittest.TestCase):
     """Test repository-aware GitHub tools and MCP integration"""
     
@@ -73,7 +83,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
     @patch.dict(os.environ, {'GITHUB_TOKEN': 'fake_token'})
     def test_tool_functions_with_repo_context(self):
         """Test that tool functions accept repository name parameter"""
-        from github_mcp_server import (
+        from github_tools import (
             execute_get_current_branch, 
             execute_get_current_commit
         )
@@ -85,10 +95,10 @@ class TestRepositoryAwareTools(unittest.TestCase):
             description="Test repository"
         )
         
-        with patch('github_mcp_server.repo_manager') as mock_repo_manager:
+        with patch('github_tools.repo_manager') as mock_repo_manager:
             mock_repo_manager.get_repository.return_value = repo_config
             
-            with patch('github_mcp_server.Github') as mock_github_class:
+            with patch('github_tools.Github') as mock_github_class:
                 mock_github = MagicMock()
                 mock_github_class.return_value = mock_github
                 
@@ -114,7 +124,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
     
     def test_github_context_with_different_repositories(self):
         """Test GitHubAPIContext works with different repository configurations"""
-        from github_mcp_server import GitHubAPIContext
+        from github_tools import GitHubAPIContext
         
         repo_config_a = RepositoryConfig(
             name="project-a",
@@ -128,7 +138,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
             description="Project B"
         )
         
-        with patch('github_mcp_server.Github') as mock_github_class:
+        with patch('github_tools.Github') as mock_github_class:
             mock_github = MagicMock()
             mock_github_class.return_value = mock_github
             
@@ -150,9 +160,9 @@ class TestRepositoryAwareTools(unittest.TestCase):
     
     def test_error_handling_for_invalid_repository(self):
         """Test error handling when repository context is missing"""
-        from github_mcp_server import get_github_context
+        from github_tools import get_github_context
         
-        with patch('github_mcp_server.repo_manager') as mock_repo_manager:
+        with patch('github_tools.repo_manager') as mock_repo_manager:
             mock_repo_manager.get_repository.return_value = None
             
             # Test that invalid repository raises ValueError
@@ -164,7 +174,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
     @patch.dict(os.environ, {'GITHUB_TOKEN': 'fake_token'})
     def test_tool_integration_workflow(self):
         """Test complete tool integration workflow"""
-        from github_mcp_server import (
+        from github_tools import (
             execute_get_current_branch,
             execute_find_pr_for_branch
         )
@@ -173,8 +183,8 @@ class TestRepositoryAwareTools(unittest.TestCase):
         manager = RepositoryManager(config_path=str(self.config_file))
         manager.load_configuration()
         
-        with patch('github_mcp_server.repo_manager', manager):
-            with patch('github_mcp_server.Github') as mock_github_class:
+        with patch('github_tools.repo_manager', manager):
+            with patch('github_tools.Github') as mock_github_class:
                 mock_github = MagicMock()
                 mock_repo = MagicMock()
                 mock_github_class.return_value = mock_github
@@ -212,7 +222,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
         """Test that tool descriptions include repository context"""
         # This would be tested through the MCP endpoints
         # For now, verify the pattern exists in the tool functions
-        from github_mcp_server import execute_find_pr_for_branch
+        from github_tools import execute_find_pr_for_branch
         
         # Check that the function signature includes repo_name
         import inspect

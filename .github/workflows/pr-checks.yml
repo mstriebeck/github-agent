@@ -1,0 +1,573 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  actions: read
+
+# Debug control - set to true to enable debugging output
+env:
+  DEBUG_OUTPUT: false  # Enable this to see detailed debugging
+
+jobs:
+  setup:
+    name: Setup
+    runs-on: [self-hosted, multi-lang-ci]
+    outputs:
+      swift-version: ${{ steps.get-versions.outputs.swift-version }}
+      python-version: ${{ steps.get-versions.outputs.python-version }}
+    steps:
+      - name: Pre-checkout cleanup
+        run: |
+          if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo "DEBUG: Running pre-checkout cleanup..."
+          fi
+          if [ -d "$GITHUB_WORKSPACE" ]; then
+            sudo find "$GITHUB_WORKSPACE" -type d -name ".build" -exec rm -rf {} \; 2>/dev/null || true
+            sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+            sudo find "$GITHUB_WORKSPACE" -type d -name ".pytest_cache" -exec rm -rf {} \; 2>/dev/null || true
+            sudo find "$GITHUB_WORKSPACE" -type d -name ".coverage" -exec rm -rf {} \; 2>/dev/null || true
+            sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+            if [ "$DEBUG_OUTPUT" = "true" ]; then
+              echo "DEBUG: Pre-checkout cleanup completed"
+            fi
+          else
+            if [ "$DEBUG_OUTPUT" = "true" ]; then
+              echo "DEBUG: Workspace doesn't exist yet, skipping cleanup"
+            fi
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref || github.ref }}
+          clean: true
+          fetch-depth: 0
+
+      - name: Make scripts executable
+        run: |
+          if [ -d "scripts" ]; then
+            chmod +x scripts/*.sh 2>/dev/null || true
+            echo "Made scripts executable"
+          else
+            echo "Scripts directory not found, creating..."
+            mkdir -p scripts
+          fi
+          
+      - name: Get versions
+        id: get-versions
+        run: |
+          # Detect versions from versions.env or use defaults
+          if [ -f "versions.env" ]; then
+            SWIFT_VERSION=$(grep SWIFT_VERSION versions.env | cut -d'=' -f2 | tr -d '"' | tr -d "'" || echo "6.1")
+            PYTHON_VERSION=$(grep PYTHON_VERSION versions.env | cut -d'=' -f2 | tr -d '"' | tr -d "'" || echo "3.12")
+          else
+            # Default versions
+            SWIFT_VERSION="6.1"
+            PYTHON_VERSION="3.12"
+          fi
+          echo "Using Swift version: $SWIFT_VERSION"
+          echo "Using Python version: $PYTHON_VERSION"
+          echo "swift-version=$SWIFT_VERSION" >> $GITHUB_OUTPUT
+          echo "python-version=$PYTHON_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Cleanup after job
+        if: always()
+        run: |
+          if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo "DEBUG: Cleaning up after setup..."
+          fi
+          sudo find "$GITHUB_WORKSPACE" -type d -name ".build" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+
+  ruff-lint:
+    name: Ruff Linting
+    needs: setup
+    runs-on: [self-hosted, multi-lang-ci]
+    steps:
+      - name: Pre-checkout cleanup
+        run: |
+          if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo "DEBUG: Running pre-checkout cleanup..."
+          fi
+          if [ -d "$GITHUB_WORKSPACE" ]; then
+            sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+            sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref || github.ref }}
+          clean: true
+          fetch-depth: 0
+
+      - name: Run Ruff inside container
+        run: |
+          if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo "DEBUG: Pulling Docker image..."
+          fi
+          docker pull mstriebeck/multi-lang-ci-runner:${{ needs.setup.outputs.swift-version }}-python${{ needs.setup.outputs.python-version }}
+          
+          CONTAINER_NAME="ruff-${{ github.run_id }}-$(date +%s)"
+          
+          # Create ruff output directory
+          mkdir -p ruff_output
+          
+          docker run --rm \
+            --name "$CONTAINER_NAME" \
+            --label monitoring.job_name=ruff \
+            --label monitoring.build_id=${{ github.run_id }} \
+            --label monitoring.workflow="${{ github.workflow }}" \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            -u $(id -u):$(id -g) \
+            --network host \
+            mstriebeck/multi-lang-ci-runner:${{ needs.setup.outputs.swift-version }}-python${{ needs.setup.outputs.python-version }} \
+            /bin/bash -c "
+              echo 'Running Ruff linting...'
+              # Run Ruff check and format
+              ruff check . --output-format=github 2>&1 | tee ruff_output/ruff-check.log || true
+              ruff format --check . 2>&1 | tee ruff_output/ruff-format.log || true
+              
+              # Also run with JSON output for artifact
+              ruff check . --output-format=json > ruff_output/ruff-check.json 2>/dev/null || true
+              
+              echo 'Ruff linting completed'
+            "
+
+      - name: Upload Ruff results as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruff-reports
+          path: ruff_output/
+          retention-days: 7
+
+      - name: Cleanup after job
+        if: always()
+        run: |
+          if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo "DEBUG: Cleaning up after Ruff..."
+          fi
+          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+
+  python-tests-and-coverage:
+    name: Python Tests & Coverage
+    needs: setup
+    runs-on: [self-hosted, multi-lang-ci]
+    outputs:
+      coverage_generated: ${{ steps.coverage_check.outputs.coverage_generated }}
+    steps:
+      - name: Pre-checkout cleanup
+        run: |
+          if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo "DEBUG: Running pre-checkout cleanup..."
+          fi
+          if [ -d "$GITHUB_WORKSPACE" ]; then
+            sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+            sudo find "$GITHUB_WORKSPACE" -type d -name ".pytest_cache" -exec rm -rf {} \; 2>/dev/null || true
+            sudo find "$GITHUB_WORKSPACE" -type d -name ".coverage" -exec rm -rf {} \; 2>/dev/null || true
+            sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref || github.ref }}
+          clean: true
+          fetch-depth: 0
+
+      - name: Create coverage directory
+        run: |
+          mkdir -p coverage_reports
+          echo "Created coverage_reports directory for storing coverage files"
+
+      - name: Run Python tests with coverage inside container
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo "DEBUG: Pulling Docker image..."
+          fi
+
+          echo "=== TIMING: Starting Docker pull ==="
+          docker pull mstriebeck/multi-lang-ci-runner:${{ needs.setup.outputs.swift-version }}-python${{ needs.setup.outputs.python-version }}
+          echo "=== TIMING: Docker pull completed ==="
+
+          # Create unique container name with timestamp
+          CONTAINER_NAME="python-ci-runner-${{ github.run_id }}-$(date +%s)"
+          BUILD_START_TIME=$(date +%s)
+          
+          JOB_URL=$(gh run view ${{ github.run_id }} --json jobs --jq '.jobs[] | select(.name == "Python Tests & Coverage") | .url')
+          GITHUB_JOB_ID=$(echo "$JOB_URL" | sed 's/.*job\///')
+          echo "Job ID: $GITHUB_JOB_ID"
+
+          echo "=== TIMING: Starting Python tests ==="
+          start_time=$(date +%s)
+          
+          # Run tests with coverage
+          docker run --rm \
+            --name "$CONTAINER_NAME" \
+            --label monitoring.job_name=python-tests \
+            --label monitoring.build_id=${{ github.run_id }} \
+            --label monitoring.job_id=$GITHUB_JOB_ID \
+            --label monitoring.workflow="${{ github.workflow }}" \
+            --label monitoring.ref="${{ github.ref }}" \
+            --label monitoring.start_time="$BUILD_START_TIME" \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            -u $(id -u):$(id -g) \
+            -e GITHUB_ACTIONS="$GITHUB_ACTIONS" \
+            -e GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            -e GITHUB_REPO_URL="https://github.com/${{ github.repository }}" \
+            -e GITHUB_RUN_ID="${{ github.run_id }}" \
+            -e GITHUB_TOKEN="${{ github.token }}" \
+            -e GITHUB_SERVER_URL="$GITHUB_SERVER_URL" \
+            -e GITHUB_JOB_ID="$GITHUB_JOB_ID" \
+            -e GH_TOKEN="${{ github.token }}" \
+            -e DEBUG_OUTPUT="$DEBUG_OUTPUT" \
+            --network host \
+            mstriebeck/multi-lang-ci-runner:${{ needs.setup.outputs.swift-version }}-python${{ needs.setup.outputs.python-version }} \
+            /bin/bash -c "
+              echo '=== TIMING: Inside container - starting tests ==='
+              echo \"=== NEW RUN TIMESTAMP: \$(date -u +%Y-%m-%dT%H:%M:%S.%6NZ) ===\"
+              start_script=\$(date +%s)
+
+              # Dependencies are pre-installed in the Docker image via setup script
+
+              # Run pytest with coverage on all tests
+              echo 'Running pytest with coverage on all tests...'
+              pytest \
+                --cov=. \
+                --cov-report=xml:coverage_reports/coverage.xml \
+                --cov-report=lcov:coverage_reports/coverage.lcov \
+                --cov-report=term-missing \
+                --cov-report=html:coverage_reports/html \
+                --junit-xml=coverage_reports/pytest-results.xml \
+                --verbose \
+                tests/
+              
+
+
+              test_exit_code=\$?
+              
+              # Debug: Check what coverage files were created regardless of test outcome
+              echo 'DEBUG: Coverage reports directory after pytest:'
+              if [ -d 'coverage_reports' ]; then
+                ls -la coverage_reports/
+                echo 'DEBUG: Checking for specific files:'
+                [ -f 'coverage_reports/coverage.xml' ] && echo 'Found coverage.xml' || echo 'Missing coverage.xml'
+                [ -f 'coverage_reports/coverage.lcov' ] && echo 'Found coverage.lcov' || echo 'Missing coverage.lcov'
+              else
+                echo 'ERROR: coverage_reports directory was not created!'
+              fi
+
+              end_script=\$(date +%s)
+              script_duration=\$((end_script - start_script))
+              echo \"=== TIMING: Tests completed in \${script_duration} seconds (exit code: \${test_exit_code}) ===\"
+              
+              # Exit with the test script's exit code - FAIL if tests failed
+              if [ \$test_exit_code -ne 0 ]; then
+                echo \"ERROR: Tests failed with exit code \$test_exit_code\"
+                echo \"This workflow should FAIL!\"
+                exit \$test_exit_code
+              fi
+              
+              # Also check if coverage files were actually generated
+              if [ ! -f 'coverage_reports/coverage.xml' ] || [ ! -f 'coverage_reports/coverage.lcov' ]; then
+                echo \"ERROR: Coverage files were not generated!\"
+                echo \"This indicates tests did not run properly.\"
+                exit 1
+              fi
+              
+              echo \"SUCCESS: Tests passed and coverage generated!\"
+            "
+
+          end_time=$(date +%s)
+          duration=$((end_time - start_time))
+          echo "=== TIMING: Total Python tests completed in ${duration} seconds ==="
+
+      - name: Check coverage files
+        id: coverage_check
+        run: |
+          if [ -d "coverage_reports" ] && [ "$(ls -A coverage_reports)" ]; then
+            echo "Coverage files generated successfully"
+            echo "coverage_generated=true" >> $GITHUB_OUTPUT
+            
+            # Debug info about coverage files
+            if [ "$DEBUG_OUTPUT" = "true" ]; then
+              echo "=== COVERAGE FILES DEBUG ==="
+              ls -la coverage_reports/
+              echo "Total coverage files: $(find coverage_reports -name "*.xml" -o -name "*.lcov" | wc -l)"
+            fi
+          else
+            echo "No coverage files generated"
+            echo "coverage_generated=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload coverage files as artifact
+        if: steps.coverage_check.outputs.coverage_generated == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-coverage-reports
+          path: coverage_reports/
+          retention-days: 7
+
+      - name: Upload test results as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-test-results
+          path: coverage_reports/pytest-results.xml
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Cleanup after job
+        if: always()
+        run: |
+          if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo "DEBUG: Cleaning up after Python tests..."
+          fi
+          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name ".pytest_cache" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+
+  type-check:
+    name: Type Checking (mypy)
+    needs: setup
+    runs-on: [self-hosted, multi-lang-ci]
+    steps:
+      - name: Pre-checkout cleanup
+        run: |
+          if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo "DEBUG: Running pre-checkout cleanup..."
+          fi
+          if [ -d "$GITHUB_WORKSPACE" ]; then
+            sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+            sudo find "$GITHUB_WORKSPACE" -type d -name ".mypy_cache" -exec rm -rf {} \; 2>/dev/null || true
+            sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref || github.ref }}
+          clean: true
+          fetch-depth: 0
+
+      - name: Run mypy type checking inside container
+        run: |
+          if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo "DEBUG: Pulling Docker image..."
+          fi
+          docker pull mstriebeck/multi-lang-ci-runner:${{ needs.setup.outputs.swift-version }}-python${{ needs.setup.outputs.python-version }}
+          
+          CONTAINER_NAME="mypy-${{ github.run_id }}-$(date +%s)"
+          
+          # Create mypy output directory
+          mkdir -p mypy_output
+          
+          docker run --rm \
+            --name "$CONTAINER_NAME" \
+            --label monitoring.job_name=mypy \
+            --label monitoring.build_id=${{ github.run_id }} \
+            --label monitoring.workflow="${{ github.workflow }}" \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            -u $(id -u):$(id -g) \
+            --network host \
+            mstriebeck/multi-lang-ci-runner:${{ needs.setup.outputs.swift-version }}-python${{ needs.setup.outputs.python-version }} \
+            /bin/bash -c "
+              echo 'Running mypy type checking...'
+              
+              # Dependencies are pre-installed in the Docker image via setup script
+              
+              # Run mypy on all Python files, but don't fail if no config exists
+              mypy . --ignore-missing-imports --show-error-codes 2>&1 | tee mypy_output/mypy-results.log || true
+              
+              echo 'mypy type checking completed'
+            "
+
+      - name: Upload mypy results as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mypy-reports
+          path: mypy_output/
+          retention-days: 7
+
+      - name: Cleanup after job
+        if: always()
+        run: |
+          if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo "DEBUG: Cleaning up after mypy..."
+          fi
+          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name ".mypy_cache" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+
+  security-check:
+    name: Security Check (bandit)
+    needs: setup
+    runs-on: [self-hosted, multi-lang-ci]
+    steps:
+      - name: Pre-checkout cleanup
+        run: |
+          if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo "DEBUG: Running pre-checkout cleanup..."
+          fi
+          if [ -d "$GITHUB_WORKSPACE" ]; then
+            sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+            sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+            sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref || github.ref }}
+          clean: true
+          fetch-depth: 0
+
+      - name: Run bandit security check inside container
+        run: |
+          if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo "DEBUG: Pulling Docker image..."
+          fi
+          docker pull mstriebeck/multi-lang-ci-runner:${{ needs.setup.outputs.swift-version }}-python${{ needs.setup.outputs.python-version }}
+          
+          CONTAINER_NAME="bandit-${{ github.run_id }}-$(date +%s)"
+          
+          # Create bandit output directory
+          mkdir -p bandit_output
+          
+          docker run --rm \
+            --name "$CONTAINER_NAME" \
+            --label monitoring.job_name=bandit \
+            --label monitoring.build_id=${{ github.run_id }} \
+            --label monitoring.workflow="${{ github.workflow }}" \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            -u $(id -u):$(id -g) \
+            --network host \
+            mstriebeck/multi-lang-ci-runner:${{ needs.setup.outputs.swift-version }}-python${{ needs.setup.outputs.python-version }} \
+            /bin/bash -c "
+              echo 'Running bandit security check...'
+              
+              # Run bandit on all Python files
+              bandit -r . -f json -o bandit_output/bandit-results.json 2>&1 | tee bandit_output/bandit.log || true
+              bandit -r . -f txt 2>&1 | tee bandit_output/bandit-results.txt || true
+              
+              echo 'bandit security check completed'
+            "
+
+      - name: Upload bandit results as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-reports
+          path: bandit_output/
+          retention-days: 7
+
+      - name: Cleanup after job
+        if: always()
+        run: |
+          if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo "DEBUG: Cleaning up after bandit..."
+          fi
+          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+
+  upload-coverage:
+    name: Upload Coverage
+    needs: [setup, python-tests-and-coverage]
+    if: needs.python-tests-and-coverage.outputs.coverage_generated == 'true'
+    runs-on: [self-hosted, multi-lang-ci]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref || github.ref }}
+          clean: true
+          fetch-depth: 0
+      
+      - name: Download coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          name: python-coverage-reports
+          path: coverage_reports
+      
+      - name: Debug coverage files
+        run: |
+          echo "=== COVERAGE FILES DEBUG ==="
+          echo "Current directory: $(pwd)"
+          echo "Contents of coverage_reports directory:"
+          if [ -d "coverage_reports" ]; then
+            ls -la coverage_reports/
+            echo "Total coverage files: $(find coverage_reports -name "*.xml" -o -name "*.lcov" | wc -l)"
+            echo "All files in coverage_reports:"
+            find coverage_reports -type f -exec echo "Found: {}" \;
+            echo "Content of coverage files:"
+            find coverage_reports -name "*.xml" -exec echo "=== XML FILE: {} ===" \; -exec head -20 {} \;
+            find coverage_reports -name "*.lcov" -exec echo "=== LCOV FILE: {} ===" \; -exec head -20 {} \;
+          else
+            echo "coverage_reports directory does not exist!"
+            echo "Current directory contents:"
+            ls -la
+          fi
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: ./coverage_reports/
+          files: coverage.xml,coverage.lcov
+          flags: github-actions,python
+          fail_ci_if_error: false
+        continue-on-error: true
+
+  cleanup:
+    name: Final Cleanup
+    needs: [setup, ruff-lint, python-tests-and-coverage, type-check, security-check, upload-coverage]
+    if: always()
+    runs-on: [self-hosted, multi-lang-ci]
+    steps:
+      - name: Final workspace cleanup
+        run: |
+          if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo "DEBUG: Running final workspace cleanup..."
+          fi
+          sudo find "$GITHUB_WORKSPACE" -type d -name "__pycache__" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name ".pytest_cache" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name ".mypy_cache" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name ".coverage" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name "artifacts" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name "coverage_reports" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name "ruff_output" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name "mypy_output" -exec rm -rf {} \; 2>/dev/null || true
+          sudo find "$GITHUB_WORKSPACE" -type d -name "bandit_output" -exec rm -rf {} \; 2>/dev/null || true
+          sudo chown -R $(whoami):$(whoami) "$GITHUB_WORKSPACE" 2>/dev/null || true
+          echo "Final cleanup completed"

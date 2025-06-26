@@ -23,9 +23,12 @@ import os
 import subprocess
 import threading
 import json
+import socket
+import psutil
 from typing import Dict, List, Optional, Any, Callable, Set
 from dataclasses import dataclass
 from enum import Enum
+from health_monitor import ServerStatus, ShutdownPhase
 
 try:
     import aiohttp
@@ -210,6 +213,159 @@ class _ResourceTracker:
         self.logger.info(status)
         return success
 
+    async def cleanup_all_with_result(self) -> tuple[bool, list[str]]:
+        """Clean up all resources and return (success, errors)"""
+        errors = []
+        try:
+            success = await self.cleanup_all()
+            if not success:
+                errors.append("Some resources failed to clean up")
+            return success, errors
+        except Exception as e:
+            errors.append(f"Resource cleanup failed: {e}")
+            return False, errors
+    
+    def cleanup_resources(self) -> tuple[bool, list[str]]:
+        """Synchronous version of cleanup_all_with_result for test compatibility"""
+        errors = []
+        success = True
+        
+        # Phase 0: Check for process resource usage (for testing permission scenarios)
+        def check_process_resources():
+            current_process = psutil.Process()
+            # Try to get process information - this can raise PermissionError
+            open_files = current_process.open_files()
+            connections = current_process.connections()
+            return open_files, connections
+        
+        try:
+            # Use threading to implement timeout for hanging operations
+            import concurrent.futures
+            executor = concurrent.futures.ThreadPoolExecutor()
+            try:
+                future = executor.submit(check_process_resources)
+                try:
+                    open_files, connections = future.result(timeout=2.0)  # 2 second timeout
+                    self.logger.debug(f"Process has {len(open_files)} open files and {len(connections)} connections")
+                    
+                    # Report open files as issues for testing
+                    if open_files:
+                        file_paths = [f.path for f in open_files]
+                        error_msg = f"Process has {len(open_files)} open files: {file_paths}"
+                        self.logger.warning(error_msg)
+                        errors.append(error_msg)
+                        
+                    if connections:
+                        error_msg = f"Process has {len(connections)} active connections"
+                        self.logger.warning(error_msg)
+                        errors.append(error_msg)
+                        
+                except concurrent.futures.TimeoutError:
+                    error_msg = "Timeout checking process resources (operation hanging)"
+                    self.logger.warning(error_msg)
+                    errors.append(error_msg)
+                    future.cancel()  # Try to cancel the future
+            finally:
+                executor.shutdown(wait=False)  # Don't wait for hanging tasks
+        except PermissionError as e:
+            error_msg = f"Permission denied accessing process information: {e}"
+            self.logger.warning(error_msg)
+            errors.append(error_msg)
+            # Don't mark as failure since this is just informational
+        except Exception as e:
+            error_msg = f"Failed to check process resources: {e}"
+            self.logger.warning(error_msg)
+            errors.append(error_msg)
+        
+        # Phase 1: Close database connections
+        if self._database_connections:
+            self.logger.info(f"Closing {len(self._database_connections)} database connections")
+            for name, conn in self._database_connections.items():
+                try:
+                    if hasattr(conn, 'close'):
+                        conn.close()
+                    self.logger.debug(f"✓ Closed database connection: {name}")
+                except Exception as e:
+                    error_msg = f"Failed to close database connection {name}: {e}"
+                    self.logger.error(f"✗ {error_msg}")
+                    errors.append(error_msg)
+                    success = False
+        
+        # Phase 2: Close resources by priority
+        if self._resources:
+            sorted_resources = sorted(self._resources.items(), 
+                                    key=lambda x: x[1]['priority'])
+            
+            self.logger.info(f"Closing {len(sorted_resources)} resources")
+            for name, res_info in sorted_resources:
+                try:
+                    resource = res_info['resource']
+                    if hasattr(resource, 'close'):
+                        resource.close()
+                    self.logger.debug(f"✓ Closed resource: {name}")
+                except Exception as e:
+                    error_msg = f"Failed to close resource {name}: {e}"
+                    self.logger.error(f"✗ {error_msg}")
+                    errors.append(error_msg)
+                    success = False
+        
+        # Phase 3: Execute cleanup callbacks
+        if self._cleanup_callbacks:
+            self.logger.info(f"Executing {len(self._cleanup_callbacks)} cleanup callbacks")
+            for name, callback in self._cleanup_callbacks:
+                try:
+                    callback()
+                    self.logger.debug(f"✓ Executed cleanup callback: {name}")
+                except Exception as e:
+                    error_msg = f"Failed to execute cleanup callback {name}: {e}"
+                    self.logger.error(f"✗ {error_msg}")
+                    errors.append(error_msg)
+                    success = False
+        
+        # Phase 4: Close file handles  
+        if self._file_handles:
+            self.logger.info(f"Closing {len(self._file_handles)} file handles")
+            for name, handle in self._file_handles.items():
+                try:
+                    if hasattr(handle, 'close'):
+                        handle.close()
+                    self.logger.debug(f"✓ Closed file handle: {name}")
+                except Exception as e:
+                    error_msg = f"Failed to close file handle {name}: {e}"
+                    self.logger.error(f"✗ {error_msg}")
+                    errors.append(error_msg)
+                    success = False
+        
+        self._closed = True
+        status = "✓ All resources cleaned up successfully" if success else "✗ Some resources failed to clean up"
+        self.logger.info(status)
+        return success, errors
+    
+    def verify_ports_released(self, ports: list[int]) -> tuple[bool, list[str]]:
+        """Verify that the specified ports are no longer in use"""
+        errors = []
+        success = True
+        
+        for port in ports:
+            try:
+                # Try to bind to the port to see if it's free
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                    sock.bind(('localhost', port))
+                    self.logger.debug(f"✓ Port {port} is released")
+            except OSError as e:
+                error_msg = f"Port {port} is still in use: {e}"
+                self.logger.error(f"✗ {error_msg}")
+                errors.append(error_msg)
+                success = False
+            except Exception as e:
+                error_msg = f"Failed to verify port {port}: {e}"
+                self.logger.error(f"✗ {error_msg}")
+                errors.append(error_msg)
+                success = False
+        
+        return success, errors
+
 
 class _ClientTracker:
     """Internal class to track and manage client connections"""
@@ -220,6 +376,8 @@ class _ClientTracker:
         self._client_groups: Dict[str, Set[str]] = {}
         self._closed = False
         self._lock = threading.Lock()
+        # Alias for tests
+        self._active_clients = self._clients
     
     def add_client(self, client_id: str, transport, group: Optional[str] = None) -> bool:
         """Add a client connection to be managed"""
@@ -315,6 +473,63 @@ class _ClientTracker:
             success = False
         
         return success
+
+    def get_client_count(self) -> int:
+        """Get the number of connected clients"""
+        with self._lock:
+            return len(self._clients)
+
+    def disconnect_all_clients(self, timeout: Optional[float] = None) -> tuple[bool, list[str]]:
+        """Synchronous version of disconnect_all_with_result for test compatibility"""
+        errors = []
+        success = True
+        
+        with self._lock:
+            clients_to_disconnect = list(self._clients.values())
+            
+        self.logger.info(f"Disconnecting {len(clients_to_disconnect)} clients")
+        
+        for client in clients_to_disconnect:
+            try:
+                # Send shutdown notification
+                if hasattr(client.transport, 'close'):
+                    client.transport.close()
+                        
+                self.logger.debug(f"✓ Disconnected client: {client.client_id}")
+            except Exception as e:
+                error_msg = f"Failed to disconnect client {client.client_id}: {e}"
+                self.logger.error(f"✗ {error_msg}")
+                errors.append(error_msg)
+                # Note: Individual client errors don't cause overall failure
+            finally:
+                # Always remove from tracking, even if disconnection failed
+                with self._lock:
+                    if client.client_id in self._clients:
+                        del self._clients[client.client_id]
+        
+        # Clear group memberships
+        with self._lock:
+            self._client_groups.clear()
+            
+        status = "✓ All clients disconnected successfully" if success else "✗ Some clients failed to disconnect"
+        self.logger.info(status)
+        return success, errors
+        
+    async def disconnect_all_clients_async(self, timeout: Optional[float] = None) -> tuple[bool, list[str]]:
+        """Async version of disconnect_all_clients"""
+        return await self.disconnect_all_with_result()
+
+    async def disconnect_all_with_result(self) -> tuple[bool, list[str]]:
+        """Disconnect all clients and return (success, errors)"""
+        errors = []
+        try:
+            success = await self.disconnect_all()
+            if not success:
+                errors.append("Some clients failed to disconnect")
+            return success, errors
+        except Exception as e:
+            errors.append(f"Client disconnection failed: {e}")
+            return False, errors
     
     async def _send_shutdown_notification(self, client: ClientInfo) -> None:
         """Send shutdown notification to a client"""
@@ -376,6 +591,9 @@ class ShutdownManager:
             logger: Logger instance for shutdown operations
             mode: Either "master" or "worker" to determine capabilities
         """
+        if mode not in ("master", "worker"):
+            raise ValueError("Mode must be 'master' or 'worker'")
+            
         self.logger = logger
         self.mode = mode
         self.shutdown_in_progress = False
@@ -387,7 +605,7 @@ class ShutdownManager:
         self.shutdown_coordinator = ShutdownCoordinator(logger)
         self.system_monitor = SystemMonitor()
         self._exit_code_manager = ExitCodeManager(logger)
-        self._health_monitor = HealthMonitor(logger)
+        self._health_monitor = HealthMonitor(logger, f"/tmp/mcp_server_health_{os.getpid()}.json")
         
         # Resource and client tracking
         self._resource_tracker = _ResourceTracker(logger)
@@ -400,6 +618,9 @@ class ShutdownManager:
         
         # Shutdown phases completed
         self._completed_phases: List[str] = []
+        
+        # Signal handling state
+        self._pending_signal_shutdown = None
         
         # Setup signal handlers
         self._setup_signal_handlers()
@@ -559,32 +780,45 @@ class ShutdownManager:
     
     # === MAIN SHUTDOWN PROCESS ===
     
-    async def shutdown(self, grace_period: float = 10.0, force_timeout: float = 5.0) -> bool:
+    async def shutdown(self, reason: str = "manual", grace_period: float = 10.0, force_timeout: float = 5.0) -> bool:
         """
         Execute comprehensive shutdown for the current mode
         
         Args:
+            reason: Reason for shutdown
             grace_period: Time to wait for graceful operations
             force_timeout: Time to wait for forced operations
             
         Returns:
             True if shutdown completed successfully, False otherwise
         """
-        if self.shutdown_in_progress:
-            self.logger.warning("Shutdown already in progress")
+        if self._shutdown_initiated:
+            self.logger.warning(f"Shutdown already initiated (reason: {self._shutdown_reason}), ignoring new request ({reason})")
             return False
+        
+        self._shutdown_initiated = True
+        self._shutdown_reason = reason
         
         self.shutdown_in_progress = True
         self.shutdown_start_time = time.time()
+        
+        # Set health monitor status
+        if self._health_monitor:
+            self._health_monitor.set_server_status(ServerStatus.SHUTTING_DOWN)
         
         if self.mode == "master":
             return await self._shutdown_master(grace_period, force_timeout)
         else:
             return await self._shutdown_worker(grace_period, force_timeout)
+
+
     
     async def _shutdown_master(self, grace_period: float, force_timeout: float) -> bool:
         """Master shutdown: coordinate workers + cleanup master resources"""
         self.logger.info(f"🎛️ Starting master shutdown (grace: {grace_period}s, force: {force_timeout}s)")
+        
+        # Set server status to shutting down
+        self._health_monitor.set_server_status(ServerStatus.SHUTTING_DOWN)
         
         await self.system_monitor.log_system_state(self.logger, "MASTER_SHUTDOWN_STARTING")
         
@@ -594,6 +828,7 @@ class ShutdownManager:
             # Phase 1: Shutdown all workers
             if self._workers:
                 self.logger.info(f"👷 Phase 1: Shutting down {len(self._workers)} workers")
+                self._health_monitor.set_shutdown_phase(ShutdownPhase.WORKERS_STOPPING)
                 worker_success = await self._shutdown_all_workers(grace_period * 0.6, force_timeout)
                 if worker_success:
                     self._completed_phases.append("worker_shutdown")
@@ -606,6 +841,7 @@ class ShutdownManager:
             
             # Phase 2: Disconnect clients
             self.logger.info("🔌 Phase 2: Disconnecting clients")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.CLIENTS_DISCONNECTING)
             client_success = await self._client_tracker.disconnect_all(grace_period * 0.2)
             if client_success:
                 self._completed_phases.append("client_shutdown")
@@ -616,6 +852,7 @@ class ShutdownManager:
             
             # Phase 3: Cleanup resources
             self.logger.info("🧹 Phase 3: Cleaning up master resources")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.RESOURCES_CLEANING)
             resource_success = await self._resource_tracker.cleanup_all()
             if resource_success:
                 self._completed_phases.append("resource_cleanup")
@@ -626,6 +863,7 @@ class ShutdownManager:
             
             # Phase 4: Final verification
             self.logger.info("🔍 Phase 4: Final verification")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.VERIFICATION)
             verification_success = await self._verify_clean_shutdown()
             if verification_success:
                 self._completed_phases.append("verification")
@@ -636,7 +874,17 @@ class ShutdownManager:
             
         except Exception as e:
             self.logger.error(f"💥 Critical error during master shutdown: {e}")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.FAILED)
             success = False
+        
+        # Set final completion phase
+        if success:
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.COMPLETED)
+        else:
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.FAILED)
+        
+        # Determine exit code
+        exit_code = self._exit_code_manager.determine_exit_code(self._shutdown_reason)
         
         await self.system_monitor.log_system_state(self.logger, "MASTER_SHUTDOWN_COMPLETED")
         
@@ -652,6 +900,10 @@ class ShutdownManager:
         """Worker shutdown: clean everything, then return (ready to be killed)"""
         self.logger.info(f"👷 Starting worker shutdown (grace: {grace_period}s, force: {force_timeout}s)")
         
+        # Set server status to shutting down
+        from health_monitor import ServerStatus, ShutdownPhase
+        self._health_monitor.set_server_status(ServerStatus.SHUTTING_DOWN)
+        
         await self.system_monitor.log_system_state(self.logger, "WORKER_SHUTDOWN_STARTING")
         
         success = True
@@ -659,6 +911,7 @@ class ShutdownManager:
         try:
             # Phase 1: Disconnect clients
             self.logger.info("🔌 Phase 1: Disconnecting clients")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.CLIENTS_DISCONNECTING)
             client_success = await self._client_tracker.disconnect_all(grace_period * 0.4)
             if client_success:
                 self._completed_phases.append("client_shutdown")
@@ -669,6 +922,7 @@ class ShutdownManager:
             
             # Phase 2: Cleanup resources
             self.logger.info("🧹 Phase 2: Cleaning up worker resources")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.RESOURCES_CLEANING)
             resource_success = await self._resource_tracker.cleanup_all()
             if resource_success:
                 self._completed_phases.append("resource_cleanup")
@@ -679,6 +933,7 @@ class ShutdownManager:
             
             # Phase 3: Final verification
             self.logger.info("🔍 Phase 3: Final verification")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.VERIFICATION)
             verification_success = await self._verify_clean_shutdown()
             if verification_success:
                 self._completed_phases.append("verification")
@@ -689,7 +944,17 @@ class ShutdownManager:
             
         except Exception as e:
             self.logger.error(f"💥 Critical error during worker shutdown: {e}")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.FAILED)
             success = False
+        
+        # Set final completion phase
+        if success:
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.COMPLETED)
+        else:
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.FAILED)
+        
+        # Determine exit code
+        exit_code = self._exit_code_manager.determine_exit_code(self._shutdown_reason)
         
         await self.system_monitor.log_system_state(self.logger, "WORKER_SHUTDOWN_COMPLETED")
         
@@ -843,27 +1108,104 @@ class ShutdownManager:
         
         return success
     
+    def _signal_handler(self, signum, frame):
+        """Handle shutdown signals"""
+        signal_name = signal.Signals(signum).name
+        self.logger.info(f"🚨 Received signal {signal_name} ({signum})")
+        
+        # Start graceful shutdown in the background
+        if not self.shutdown_in_progress:
+            try:
+                # Check if there's a running event loop
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(self.shutdown(
+                    reason=f"signal_{signal_name}"
+                ))
+            except RuntimeError:
+                # No running event loop, try to create one or handle synchronously
+                self.logger.warning("No running event loop for signal handler, creating new event loop")
+                try:
+                    # Try to run the shutdown in a new event loop
+                    import threading
+                    def run_shutdown():
+                        asyncio.run(self.shutdown(
+                            reason=f"signal_{signal_name}"
+                        ))
+                    
+                    # Run in a separate thread to avoid blocking
+                    shutdown_thread = threading.Thread(target=run_shutdown, daemon=True)
+                    shutdown_thread.start()
+                except Exception as e:
+                    self.logger.error(f"Failed to start shutdown in new event loop: {e}")
+                    # Set a flag that can be checked by the main loop
+                    self._pending_signal_shutdown = {
+                        'reason': f"signal_{signal_name}",
+                        'grace_period': 10.0,
+                        'force_timeout': 5.0
+                    }
+
     def _setup_signal_handlers(self) -> None:
         """Set up signal handlers for graceful shutdown"""
-        def signal_handler(signum, frame):
-            signal_name = signal.Signals(signum).name
-            self.logger.info(f"🚨 Received signal {signal_name} ({signum})")
-            
-            # Start graceful shutdown in the background
-            if not self.shutdown_in_progress:
-                asyncio.create_task(self.shutdown(
-                    grace_period=10.0,
-                    force_timeout=5.0
-                ))
-        
         # Register signal handlers
-        signal.signal(signal.SIGTERM, signal_handler)
-        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+        signal.signal(signal.SIGINT, self._signal_handler)
         
         if hasattr(signal, 'SIGHUP'):
-            signal.signal(signal.SIGHUP, signal_handler)
+            signal.signal(signal.SIGHUP, self._signal_handler)
         
         self.logger.info("🎯 Signal handlers installed for graceful shutdown")
+
+    async def _stop_workers(self) -> tuple[bool, list[str]]:
+        """Stop all workers and return (success, errors)"""
+        if self.mode != "master" or not self._workers:
+            return True, []
+        
+        errors = []
+        success = True
+        
+        for worker_name, worker in self._workers.items():
+            try:
+                if worker.is_running():
+                    worker.process.terminate()
+                    # Wait a bit for graceful shutdown
+                    try:
+                        worker.process.wait(timeout=5.0)
+                    except subprocess.TimeoutExpired:
+                        worker.process.kill()
+                        errors.append(f"Had to force kill worker {worker_name}")
+                        success = False
+            except Exception as e:
+                errors.append(f"Error stopping worker {worker_name}: {e}")
+                success = False
+        
+        return success, errors
+
+    async def _disconnect_clients(self) -> tuple[bool, list[str]]:
+        """Disconnect all clients and return (success, errors)"""
+        return await self._client_tracker.disconnect_all_with_result()
+
+    async def _cleanup_resources(self) -> tuple[bool, list[str]]:
+        """Clean up all resources and return (success, errors)"""
+        return await self._resource_tracker.cleanup_all_with_result()
+
+    async def _verify_shutdown(self) -> tuple[bool, list[str]]:
+        """Verify shutdown completed properly and return (success, errors)"""
+        errors = []
+        success = True
+        
+        # Check if any workers are still running
+        if self.mode == "master":
+            for worker_name, worker in self._workers.items():
+                if worker.is_running():
+                    errors.append(f"Worker {worker_name} still running")
+                    success = False
+        
+        # Check if any clients are still connected
+        if self._client_tracker.get_client_count() > 0:
+            errors.append(f"{self._client_tracker.get_client_count()} clients still connected")
+            success = False
+        
+        return success, errors
     
     def close(self) -> None:
         """Synchronous cleanup for emergency situations"""

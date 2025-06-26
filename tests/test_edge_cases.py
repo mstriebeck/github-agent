@@ -55,17 +55,20 @@ class TestSignalHandlingEdgeCases:
         shutdown_started = threading.Event()
         shutdown_completed = threading.Event()
         
-        def slow_shutdown(reason):
+        async def slow_shutdown(reason):
+            import asyncio
             shutdown_started.set()
-            time.sleep(0.2)
+            await asyncio.sleep(0.2)
             shutdown_completed.set()
             return True
             
         with patch.object(manager, 'shutdown', side_effect=slow_shutdown):
             # Start shutdown in background
-            shutdown_thread = threading.Thread(
-                target=lambda: manager.shutdown("manual")
-            )
+            def run_shutdown():
+                import asyncio
+                asyncio.run(manager.shutdown("manual"))
+            
+            shutdown_thread = threading.Thread(target=run_shutdown)
             shutdown_thread.start()
             
             # Wait for shutdown to start, then send signal
@@ -193,14 +196,17 @@ class TestHealthMonitoringEdgeCases:
         
     def test_health_file_permission_denied(self, mock_logger):
         """Test health monitor when health file path is not writable."""
-        # Try to write to root directory (should fail)
-        monitor = HealthMonitor(mock_logger, "/root/health.json")
-        
-        # Should handle gracefully
-        monitor._update_health_file()
-        
-        # Should log error but not crash
-        mock_logger.error.assert_called()
+        # Mock the mkdir operation to not fail
+        with patch('pathlib.Path.mkdir'):
+            monitor = HealthMonitor(mock_logger, "/root/health.json")
+            
+            # Mock open to raise permission error
+            with patch('builtins.open', side_effect=PermissionError("Permission denied")):
+                # Should handle gracefully
+                monitor._update_health_file()
+                
+                # Should log error but not crash
+                mock_logger.error.assert_called()
         
     def test_health_file_disk_full(self, monitor, mock_logger):
         """Test health monitor when disk is full."""
@@ -219,13 +225,13 @@ class TestHealthMonitoringEdgeCases:
         monitor.start_monitoring()
         
         # Rapidly update status from multiple threads
-        def update_worker():
+        def update_worker(thread_id):
             for i in range(10):
-                monitor.update_worker_status(f"worker{i}", 1000+i, 8000+i, "running")
-                monitor.add_error(f"Error {i}")
+                monitor.update_worker_status(f"worker{thread_id}_{i}", 1000+i, 8000+i, "running")
+                monitor.add_error(f"Error {thread_id}_{i}")
                 time.sleep(0.01)
                 
-        threads = [threading.Thread(target=update_worker) for _ in range(3)]
+        threads = [threading.Thread(target=update_worker, args=(j,)) for j in range(3)]
         for t in threads:
             t.start()
         for t in threads:
@@ -355,8 +361,12 @@ class TestProcessLifecycleEdgeCases:
         """Test process becoming zombie after receiving signal."""
         zombie = process_registry.create_zombie_process("zombie1")
         
+        # Process starts as running
+        assert zombie.state.value == "running"
+        
         # Send shutdown signal
-        zombie.send_signal(signal.SIGTERM)
+        from tests.test_abstracts import MockSignal
+        zombie.send_signal(MockSignal.SIGTERM)
         
         # Process becomes zombie
         assert zombie.state.value == "zombie"
@@ -381,7 +391,8 @@ class TestProcessLifecycleEdgeCases:
         original_pid = worker.pid
         
         # Kill process
-        worker.send_signal(signal.SIGKILL)
+        from tests.test_abstracts import MockSignal
+        worker.send_signal(MockSignal.SIGKILL)
         assert not worker.is_alive()
         
         # Simulate process restarting with new PID
@@ -406,11 +417,12 @@ class TestConcurrencyEdgeCases:
         """Create a ShutdownManager."""
         return ShutdownManager(mock_logger, mode="master")
         
-    def test_shutdown_during_initialization(self, manager, mock_logger):
+    @pytest.mark.asyncio
+    async def test_shutdown_during_initialization(self, manager, mock_logger):
         """Test shutdown called during manager initialization."""
         # This should be handled by initialization flag
         with patch.object(manager, '_setup_signal_handlers'):
-            result = manager.shutdown("test")
+            result = await manager.shutdown("test")
             # Should work even without full initialization
             assert result in [True, False]  # Either way is acceptable
             
@@ -443,16 +455,16 @@ class TestConcurrencyEdgeCases:
         # Start monitoring
         monitor.start_monitoring()
         
-        def update_worker():
+        def update_worker(thread_id):
             for i in range(20):
                 monitor.set_server_status(ServerStatus.RUNNING)
-                monitor.update_worker_status(f"worker{i}", 1000+i, 8000+i, "running")
-                monitor.add_error(f"Error {i}")
+                monitor.update_worker_status(f"worker{thread_id}_{i}", 1000+i, 8000+i, "running")
+                monitor.add_error(f"Error {thread_id}_{i}")
                 monitor.set_shutdown_phase(ShutdownPhase.WORKERS_STOPPING)
                 time.sleep(0.001)
                 
         # Run multiple updaters concurrently
-        threads = [threading.Thread(target=update_worker) for _ in range(3)]
+        threads = [threading.Thread(target=update_worker, args=(j,)) for j in range(3)]
         for t in threads:
             t.start()
         for t in threads:

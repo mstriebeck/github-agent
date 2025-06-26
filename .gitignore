@@ -4,3 +4,7 @@ __pycache__/
 .env
 pr_replies.db
 logs/
+.coverage
+coverage.lcov
+coverage.xml
+output.txt
