@@ -126,6 +126,18 @@ class HealthMonitor:
         self._monitoring_thread.start()
         self.logger.info("Health monitoring thread started")
         
+    def _monitoring_loop(self):
+        """Main monitoring loop that runs in the background thread."""
+        import time
+        while self._should_monitor:
+            try:
+                # Update health status periodically
+                self._update_health_file()
+                time.sleep(1.0)  # Update every second
+            except Exception as e:
+                self.logger.error(f"Error in monitoring loop: {e}")
+                time.sleep(1.0)
+        
     def stop_monitoring(self):
         """Stop the health monitoring thread."""
         self._should_monitor = False

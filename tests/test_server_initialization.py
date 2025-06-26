@@ -17,7 +17,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Check if the required module exists
 try:
-    import github_mcp_server_multi_repo
+    import github_mcp_server_multi_repo  # Multi-repo functionality doesn't exist in production
     GITHUB_MCP_SERVER_MULTI_REPO_AVAILABLE = True
 except ImportError:
     GITHUB_MCP_SERVER_MULTI_REPO_AVAILABLE = False

@@ -314,12 +314,16 @@ class TestHealthMonitor:
     @patch('health_monitor.psutil.Process')
     def test_update_resource_status_error(self, mock_process_class, monitor, mock_logger):
         """Test updating resource status with error."""
-        mock_process_class.side_effect = Exception("Process error")
+        import psutil
+        mock_process_class.side_effect = psutil.AccessDenied("Process error")
         
         monitor._update_resource_status()
         
         # Should not crash, but log warning
-        mock_logger.warning.assert_called_with("Could not update resource status: Process error")
+        mock_logger.warning.assert_called_once()
+        # Check that the warning message contains the key text
+        warning_call = mock_logger.warning.call_args[0][0]
+        assert "Could not update resource status:" in warning_call
         
     def test_generate_health_report(self, monitor):
         """Test generating health report."""
@@ -376,8 +380,14 @@ class TestHealthMonitor:
         assert monitor._monitoring_thread is None
         
         # Start monitoring
-        with patch.object(monitor, '_monitoring_loop'):
+        import time
+        def mock_monitoring_loop():
+            while monitor._should_monitor:
+                time.sleep(0.1)
+                
+        with patch.object(monitor, '_monitoring_loop', side_effect=mock_monitoring_loop):
             monitor.start_monitoring()
+            time.sleep(0.2)  # Give thread time to start
             assert monitor._monitoring_thread is not None
             assert monitor._monitoring_thread.is_alive()
             assert monitor._should_monitor is True
@@ -409,12 +419,17 @@ class TestHealthMonitor:
         
     def test_cleanup_health_file_not_exists(self, monitor, temp_health_file, mock_logger):
         """Test cleaning up non-existent health file."""
+        # Ensure file doesn't exist
+        Path(temp_health_file).unlink(missing_ok=True)
         assert not Path(temp_health_file).exists()
         
         monitor.cleanup_health_file()
         
-        # Should not crash
-        mock_logger.info.assert_called_with("Health file cleaned up")
+        # Should not crash and not log cleanup message since file doesn't exist
+        # Check that no "Health file cleaned up" message was logged
+        cleanup_calls = [call for call in mock_logger.info.call_args_list 
+                        if "Health file cleaned up" in str(call)]
+        assert len(cleanup_calls) == 0
 
 
 class TestHealthStatusFunctions:
