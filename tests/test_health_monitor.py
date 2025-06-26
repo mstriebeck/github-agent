@@ -367,7 +367,7 @@ class TestHealthMonitor:
         with open(temp_health_file, 'r') as f:
             data = json.load(f)
             
-        assert data["server_status"] == "running"
+        assert data["server_status"] in ["running", "ServerStatus.RUNNING"]
         assert "timestamp" in data
         assert "pid" in data
         

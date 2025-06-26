@@ -28,6 +28,7 @@ import psutil
 from typing import Dict, List, Optional, Any, Callable, Set
 from dataclasses import dataclass
 from enum import Enum
+from health_monitor import ServerStatus, ShutdownPhase
 
 try:
     import aiohttp
@@ -246,6 +247,19 @@ class _ResourceTracker:
                 try:
                     open_files, connections = future.result(timeout=2.0)  # 2 second timeout
                     self.logger.debug(f"Process has {len(open_files)} open files and {len(connections)} connections")
+                    
+                    # Report open files as issues for testing
+                    if open_files:
+                        file_paths = [f.path for f in open_files]
+                        error_msg = f"Process has {len(open_files)} open files: {file_paths}"
+                        self.logger.warning(error_msg)
+                        errors.append(error_msg)
+                        
+                    if connections:
+                        error_msg = f"Process has {len(connections)} active connections"
+                        self.logger.warning(error_msg)
+                        errors.append(error_msg)
+                        
                 except concurrent.futures.TimeoutError:
                     error_msg = "Timeout checking process resources (operation hanging)"
                     self.logger.warning(error_msg)
@@ -788,6 +802,10 @@ class ShutdownManager:
         self.shutdown_in_progress = True
         self.shutdown_start_time = time.time()
         
+        # Set health monitor status
+        if self._health_monitor:
+            self._health_monitor.set_server_status(ServerStatus.SHUTTING_DOWN)
+        
         if self.mode == "master":
             return await self._shutdown_master(grace_period, force_timeout)
         else:
@@ -799,6 +817,9 @@ class ShutdownManager:
         """Master shutdown: coordinate workers + cleanup master resources"""
         self.logger.info(f"🎛️ Starting master shutdown (grace: {grace_period}s, force: {force_timeout}s)")
         
+        # Set server status to shutting down
+        self._health_monitor.set_server_status(ServerStatus.SHUTTING_DOWN)
+        
         await self.system_monitor.log_system_state(self.logger, "MASTER_SHUTDOWN_STARTING")
         
         success = True
@@ -807,6 +828,7 @@ class ShutdownManager:
             # Phase 1: Shutdown all workers
             if self._workers:
                 self.logger.info(f"👷 Phase 1: Shutting down {len(self._workers)} workers")
+                self._health_monitor.set_shutdown_phase(ShutdownPhase.WORKERS_STOPPING)
                 worker_success = await self._shutdown_all_workers(grace_period * 0.6, force_timeout)
                 if worker_success:
                     self._completed_phases.append("worker_shutdown")
@@ -819,6 +841,7 @@ class ShutdownManager:
             
             # Phase 2: Disconnect clients
             self.logger.info("🔌 Phase 2: Disconnecting clients")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.CLIENTS_DISCONNECTING)
             client_success = await self._client_tracker.disconnect_all(grace_period * 0.2)
             if client_success:
                 self._completed_phases.append("client_shutdown")
@@ -829,6 +852,7 @@ class ShutdownManager:
             
             # Phase 3: Cleanup resources
             self.logger.info("🧹 Phase 3: Cleaning up master resources")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.RESOURCES_CLEANING)
             resource_success = await self._resource_tracker.cleanup_all()
             if resource_success:
                 self._completed_phases.append("resource_cleanup")
@@ -839,6 +863,7 @@ class ShutdownManager:
             
             # Phase 4: Final verification
             self.logger.info("🔍 Phase 4: Final verification")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.VERIFICATION)
             verification_success = await self._verify_clean_shutdown()
             if verification_success:
                 self._completed_phases.append("verification")
@@ -849,7 +874,17 @@ class ShutdownManager:
             
         except Exception as e:
             self.logger.error(f"💥 Critical error during master shutdown: {e}")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.FAILED)
             success = False
+        
+        # Set final completion phase
+        if success:
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.COMPLETED)
+        else:
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.FAILED)
+        
+        # Determine exit code
+        exit_code = self._exit_code_manager.determine_exit_code(self._shutdown_reason)
         
         await self.system_monitor.log_system_state(self.logger, "MASTER_SHUTDOWN_COMPLETED")
         
@@ -865,6 +900,10 @@ class ShutdownManager:
         """Worker shutdown: clean everything, then return (ready to be killed)"""
         self.logger.info(f"👷 Starting worker shutdown (grace: {grace_period}s, force: {force_timeout}s)")
         
+        # Set server status to shutting down
+        from health_monitor import ServerStatus, ShutdownPhase
+        self._health_monitor.set_server_status(ServerStatus.SHUTTING_DOWN)
+        
         await self.system_monitor.log_system_state(self.logger, "WORKER_SHUTDOWN_STARTING")
         
         success = True
@@ -872,6 +911,7 @@ class ShutdownManager:
         try:
             # Phase 1: Disconnect clients
             self.logger.info("🔌 Phase 1: Disconnecting clients")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.CLIENTS_DISCONNECTING)
             client_success = await self._client_tracker.disconnect_all(grace_period * 0.4)
             if client_success:
                 self._completed_phases.append("client_shutdown")
@@ -882,6 +922,7 @@ class ShutdownManager:
             
             # Phase 2: Cleanup resources
             self.logger.info("🧹 Phase 2: Cleaning up worker resources")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.RESOURCES_CLEANING)
             resource_success = await self._resource_tracker.cleanup_all()
             if resource_success:
                 self._completed_phases.append("resource_cleanup")
@@ -892,6 +933,7 @@ class ShutdownManager:
             
             # Phase 3: Final verification
             self.logger.info("🔍 Phase 3: Final verification")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.VERIFICATION)
             verification_success = await self._verify_clean_shutdown()
             if verification_success:
                 self._completed_phases.append("verification")
@@ -902,7 +944,17 @@ class ShutdownManager:
             
         except Exception as e:
             self.logger.error(f"💥 Critical error during worker shutdown: {e}")
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.FAILED)
             success = False
+        
+        # Set final completion phase
+        if success:
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.COMPLETED)
+        else:
+            self._health_monitor.set_shutdown_phase(ShutdownPhase.FAILED)
+        
+        # Determine exit code
+        exit_code = self._exit_code_manager.determine_exit_code(self._shutdown_reason)
         
         await self.system_monitor.log_system_state(self.logger, "WORKER_SHUTDOWN_COMPLETED")
         

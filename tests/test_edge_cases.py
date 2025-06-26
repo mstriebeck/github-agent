@@ -406,11 +406,12 @@ class TestConcurrencyEdgeCases:
         """Create a ShutdownManager."""
         return ShutdownManager(mock_logger, mode="master")
         
-    def test_shutdown_during_initialization(self, manager, mock_logger):
+    @pytest.mark.asyncio
+    async def test_shutdown_during_initialization(self, manager, mock_logger):
         """Test shutdown called during manager initialization."""
         # This should be handled by initialization flag
         with patch.object(manager, '_setup_signal_handlers'):
-            result = manager.shutdown("test")
+            result = await manager.shutdown("test")
             # Should work even without full initialization
             assert result in [True, False]  # Either way is acceptable
             
