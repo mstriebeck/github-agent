@@ -210,6 +210,18 @@ class _ResourceTracker:
         self.logger.info(status)
         return success
 
+    async def cleanup_all_with_result(self) -> tuple[bool, list[str]]:
+        """Clean up all resources and return (success, errors)"""
+        errors = []
+        try:
+            success = await self.cleanup_all()
+            if not success:
+                errors.append("Some resources failed to clean up")
+            return success, errors
+        except Exception as e:
+            errors.append(f"Resource cleanup failed: {e}")
+            return False, errors
+
 
 class _ClientTracker:
     """Internal class to track and manage client connections"""
@@ -220,6 +232,8 @@ class _ClientTracker:
         self._client_groups: Dict[str, Set[str]] = {}
         self._closed = False
         self._lock = threading.Lock()
+        # Alias for tests
+        self._active_clients = self._clients
     
     def add_client(self, client_id: str, transport, group: Optional[str] = None) -> bool:
         """Add a client connection to be managed"""
@@ -315,6 +329,27 @@ class _ClientTracker:
             success = False
         
         return success
+
+    def get_client_count(self) -> int:
+        """Get the number of connected clients"""
+        with self._lock:
+            return len(self._clients)
+
+    async def disconnect_all_clients(self) -> bool:
+        """Disconnect all clients - alias for disconnect_all"""
+        return await self.disconnect_all()
+
+    async def disconnect_all_with_result(self) -> tuple[bool, list[str]]:
+        """Disconnect all clients and return (success, errors)"""
+        errors = []
+        try:
+            success = await self.disconnect_all()
+            if not success:
+                errors.append("Some clients failed to disconnect")
+            return success, errors
+        except Exception as e:
+            errors.append(f"Client disconnection failed: {e}")
+            return False, errors
     
     async def _send_shutdown_notification(self, client: ClientInfo) -> None:
         """Send shutdown notification to a client"""
@@ -376,6 +411,9 @@ class ShutdownManager:
             logger: Logger instance for shutdown operations
             mode: Either "master" or "worker" to determine capabilities
         """
+        if mode not in ("master", "worker"):
+            raise ValueError("Mode must be 'master' or 'worker'")
+            
         self.logger = logger
         self.mode = mode
         self.shutdown_in_progress = False
@@ -387,7 +425,7 @@ class ShutdownManager:
         self.shutdown_coordinator = ShutdownCoordinator(logger)
         self.system_monitor = SystemMonitor()
         self._exit_code_manager = ExitCodeManager(logger)
-        self._health_monitor = HealthMonitor(logger)
+        self._health_monitor = HealthMonitor(logger, f"/tmp/mcp_server_health_{os.getpid()}.json")
         
         # Resource and client tracking
         self._resource_tracker = _ResourceTracker(logger)
@@ -559,20 +597,24 @@ class ShutdownManager:
     
     # === MAIN SHUTDOWN PROCESS ===
     
-    async def shutdown(self, grace_period: float = 10.0, force_timeout: float = 5.0) -> bool:
+    async def shutdown(self, reason: str = "manual", grace_period: float = 10.0, force_timeout: float = 5.0) -> bool:
         """
         Execute comprehensive shutdown for the current mode
         
         Args:
+            reason: Reason for shutdown
             grace_period: Time to wait for graceful operations
             force_timeout: Time to wait for forced operations
             
         Returns:
             True if shutdown completed successfully, False otherwise
         """
-        if self.shutdown_in_progress:
-            self.logger.warning("Shutdown already in progress")
+        if self._shutdown_initiated:
+            self.logger.warning(f"Shutdown already initiated (reason: {self._shutdown_reason}), ignoring new request ({reason})")
             return False
+        
+        self._shutdown_initiated = True
+        self._shutdown_reason = reason
         
         self.shutdown_in_progress = True
         self.shutdown_start_time = time.time()
@@ -581,6 +623,8 @@ class ShutdownManager:
             return await self._shutdown_master(grace_period, force_timeout)
         else:
             return await self._shutdown_worker(grace_period, force_timeout)
+
+
     
     async def _shutdown_master(self, grace_period: float, force_timeout: float) -> bool:
         """Master shutdown: coordinate workers + cleanup master resources"""
@@ -843,27 +887,81 @@ class ShutdownManager:
         
         return success
     
+    def _signal_handler(self, signum, frame):
+        """Handle shutdown signals"""
+        signal_name = signal.Signals(signum).name
+        self.logger.info(f"🚨 Received signal {signal_name} ({signum})")
+        
+        # Start graceful shutdown in the background
+        if not self.shutdown_in_progress:
+            asyncio.create_task(self.shutdown(
+                reason=f"signal_{signal_name}",
+                grace_period=10.0,
+                force_timeout=5.0
+            ))
+
     def _setup_signal_handlers(self) -> None:
         """Set up signal handlers for graceful shutdown"""
-        def signal_handler(signum, frame):
-            signal_name = signal.Signals(signum).name
-            self.logger.info(f"🚨 Received signal {signal_name} ({signum})")
-            
-            # Start graceful shutdown in the background
-            if not self.shutdown_in_progress:
-                asyncio.create_task(self.shutdown(
-                    grace_period=10.0,
-                    force_timeout=5.0
-                ))
-        
         # Register signal handlers
-        signal.signal(signal.SIGTERM, signal_handler)
-        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+        signal.signal(signal.SIGINT, self._signal_handler)
         
         if hasattr(signal, 'SIGHUP'):
-            signal.signal(signal.SIGHUP, signal_handler)
+            signal.signal(signal.SIGHUP, self._signal_handler)
         
         self.logger.info("🎯 Signal handlers installed for graceful shutdown")
+
+    async def _stop_workers(self) -> tuple[bool, list[str]]:
+        """Stop all workers and return (success, errors)"""
+        if self.mode != "master" or not self._workers:
+            return True, []
+        
+        errors = []
+        success = True
+        
+        for worker_name, worker in self._workers.items():
+            try:
+                if worker.is_running():
+                    worker.process.terminate()
+                    # Wait a bit for graceful shutdown
+                    try:
+                        worker.process.wait(timeout=5.0)
+                    except subprocess.TimeoutExpired:
+                        worker.process.kill()
+                        errors.append(f"Had to force kill worker {worker_name}")
+                        success = False
+            except Exception as e:
+                errors.append(f"Error stopping worker {worker_name}: {e}")
+                success = False
+        
+        return success, errors
+
+    async def _disconnect_clients(self) -> tuple[bool, list[str]]:
+        """Disconnect all clients and return (success, errors)"""
+        return await self._client_tracker.disconnect_all_with_result()
+
+    async def _cleanup_resources(self) -> tuple[bool, list[str]]:
+        """Clean up all resources and return (success, errors)"""
+        return await self._resource_tracker.cleanup_all_with_result()
+
+    async def _verify_shutdown(self) -> tuple[bool, list[str]]:
+        """Verify shutdown completed properly and return (success, errors)"""
+        errors = []
+        success = True
+        
+        # Check if any workers are still running
+        if self.mode == "master":
+            for worker_name, worker in self._workers.items():
+                if worker.is_running():
+                    errors.append(f"Worker {worker_name} still running")
+                    success = False
+        
+        # Check if any clients are still connected
+        if self._client_tracker.get_client_count() > 0:
+            errors.append(f"{self._client_tracker.get_client_count()} clients still connected")
+            success = False
+        
+        return success, errors
     
     def close(self) -> None:
         """Synchronous cleanup for emergency situations"""
