@@ -303,6 +303,10 @@ jobs:
               echo \"=== TIMING: Tests completed in \${script_duration} seconds (exit code: \${test_exit_code}) ===\"
               
               # Exit with the test script's exit code - FAIL if tests failed
+              if [ \$test_exit_code -ne 0 ]; then
+                echo \"ERROR: Tests failed with exit code \$test_exit_code\"
+                echo \"This workflow should FAIL!\"
+              fi
               exit \$test_exit_code
             "
 
