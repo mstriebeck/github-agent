@@ -246,6 +246,7 @@ jobs:
             mstriebeck/multi-lang-ci-runner:${{ needs.setup.outputs.swift-version }}-python${{ needs.setup.outputs.python-version }} \
             /bin/bash -c "
               echo '=== TIMING: Inside container - starting tests ==='
+              echo \"=== NEW RUN TIMESTAMP: \$(date -u +%Y-%m-%dT%H:%M:%S.%6NZ) ===\"
               start_script=\$(date +%s)
 
               # Dependencies are pre-installed in the Docker image via setup script
