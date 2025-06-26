@@ -14,7 +14,6 @@ import socket
 import sys
 import os
 from unittest.mock import Mock, patch
-import pytest
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -191,8 +190,8 @@ class TestWorkerManager(unittest.TestCase):
         self.assertFalse(self.manager.is_worker_healthy(worker))
     
     @patch('worker_manager.WorkerManager._is_port_available')
-    @pytest.mark.asyncio
-    async def test_shutdown_single_worker_graceful(self, mock_port_check):
+
+    async def async_test_shutdown_single_worker_graceful(self, mock_port_check):
         """Test graceful worker shutdown"""
         mock_port_check.return_value = True  # Port becomes available after shutdown
         
@@ -224,8 +223,8 @@ class TestWorkerManager(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual(self.mock_spawner.process_states[1234], 0)  # Process should be terminated
     
-    @pytest.mark.asyncio
-    async def test_shutdown_all_workers(self):
+
+    async def async_test_shutdown_all_workers(self):
         """Test shutting down all workers"""
         # Add multiple workers
         workers = []
@@ -384,11 +383,11 @@ async def run_async_tests():
     
     try:
         # Run async test methods
-        await test_instance.test_shutdown_single_worker_graceful()
-        print("✓ test_shutdown_single_worker_graceful passed")
+        await test_instance.async_test_shutdown_single_worker_graceful()
+        print("✓ async_test_shutdown_single_worker_graceful passed")
         
-        await test_instance.test_shutdown_all_workers()
-        print("✓ test_shutdown_all_workers passed")
+        await test_instance.async_test_shutdown_all_workers()
+        print("✓ async_test_shutdown_all_workers passed")
         
     except Exception as e:
         print(f"✗ Async test failed: {e}")

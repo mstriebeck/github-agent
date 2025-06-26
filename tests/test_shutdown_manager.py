@@ -252,7 +252,7 @@ class TestResourceTracker:
             # Mock process with resources
             mock_process = Mock()
             mock_process.open_files.return_value = []
-            mock_process.connections.return_value = []
+            mock_process.net_connections.return_value = []
             mock_process_class.return_value = mock_process
             
             success, issues = resource_tracker.cleanup_resources()
@@ -268,7 +268,7 @@ class TestResourceTracker:
             mock_file.path = "/tmp/test.log"
             mock_process = Mock()
             mock_process.open_files.return_value = [mock_file]
-            mock_process.connections.return_value = []
+            mock_process.net_connections.return_value = []
             mock_process_class.return_value = mock_process
             
             success, issues = resource_tracker.cleanup_resources()
