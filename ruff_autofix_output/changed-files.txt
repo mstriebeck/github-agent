@@ -1,2 +1,1 @@
 ruff_autofix_output/changed-files.txt
-ruff_autofix_output/git-status-after.txt

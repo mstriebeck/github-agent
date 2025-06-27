@@ -1,4 +1,3 @@
- ruff_autofix_output/changed-files.txt    | 3 ---
- ruff_autofix_output/diff-stat.txt        | 7 -------
- ruff_autofix_output/git-status-after.txt | 3 ---
- 3 files changed, 13 deletions(-)
+ ruff_autofix_output/changed-files.txt | 1 -
+ ruff_autofix_output/diff-stat.txt     | 4 ----
+ 2 files changed, 5 deletions(-)
