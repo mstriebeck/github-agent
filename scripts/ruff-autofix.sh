@@ -42,6 +42,8 @@ if ! diff -q ruff_autofix_output/git-status-before.txt ruff_autofix_output/git-s
     git diff --stat | tee ruff_autofix_output/diff-stat.txt
     
     # Set output for GitHub Actions
+    echo "changes_made=true" > ruff_autofix_output/github_outputs.txt
+    echo "commit_needed=true" >> ruff_autofix_output/github_outputs.txt
     if [ -n "$GITHUB_OUTPUT" ]; then
         echo "changes_made=true" >> $GITHUB_OUTPUT
         echo "commit_needed=true" >> $GITHUB_OUTPUT
@@ -50,6 +52,8 @@ if ! diff -q ruff_autofix_output/git-status-before.txt ruff_autofix_output/git-s
     exit 0  # Success - changes were made
 else
     echo "✅ No changes made by ruff"
+    echo "changes_made=false" > ruff_autofix_output/github_outputs.txt
+    echo "commit_needed=false" >> ruff_autofix_output/github_outputs.txt
     if [ -n "$GITHUB_OUTPUT" ]; then
         echo "changes_made=false" >> $GITHUB_OUTPUT
         echo "commit_needed=false" >> $GITHUB_OUTPUT

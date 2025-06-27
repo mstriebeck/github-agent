@@ -152,6 +152,16 @@ jobs:
               echo 'Running Ruff auto-fix...'
               ./scripts/ruff-autofix.sh
             "
+          
+          # Read outputs from the file created by the script
+          if [ -f "ruff_autofix_output/github_outputs.txt" ]; then
+            echo "Reading outputs from script..."
+            cat ruff_autofix_output/github_outputs.txt >> $GITHUB_OUTPUT
+          else
+            echo "No output file found, assuming no changes"
+            echo "changes_made=false" >> $GITHUB_OUTPUT
+            echo "commit_needed=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Commit and push auto-fixes
         if: steps.autofix.outputs.commit_needed == 'true'
