@@ -12,7 +12,6 @@ import subprocess
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 import aiohttp
 import psutil
@@ -29,8 +28,8 @@ class WorkerProcess:
     port: int
     path: str
     description: str
-    process: Optional[subprocess.Popen] = None
-    start_time: Optional[float] = None
+    process: subprocess.Popen | None = None
+    start_time: float | None = None
     restart_count: int = 0
     max_restarts: int = 5
     shutdown_timeout: float = 30.0
@@ -40,7 +39,7 @@ class WorkerProcess:
 class WorkerManager:
     """Enhanced worker process manager with process groups and comprehensive shutdown"""
 
-    def __init__(self, logger, process_spawner: Optional[IProcessSpawner] = None):
+    def __init__(self, logger, process_spawner: IProcessSpawner | None = None):
         self.workers: dict[str, WorkerProcess] = {}
         self.logger = logger  # Central logger passed in
         self.process_spawner = process_spawner or RealProcessSpawner()
@@ -69,19 +68,19 @@ class WorkerManager:
             f"Added worker {worker.repo_name} to manager (port: {worker.port})"
         )
 
-    def remove_worker(self, repo_name: str) -> Optional[WorkerProcess]:
+    def remove_worker(self, repo_name: str) -> WorkerProcess | None:
         """Remove a worker from the manager"""
         worker = self.workers.pop(repo_name, None)
         if worker:
             self.logger.info(f"Removed worker {repo_name} from manager")
         return worker
 
-    def get_worker(self, repo_name: str) -> Optional[WorkerProcess]:
+    def get_worker(self, repo_name: str) -> WorkerProcess | None:
         """Get a worker by name"""
         return self.workers.get(repo_name)
 
     def start_worker(
-        self, worker: WorkerProcess, command: list[str], env: Optional[dict] = None
+        self, worker: WorkerProcess, command: list[str], env: dict | None = None
     ) -> bool:
         """Start worker with process group for better process management (macOS/Linux compatible)"""
         start_time = datetime.now()
@@ -155,7 +154,7 @@ class WorkerManager:
         results = await asyncio.gather(*shutdown_tasks, return_exceptions=True)
 
         # Process results
-        for i, (repo_name, result) in enumerate(
+        for _i, (repo_name, result) in enumerate(
             zip(self.workers.keys(), results, strict=False)
         ):
             if isinstance(result, Exception):
@@ -234,7 +233,7 @@ class WorkerManager:
                     )
                     await self._comprehensive_worker_verification(worker)
                     return True
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     graceful_duration = (
                         datetime.now() - graceful_start
                     ).total_seconds()
@@ -267,7 +266,7 @@ class WorkerManager:
                     self.logger.info(
                         f"Worker {repo_name} terminated gracefully after {elapsed:.3f}s"
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     elapsed = (datetime.now() - sigterm_start).total_seconds()
                     self.logger.warning(
                         f"Worker {repo_name} didn't respond to SIGTERM after {elapsed:.3f}s"

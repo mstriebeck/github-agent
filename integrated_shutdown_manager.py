@@ -16,7 +16,7 @@ import logging
 import signal
 import time
 from collections.abc import Awaitable, Callable
-from typing import Any, Optional
+from typing import Any
 
 from client_manager import ClientConnectionManager
 
@@ -50,14 +50,14 @@ class IntegratedShutdownManager:
         self.logger = logger
         self.mode = mode
         self.shutdown_in_progress = False
-        self.shutdown_start_time: Optional[float] = None
+        self.shutdown_start_time: float | None = None
 
         # Core components
         self.shutdown_coordinator = ShutdownCoordinator(logger)
         self.system_monitor = SystemMonitor()
 
         # Mode-specific components
-        self.worker_manager: Optional[WorkerManager]
+        self.worker_manager: WorkerManager | None
         if mode == "master":
             self.worker_manager = WorkerManager(logger)
         else:
@@ -91,7 +91,7 @@ class IntegratedShutdownManager:
     # Worker Management (Master mode only)
     def add_worker(
         self, repo_name: str, port: int, path: str, description: str = "", **kwargs: Any
-    ) -> Optional[WorkerProcess]:
+    ) -> WorkerProcess | None:
         """Add a worker process to be managed (master mode only)"""
         if self.mode != "master" or not self.worker_manager:
             self.logger.warning("Worker management only available in master mode")
@@ -103,7 +103,7 @@ class IntegratedShutdownManager:
         self.worker_manager.add_worker(worker)
         return worker
 
-    def get_worker(self, repo_name: str) -> Optional[WorkerProcess]:
+    def get_worker(self, repo_name: str) -> WorkerProcess | None:
         """Get worker process by name"""
         if self.mode != "master" or not self.worker_manager:
             return None
@@ -116,7 +116,7 @@ class IntegratedShutdownManager:
         return list(self.worker_manager.workers.values())
 
     async def start_worker(
-        self, repo_name: str, command: list[str], env: Optional[dict[str, str]] = None
+        self, repo_name: str, command: list[str], env: dict[str, str] | None = None
     ) -> bool:
         """Start a worker process"""
         if self.mode != "master" or not self.worker_manager:
@@ -160,7 +160,7 @@ class IntegratedShutdownManager:
         return self.client_manager.get_client(client_id)
 
     async def broadcast_to_clients(
-        self, method: str, params: dict[str, Any], group: Optional[str] = None
+        self, method: str, params: dict[str, Any], group: str | None = None
     ) -> Any:
         """Broadcast notification to clients"""
         return await self.client_manager.broadcast_notification(method, params, group)
@@ -462,7 +462,7 @@ class IntegratedShutdownManager:
 
             # Start graceful shutdown in the background
             if not self.shutdown_in_progress:
-                asyncio.create_task(
+                asyncio.create_task(  # noqa: RUF006
                     self.graceful_shutdown(
                         grace_period=10.0,
                         force_timeout=5.0,
@@ -493,7 +493,7 @@ class IntegratedShutdownManager:
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
                         # If loop is running, schedule cleanup for later
-                        asyncio.create_task(
+                        asyncio.create_task(  # noqa: RUF006
                             self.resource_manager.cleanup_all_resources()
                         )
                     else:
@@ -513,7 +513,7 @@ class IntegratedShutdownManager:
                 try:
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
-                        asyncio.create_task(self.client_manager.graceful_shutdown())
+                        asyncio.create_task(self.client_manager.graceful_shutdown())  # noqa: RUF006
                     else:
                         loop.run_until_complete(self.client_manager.graceful_shutdown())
                 except RuntimeError:
@@ -530,7 +530,7 @@ class IntegratedShutdownManager:
                 try:
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
-                        asyncio.create_task(self.worker_manager.shutdown_all_workers())
+                        asyncio.create_task(self.worker_manager.shutdown_all_workers())  # noqa: RUF006
                     else:
                         loop.run_until_complete(
                             self.worker_manager.shutdown_all_workers()

@@ -27,7 +27,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 import psutil
 
@@ -36,7 +36,7 @@ from health_monitor import ServerStatus, ShutdownPhase
 try:
     import aiohttp
 except ImportError:
-    aiohttp = None
+    aiohttp = None  # type: ignore
 
 # Import core utilities
 from exit_codes import ExitCodeManager, ShutdownExitCode
@@ -55,8 +55,8 @@ class WorkerProcess:
     port: int
     path: str
     description: str
-    process: Optional[subprocess.Popen] = None
-    start_time: Optional[float] = None
+    process: subprocess.Popen | None = None
+    start_time: float | None = None
     restart_count: int = 0
     max_restarts: int = 5
     shutdown_timeout: float = 30.0
@@ -111,7 +111,7 @@ class _ResourceTracker:
         self._resources: dict[str, Any] = {}
         self._file_handles: dict[str, Any] = {}
         self._database_connections: dict[str, Any] = {}
-        self._cleanup_callbacks: list[Callable] = []
+        self._cleanup_callbacks: list[tuple[str, Callable[..., Any]]] = []
         self._closed = False
 
     def add_resource(self, name: str, resource: Any, priority: int = 5) -> None:
@@ -420,9 +420,7 @@ class _ClientTracker:
         # Alias for tests
         self._active_clients = self._clients
 
-    def add_client(
-        self, client_id: str, transport, group: Optional[str] = None
-    ) -> bool:
+    def add_client(self, client_id: str, transport, group: str | None = None) -> bool:
         """Add a client connection to be managed"""
         if self._closed:
             self.logger.warning(f"Cannot add client {client_id} - tracker is closed")
@@ -525,7 +523,7 @@ class _ClientTracker:
             return len(self._clients)
 
     def disconnect_all_clients(
-        self, timeout: Optional[float] = None
+        self, timeout: float | None = None
     ) -> tuple[bool, list[str]]:
         """Synchronous version of disconnect_all_with_result for test compatibility"""
         errors = []
@@ -567,7 +565,7 @@ class _ClientTracker:
         return success, errors
 
     async def disconnect_all_clients_async(
-        self, timeout: Optional[float] = None
+        self, timeout: float | None = None
     ) -> tuple[bool, list[str]]:
         """Async version of disconnect_all_clients"""
         return await self.disconnect_all_with_result()
@@ -653,9 +651,9 @@ class ShutdownManager:
         self.logger = logger
         self.mode = mode
         self.shutdown_in_progress = False
-        self.shutdown_start_time = None
+        self.shutdown_start_time: float | None = None
         self._shutdown_initiated = False
-        self._shutdown_reason = None
+        self._shutdown_reason: str | None = None
 
         # Core components
         self.shutdown_coordinator = ShutdownCoordinator(logger)
@@ -678,7 +676,7 @@ class ShutdownManager:
         self._completed_phases: list[str] = []
 
         # Signal handling state
-        self._pending_signal_shutdown = None
+        self._pending_signal_shutdown: dict[str, object] | None = None
 
         # Setup signal handlers
         self._setup_signal_handlers()
@@ -689,7 +687,7 @@ class ShutdownManager:
 
     def add_worker(
         self, repo_name: str, port: int, path: str, description: str = "", **kwargs
-    ) -> Optional[WorkerProcess]:
+    ) -> WorkerProcess | None:
         """Add a worker process to be managed (master mode only)"""
         if self.mode != "master":
             self.logger.warning("Worker management only available in master mode")
@@ -727,9 +725,7 @@ class ShutdownManager:
         """Add a cleanup callback to be executed during shutdown"""
         self._resource_tracker.add_cleanup_callback(name, callback)
 
-    def add_client(
-        self, client_id: str, transport, group: Optional[str] = None
-    ) -> bool:
+    def add_client(self, client_id: str, transport, group: str | None = None) -> bool:
         """Add a client connection to be managed during shutdown"""
         return self._client_tracker.add_client(client_id, transport, group)
 
@@ -770,7 +766,7 @@ class ShutdownManager:
             self.logger.error(f"Failed to start worker {repo_name}: {e}")
             return False
 
-    def get_worker(self, repo_name: str) -> Optional[WorkerProcess]:
+    def get_worker(self, repo_name: str) -> WorkerProcess | None:
         """Get worker process by name"""
         if self.mode != "master":
             return None
@@ -966,13 +962,13 @@ class ShutdownManager:
             self._health_monitor.set_shutdown_phase(ShutdownPhase.FAILED)
 
         # Determine exit code
-        exit_code = self._exit_code_manager.determine_exit_code(self._shutdown_reason)
+        _exit_code = self._exit_code_manager.determine_exit_code(self._shutdown_reason or "unknown")
 
         await self.system_monitor.log_system_state(
             self.logger, "MASTER_SHUTDOWN_COMPLETED"
         )
 
-        total_duration = time.time() - self.shutdown_start_time
+        total_duration = time.time() - (self.shutdown_start_time or 0)
         if success:
             self.logger.info(
                 f"🎉 Master shutdown completed successfully in {total_duration:.3f}s"
@@ -1053,13 +1049,13 @@ class ShutdownManager:
             self._health_monitor.set_shutdown_phase(ShutdownPhase.FAILED)
 
         # Determine exit code
-        exit_code = self._exit_code_manager.determine_exit_code(self._shutdown_reason)
+        _exit_code = self._exit_code_manager.determine_exit_code(self._shutdown_reason or "unknown")
 
         await self.system_monitor.log_system_state(
             self.logger, "WORKER_SHUTDOWN_COMPLETED"
         )
 
-        total_duration = time.time() - self.shutdown_start_time
+        total_duration = time.time() - (self.shutdown_start_time or 0)
         if success:
             self.logger.info(
                 f"🎉 Worker shutdown completed successfully in {total_duration:.3f}s - ready for termination"
@@ -1117,7 +1113,7 @@ class ShutdownManager:
             return True
 
         self.logger.info(
-            f"Shutting down worker {worker.repo_name} (PID: {worker.process.pid})"
+            f"Shutting down worker {worker.repo_name} (PID: {worker.process.pid if worker.process else 'unknown'})"
         )
 
         try:
@@ -1152,7 +1148,7 @@ class ShutdownManager:
                 self.logger.debug(f"HTTP shutdown failed for {worker.repo_name}: {e}")
 
             # Phase 2: SIGTERM
-            if worker.is_running():
+            if worker.is_running() and worker.process:
                 self.logger.info(f"Sending SIGTERM to worker {worker.repo_name}")
                 worker.process.terminate()
 
@@ -1167,13 +1163,13 @@ class ShutdownManager:
                         f"✓ Worker {worker.repo_name} terminated gracefully"
                     )
                     return True
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     self.logger.warning(
                         f"Worker {worker.repo_name} didn't respond to SIGTERM"
                     )
 
             # Phase 3: SIGKILL
-            if worker.is_running():
+            if worker.is_running() and worker.process:
                 self.logger.warning(f"Force killing worker {worker.repo_name}")
                 try:
                     # Kill process group
@@ -1195,6 +1191,8 @@ class ShutdownManager:
         finally:
             # Clean up worker reference
             worker.process = None
+            
+        return False
 
     async def _wait_for_process_exit(self, process: subprocess.Popen) -> None:
         """Wait for a process to exit asynchronously"""
@@ -1252,8 +1250,8 @@ class ShutdownManager:
         if not self.shutdown_in_progress:
             try:
                 # Check if there's a running event loop
-                loop = asyncio.get_running_loop()
-                asyncio.create_task(self.shutdown(reason=f"signal_{signal_name}"))
+                _loop = asyncio.get_running_loop()
+                asyncio.create_task(self.shutdown(reason=f"signal_{signal_name}"))  # noqa: RUF006
             except RuntimeError:
                 # No running event loop, try to create one or handle synchronously
                 self.logger.warning(
@@ -1304,7 +1302,7 @@ class ShutdownManager:
 
         for worker_name, worker in self._workers.items():
             try:
-                if worker.is_running():
+                if worker.is_running() and worker.process:
                     worker.process.terminate()
                     # Wait a bit for graceful shutdown
                     try:

@@ -30,7 +30,7 @@ class MockTransport:
 
     def __init__(self, should_fail: bool = False):
         self.should_fail = should_fail
-        self.sent_data = []
+        self.sent_data: list[bytes] = []
         self.closed = False
         self.write_delay = 0  # Simulate slow writes
 

@@ -11,7 +11,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 
 def check_requirements() -> bool:
@@ -38,7 +37,7 @@ def check_github_token() -> bool:
         return False
 
 
-def detect_existing_repo() -> Optional[str]:
+def detect_existing_repo() -> str | None:
     """Detect if there's an existing LOCAL_REPO_PATH configuration"""
     repo_path = os.getenv("LOCAL_REPO_PATH")
     if repo_path:
@@ -63,7 +62,7 @@ def run_cli_command(args: list[str]) -> tuple[bool, str]:
     """Run repository CLI command"""
     try:
         result = subprocess.run(
-            [sys.executable, "repository_cli.py"] + args,
+            [sys.executable, "repository_cli.py", *args],
             capture_output=True,
             text=True,
             check=True,

@@ -17,7 +17,7 @@ import psutil
 class MicrosecondFormatter(logging.Formatter):
     """Custom formatter that provides microsecond precision timestamps"""
 
-    def formatTime(self, record, datefmt=None):
+    def formatTime(self, record, datefmt=None):  # noqa: N802
         dt = datetime.fromtimestamp(record.created)
         return dt.strftime("%Y-%m-%d %H:%M:%S.%f")[
             :-3

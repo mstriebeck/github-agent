@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Optional, Any
 
 
 class SystemTestRunner:
@@ -178,7 +179,7 @@ class SystemTestRunner:
         print("=" * 60)
 
         start_time = time.time()
-        all_results = {}
+        all_results: dict[str, dict[str, Any]] = {}
 
         # Run test suites in order
         all_results["unit"] = self.run_unit_tests(verbose)
@@ -193,7 +194,7 @@ class SystemTestRunner:
             all_results["coverage"] = self.run_coverage_analysis()
 
         total_time = time.time() - start_time
-        all_results["total_time"] = total_time
+        all_results["total_time"] = {"execution_time": total_time}
 
         return all_results
 
@@ -202,7 +203,7 @@ class SystemTestRunner:
         test_path: Path,
         verbose: bool = False,
         timeout: int = 60,
-        test_pattern: str = None,
+        test_pattern: Optional[str] = None,
     ) -> dict:
         """Run pytest on a specific file."""
         cmd = [sys.executable, "-m", "pytest", str(test_path), "--tb=short"]
@@ -289,7 +290,7 @@ class SystemTestRunner:
 
         total_tests = total_passed + total_failed + total_errors
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"TOTAL: {total_tests} tests")
         print(f"✅ PASSED: {total_passed}")
         print(f"❌ FAILED: {total_failed}")

@@ -56,7 +56,7 @@ class TestRepositoryCLI(unittest.TestCase):
         """Run CLI command and return result"""
         try:
             result = subprocess.run(
-                [sys.executable, "repository_cli.py"] + args,
+                [sys.executable, "repository_cli.py", *args],
                 cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                 capture_output=True,
                 text=True,

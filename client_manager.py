@@ -20,7 +20,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from system_utils import SystemMonitor
 
@@ -233,8 +233,8 @@ class ClientConnectionManager:
         client_id: str,
         transport,
         protocol_version: str = "1.0",
-        capabilities: Optional[dict[str, Any]] = None,
-        group: Optional[str] = None,
+        capabilities: dict[str, Any] | None = None,
+        group: str | None = None,
     ) -> MCPClient:
         """Add a new client connection"""
         if self._closed:
@@ -274,14 +274,14 @@ class ClientConnectionManager:
                 return False
 
             # Remove from groups
-            for group_name, group_clients in self._client_groups.items():
+            for _group_name, group_clients in self._client_groups.items():
                 group_clients.discard(client_id)
 
             del self._clients[client_id]
             self.logger.debug(f"Removed client: {client_id} ({reason.value})")
             return True
 
-    def get_client(self, client_id: str) -> Optional[MCPClient]:
+    def get_client(self, client_id: str) -> MCPClient | None:
         """Get client by ID"""
         with self._lock:
             return self._clients.get(client_id)
@@ -304,7 +304,7 @@ class ClientConnectionManager:
             return list(self._clients.values())
 
     async def broadcast_notification(
-        self, method: str, params: dict[str, Any], group: Optional[str] = None
+        self, method: str, params: dict[str, Any], group: str | None = None
     ) -> dict[str, bool]:
         """Broadcast notification to clients"""
         if group:
@@ -407,7 +407,7 @@ class ClientConnectionManager:
                     asyncio.gather(*disconnect_tasks, return_exceptions=True),
                     timeout=force_timeout,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self.logger.warning(
                     f"Some clients failed to disconnect within {force_timeout}s"
                 )
@@ -441,7 +441,7 @@ class ClientConnectionManager:
             return await asyncio.wait_for(
                 client.close_connection(DisconnectionReason.SHUTDOWN), timeout=timeout
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self.logger.error(
                 f"✗ Client {client.client_id} disconnect timed out after {timeout}s"
             )
@@ -456,7 +456,7 @@ class ClientConnectionManager:
     def get_status(self) -> dict[str, Any]:
         """Get comprehensive status of all client connections"""
         with self._lock:
-            clients_by_state = {}
+            clients_by_state: dict[str, list[dict[str, Any]]] = {}
             for state in ClientState:
                 clients_by_state[state.value] = []
 

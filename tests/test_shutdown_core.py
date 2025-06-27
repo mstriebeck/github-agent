@@ -44,7 +44,7 @@ class TestCentralLogging(unittest.TestCase):
         logger.setLevel(logging.DEBUG)
 
         # Add a simple handler for testing
-        handler = logging.StreamHandler()
+        handler: logging.Handler = logging.StreamHandler()
         formatter = logging.Formatter(
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
@@ -62,8 +62,10 @@ class TestCentralLogging(unittest.TestCase):
         logger.debug("Debug message")
 
         # Cleanup
+        from logging import StreamHandler
         for handler in logger.handlers[:]:
-            handler.close()
+            if isinstance(handler, StreamHandler):
+                handler.close()
             logger.removeHandler(handler)
 
     def test_microsecond_formatter(self):
@@ -71,7 +73,7 @@ class TestCentralLogging(unittest.TestCase):
 
         # Since the enhanced logging is now in the master file, we'll test a simplified version
         class MicrosecondFormatter(logging.Formatter):
-            def formatTime(self, record, datefmt=None):
+            def formatTime(self, record, datefmt=None):  # noqa: N802
                 dt = datetime.fromtimestamp(record.created)
                 return dt.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
@@ -114,7 +116,7 @@ class TestCentralLogging(unittest.TestCase):
         logger.setLevel(logging.DEBUG)
 
         # Add basic handler for testing
-        handler = logging.StreamHandler()
+        handler: logging.Handler = logging.StreamHandler()
         formatter = logging.Formatter(
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
@@ -128,8 +130,10 @@ class TestCentralLogging(unittest.TestCase):
         mock_process.assert_called_once()
 
         # Cleanup
+        from logging import StreamHandler
         for handler in logger.handlers[:]:
-            handler.close()
+            if isinstance(handler, StreamHandler):
+                handler.close()
             logger.removeHandler(handler)
 
 

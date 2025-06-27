@@ -337,7 +337,13 @@ class TestExitCodeDescriptions:
 
     def test_get_exit_code_description_unknown(self):
         """Test getting description for unknown code."""
-        # Create a mock exit code that doesn't exist
-        fake_code = 999
-        desc = get_exit_code_description(fake_code)
+        # Test with a simple object that simulates an unknown enum value
+        class FakeExitCode:
+            def __init__(self, value):
+                self.value = value
+            def __str__(self):
+                return str(self.value)
+        
+        fake_code = FakeExitCode(999)
+        desc = get_exit_code_description(fake_code)  # type: ignore[arg-type]
         assert "Unknown exit code: 999" in desc

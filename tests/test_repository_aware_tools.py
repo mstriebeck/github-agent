@@ -19,7 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Check if the required module exists
 try:
-    import github_tools
+    import github_tools  # noqa: F401
 
     GITHUB_MCP_SERVER_AVAILABLE = True
 except ImportError:
@@ -248,7 +248,8 @@ class TestRepositoryAwareTools(unittest.TestCase):
             # Test that tools can work with default repository
             default_repo = manager.get_repository("default")
             self.assertIsNotNone(default_repo)
-            self.assertEqual(default_repo.path, str(self.repo1_path))
+            if default_repo is not None:
+                self.assertEqual(default_repo.path, str(self.repo1_path))
 
 
 if __name__ == "__main__":

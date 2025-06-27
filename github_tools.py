@@ -19,7 +19,7 @@ from repository_manager import RepositoryConfig, RepositoryManager
 logger = logging.getLogger(__name__)
 
 # Global repository manager (set by worker)
-repo_manager: Optional[RepositoryManager] = None
+repo_manager: RepositoryManager | None = None
 
 
 class GitHubAPIContext:
@@ -238,7 +238,7 @@ async def execute_get_pr_comments(repo_name: str, pr_number: int) -> str:
 
         # Use GitHub API directly for better error handling
         headers = {
-            "Authorization": f"token {context.github_token[:8]}..."
+            "Authorization": f"token {(context.github_token or '')[:8]}..."
         }  # Log only first 8 chars for security
         logger.debug(f"Using GitHub API headers: {headers}")
 
@@ -500,7 +500,7 @@ async def execute_get_current_commit(repo_name: str) -> str:
 
 
 # Build/Lint helper functions (simplified - removed legacy single-repo functions)
-async def execute_read_swiftlint_logs(build_id: str = None) -> str:
+async def execute_read_swiftlint_logs(build_id: Optional[str] = None) -> str:
     """Read SwiftLint violation logs from GitHub Actions artifacts"""
     logger.info(f"Reading SwiftLint logs (build_id: {build_id})")
     logger.warning("SwiftLint logs not implemented in multi-repo mode yet")
@@ -509,7 +509,7 @@ async def execute_read_swiftlint_logs(build_id: str = None) -> str:
     )
 
 
-async def execute_read_build_logs(build_id: str = None) -> str:
+async def execute_read_build_logs(build_id: Optional[str] = None) -> str:
     """Read build logs and extract Swift compiler errors, warnings, and test failures"""
     logger.info(f"Reading build logs (build_id: {build_id})")
     logger.warning("Build logs not implemented in multi-repo mode yet")
@@ -517,7 +517,7 @@ async def execute_read_build_logs(build_id: str = None) -> str:
 
 
 async def execute_get_build_status(
-    repo_name: str, commit_sha: Optional[str] = None
+    repo_name: str, commit_sha: str | None = None
 ) -> str:
     """Get build status for commit"""
     logger.info(

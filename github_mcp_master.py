@@ -23,7 +23,7 @@ import time
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # Import shutdown coordination components
 from shutdown_manager import ShutdownManager
@@ -39,7 +39,7 @@ GLOBAL_LOG_LEVEL = logging.DEBUG
 
 
 def setup_enhanced_logging(
-    logger: logging.Logger, log_file_path: Optional[Path] = None
+    logger: logging.Logger, log_file_path: Path | None = None
 ) -> logging.Logger:
     """Enhance an existing logger with microsecond precision formatting
 
@@ -96,8 +96,8 @@ class WorkerProcess:
     port: int
     path: str
     description: str
-    process: Optional[subprocess.Popen[bytes]] = None
-    start_time: Optional[float] = None
+    process: subprocess.Popen[bytes] | None = None
+    start_time: float | None = None
     restart_count: int = 0
     max_restarts: int = 5
 
@@ -327,7 +327,7 @@ class GitHubMCPMaster:
                 logger.info(f"Worker for {worker.repo_name} stopped gracefully")
                 worker.process = None
                 return True
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Force kill if doesn't respond
                 logger.warning(
                     f"Worker for {worker.repo_name} didn't respond to SIGTERM within {timeout}s, force killing"
@@ -346,7 +346,7 @@ class GitHubMCPMaster:
                     )
                     worker.process = None
                     return True
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.error(
                         f"Worker for {worker.repo_name} couldn't be killed even with SIGKILL"
                     )
@@ -604,7 +604,7 @@ class GitHubMCPMaster:
 
                         worker.process = None
                         return True
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         logger.warning(
                             f"Worker {repo_name} didn't stop gracefully within 3s, force killing"
                         )
@@ -646,7 +646,7 @@ class GitHubMCPMaster:
                             )
                             worker.process = None
                             return True
-                        except asyncio.TimeoutError:
+                        except TimeoutError:
                             logger.error(
                                 f"Worker {repo_name} couldn't be killed even with SIGKILL"
                             )
@@ -699,14 +699,14 @@ class GitHubMCPMaster:
                         f"Worker stop results: {successful_stops} successful, {failed_stops} failed"
                     )
 
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.error("Overall worker shutdown timeout after 150s")
                     self.shutdown_manager._exit_code_manager.report_timeout(
                         "worker_shutdown", 150.0
                     )
 
                     # Emergency cleanup
-                    for repo_name, worker in self.workers.items():
+                    for _repo_name, worker in self.workers.items():
                         if worker.process:
                             try:
                                 worker.process.kill()

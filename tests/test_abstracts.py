@@ -10,7 +10,6 @@ import threading
 import time
 from collections.abc import Callable
 from enum import Enum
-from typing import Optional
 
 
 class ProcessState(Enum):
@@ -38,9 +37,9 @@ class AbstractMockProcess(abc.ABC):
         self.pid = pid
         self.name = name
         self.state = ProcessState.RUNNING
-        self.exit_code: Optional[int] = None
+        self.exit_code: int | None = None
         self.created_at = time.time()
-        self.terminated_at: Optional[float] = None
+        self.terminated_at: float | None = None
         self._signals_received: list[MockSignal] = []
         self._shutdown_hooks: list[Callable] = []
 
@@ -83,7 +82,7 @@ class CooperativeMockProcess(AbstractMockProcess):
     def __init__(self, pid: int, name: str, shutdown_delay: float = 0.1):
         super().__init__(pid, name)
         self.shutdown_delay = shutdown_delay
-        self._shutdown_thread: Optional[threading.Thread] = None
+        self._shutdown_thread: threading.Thread | None = None
 
     def send_signal(self, signal: MockSignal) -> bool:
         """Send signal to cooperative process."""
@@ -232,7 +231,7 @@ class AbstractMockPort(abc.ABC):
     def __init__(self, port: int):
         self.port = port
         self.is_bound = False
-        self.process_pid: Optional[int] = None
+        self.process_pid: int | None = None
 
     @abc.abstractmethod
     def bind(self, pid: int) -> bool:
@@ -261,7 +260,7 @@ class CooperativeMockPort(AbstractMockPort):
     def __init__(self, port: int, release_delay: float = 0.05):
         super().__init__(port)
         self.release_delay = release_delay
-        self._release_thread: Optional[threading.Thread] = None
+        self._release_thread: threading.Thread | None = None
 
     def bind(self, pid: int) -> bool:
         """Bind port to process."""
@@ -374,7 +373,7 @@ class CooperativeMockClient(AbstractMockClient):
     def __init__(self, client_id: str, worker_id: str, disconnect_delay: float = 0.1):
         super().__init__(client_id, worker_id)
         self.disconnect_delay = disconnect_delay
-        self._disconnect_thread: Optional[threading.Thread] = None
+        self._disconnect_thread: threading.Thread | None = None
         self.shutdown_notification_sent = False
 
     def send_shutdown_notification(self) -> bool:
@@ -519,15 +518,15 @@ class MockProcessRegistry:
         self.clients[client_id] = client
         return client
 
-    def get_process(self, pid: int) -> Optional[AbstractMockProcess]:
+    def get_process(self, pid: int) -> AbstractMockProcess | None:
         """Get process by PID."""
         return self.processes.get(pid)
 
-    def get_port(self, port: int) -> Optional[AbstractMockPort]:
+    def get_port(self, port: int) -> AbstractMockPort | None:
         """Get port by number."""
         return self.ports.get(port)
 
-    def get_client(self, client_id: str) -> Optional[AbstractMockClient]:
+    def get_client(self, client_id: str) -> AbstractMockClient | None:
         """Get client by ID."""
         return self.clients.get(client_id)
 

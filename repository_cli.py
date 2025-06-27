@@ -212,7 +212,7 @@ def cmd_validate(args):
         if manager.is_multi_repo_mode():
             print("✅ Running in multi-repository mode")
         else:
-            print("ℹ️  Running in single-repository fallback mode")
+            print("i  Running in single-repository fallback mode")
 
         print()
         print("Repository validation:")
@@ -278,7 +278,7 @@ def cmd_init(args):
         print("3. Run 'repository_cli.py list' to see your repositories")
     else:
         # Create empty configuration
-        empty_config = {"repositories": {}}
+        empty_config: dict[str, dict[str, str]] = {"repositories": {}}
         save_config(config_path, empty_config)
         print("Created empty configuration.")
         print()

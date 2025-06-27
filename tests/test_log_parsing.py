@@ -259,7 +259,8 @@ class TestBuildOutputPatterns(unittest.TestCase):
             with self.subTest(error_line=error_line):
                 match = self.compiler_error_pattern.match(error_line)
                 self.assertIsNotNone(match, f"Pattern should match: {error_line}")
-                self.assertEqual(match.groups(), expected_match)
+                if match is not None:
+                    self.assertEqual(match.groups(), expected_match)
 
     def test_compiler_warning_pattern(self):
         """Test compiler warning regex pattern"""
@@ -284,7 +285,8 @@ class TestBuildOutputPatterns(unittest.TestCase):
             with self.subTest(warning_line=warning_line):
                 match = self.compiler_warning_pattern.match(warning_line)
                 self.assertIsNotNone(match, f"Pattern should match: {warning_line}")
-                self.assertEqual(match.groups(), expected_match)
+                if match is not None:
+                    self.assertEqual(match.groups(), expected_match)
 
     def test_test_failure_pattern(self):
         """Test test failure regex pattern"""
@@ -309,7 +311,8 @@ class TestBuildOutputPatterns(unittest.TestCase):
             with self.subTest(test_line=test_line):
                 match = self.test_failure_pattern.match(test_line)
                 self.assertIsNotNone(match, f"Pattern should match: {test_line}")
-                self.assertEqual(match.groups(), expected_match)
+                if match is not None:
+                    self.assertEqual(match.groups(), expected_match)
 
     def test_patterns_dont_match_wrong_types(self):
         """Test that patterns don't match incorrect line types"""

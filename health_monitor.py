@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import psutil
 
@@ -45,7 +45,7 @@ class WorkerStatus:
     """Status of a worker process."""
 
     worker_id: str
-    pid: Optional[int]
+    pid: int | None
     port: int
     status: str  # "running", "stopping", "stopped", "error"
     last_seen: datetime
@@ -103,14 +103,14 @@ class HealthMonitor:
         self._status = ServerStatus.STARTING
         self._shutdown_phase = ShutdownPhase.NOT_STARTED
         self._start_time = datetime.now()
-        self._workers = {}
-        self._clients = {}
+        self._workers: dict[str, WorkerStatus] = {}
+        self._clients: dict[str, ClientStatus] = {}
         self._resources = ResourceStatus(0, 0, 0, 0.0)
-        self._errors = []
-        self._warnings = []
-        self._shutdown_progress = {}
+        self._errors: list[str] = []
+        self._warnings: list[str] = []
+        self._shutdown_progress: dict[str, dict[str, Any]] = {}
         self._lock = threading.RLock()
-        self._monitoring_thread = None
+        self._monitoring_thread: threading.Thread | None = None
         self._should_monitor = True
 
         # Create health file directory
@@ -156,15 +156,7 @@ class HealthMonitor:
             else:
                 self.logger.info("Health monitoring thread stopped")
 
-    def _monitoring_loop(self):
-        """Main monitoring loop that updates health status."""
-        while self._should_monitor:
-            try:
-                self._update_health_file()
-                time.sleep(1.0)  # Update every second
-            except Exception as e:
-                self.logger.error(f"Error in health monitoring loop: {e}")
-                time.sleep(5.0)  # Back off on errors
+
 
     def _update_health_file(self):
         """Update the health status file."""
@@ -283,7 +275,7 @@ class HealthMonitor:
             )
 
     def update_worker_status(
-        self, worker_id: str, pid: Optional[int], port: int, status: str
+        self, worker_id: str, pid: int | None, port: int, status: str
     ):
         """Update worker process status."""
         with self._lock:
@@ -441,7 +433,7 @@ class HealthMonitor:
 
 def read_health_status(
     health_file_path: str = "/tmp/mcp_server_health.json",
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Read health status from file (for external monitoring)."""
     try:
         with open(health_file_path) as f:

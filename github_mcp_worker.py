@@ -22,7 +22,7 @@ import sys
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import uvicorn
 from dotenv import load_dotenv
@@ -169,7 +169,7 @@ class GitHubMCPWorker:
         self.message_queue: queue.Queue[dict[str, Any]] = queue.Queue()
 
         # Server instance for shutdown
-        self.server: Optional[uvicorn.Server] = None
+        self.server: uvicorn.Server | None = None
         self.shutdown_event = asyncio.Event()
 
         self.logger.debug("Creating FastAPI app...")

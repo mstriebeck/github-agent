@@ -95,15 +95,18 @@ class TestIntegratedShutdownFlow:
         shutdown_manager._workers = {"worker1": worker1, "worker2": worker2}
 
         # Mock the shutdown manager's internal methods to use our mocks
-        with patch.object(
-            shutdown_manager, "_shutdown_all_workers"
-        ) as mock_stop_workers, patch.object(
-            shutdown_manager._client_tracker, "disconnect_all"
-        ) as mock_disconnect_clients, patch.object(
-            shutdown_manager._resource_tracker, "cleanup_all"
-        ) as mock_cleanup_resources, patch.object(
-            shutdown_manager, "_verify_clean_shutdown"
-        ) as mock_verify:
+        with (
+            patch.object(
+                shutdown_manager, "_shutdown_all_workers"
+            ) as mock_stop_workers,
+            patch.object(
+                shutdown_manager._client_tracker, "disconnect_all"
+            ) as mock_disconnect_clients,
+            patch.object(
+                shutdown_manager._resource_tracker, "cleanup_all"
+            ) as mock_cleanup_resources,
+            patch.object(shutdown_manager, "_verify_clean_shutdown") as mock_verify,
+        ):
             # Configure mocks to simulate clean shutdown
             def mock_stop_workers_impl():
                 worker1.send_signal(MockSignal.SIGTERM)
@@ -205,17 +208,21 @@ class TestIntegratedShutdownFlow:
         shutdown_manager._workers = {"worker1": worker1, "worker2": worker2}
 
         # Mock shutdown manager methods
-        with patch.object(
-            shutdown_manager, "_shutdown_all_workers"
-        ) as mock_stop_workers, patch.object(
-            shutdown_manager._client_tracker, "disconnect_all"
-        ) as mock_disconnect_clients, patch.object(
-            shutdown_manager._resource_tracker, "cleanup_all"
-        ) as mock_cleanup_resources, patch.object(
-            shutdown_manager, "_verify_clean_shutdown"
-        ) as mock_verify, patch.object(
-            shutdown_manager.system_monitor, "log_system_state"
-        ) as mock_log_system:
+        with (
+            patch.object(
+                shutdown_manager, "_shutdown_all_workers"
+            ) as mock_stop_workers,
+            patch.object(
+                shutdown_manager._client_tracker, "disconnect_all"
+            ) as mock_disconnect_clients,
+            patch.object(
+                shutdown_manager._resource_tracker, "cleanup_all"
+            ) as mock_cleanup_resources,
+            patch.object(shutdown_manager, "_verify_clean_shutdown") as mock_verify,
+            patch.object(
+                shutdown_manager.system_monitor, "log_system_state"
+            ) as mock_log_system,
+        ):
 
             async def mock_stop_workers_impl(grace_period, force_timeout):
                 try:
@@ -303,17 +310,21 @@ class TestIntegratedShutdownFlow:
         shutdown_manager._workers = {"zombie_worker": zombie_worker}
 
         # Mock shutdown manager methods
-        with patch.object(
-            shutdown_manager, "_shutdown_all_workers"
-        ) as mock_stop_workers, patch.object(
-            shutdown_manager._client_tracker, "disconnect_all"
-        ) as mock_disconnect_clients, patch.object(
-            shutdown_manager._resource_tracker, "cleanup_all"
-        ) as mock_cleanup_resources, patch.object(
-            shutdown_manager, "_verify_clean_shutdown"
-        ) as mock_verify, patch.object(
-            shutdown_manager.system_monitor, "log_system_state"
-        ) as mock_log_system:
+        with (
+            patch.object(
+                shutdown_manager, "_shutdown_all_workers"
+            ) as mock_stop_workers,
+            patch.object(
+                shutdown_manager._client_tracker, "disconnect_all"
+            ) as mock_disconnect_clients,
+            patch.object(
+                shutdown_manager._resource_tracker, "cleanup_all"
+            ) as mock_cleanup_resources,
+            patch.object(shutdown_manager, "_verify_clean_shutdown") as mock_verify,
+            patch.object(
+                shutdown_manager.system_monitor, "log_system_state"
+            ) as mock_log_system,
+        ):
 
             async def mock_stop_workers_impl(grace_period, force_timeout):
                 zombie_worker.send_signal(MockSignal.SIGTERM)
@@ -367,17 +378,21 @@ class TestIntegratedShutdownFlow:
         # Add workers to shutdown manager
         shutdown_manager._workers = {"worker1": worker1}
 
-        with patch.object(
-            shutdown_manager, "_shutdown_all_workers"
-        ) as mock_stop_workers, patch.object(
-            shutdown_manager._client_tracker, "disconnect_all"
-        ) as mock_disconnect_clients, patch.object(
-            shutdown_manager._resource_tracker, "cleanup_all"
-        ) as mock_cleanup_resources, patch.object(
-            shutdown_manager, "_verify_clean_shutdown"
-        ) as mock_verify, patch.object(
-            shutdown_manager.system_monitor, "log_system_state"
-        ) as mock_log_system:
+        with (
+            patch.object(
+                shutdown_manager, "_shutdown_all_workers"
+            ) as mock_stop_workers,
+            patch.object(
+                shutdown_manager._client_tracker, "disconnect_all"
+            ) as mock_disconnect_clients,
+            patch.object(
+                shutdown_manager._resource_tracker, "cleanup_all"
+            ) as mock_cleanup_resources,
+            patch.object(shutdown_manager, "_verify_clean_shutdown") as mock_verify,
+            patch.object(
+                shutdown_manager.system_monitor, "log_system_state"
+            ) as mock_log_system,
+        ):
 
             async def mock_stop_workers_impl(grace_period, force_timeout):
                 health_monitor.set_shutdown_phase(ShutdownPhase.WORKERS_STOPPING)
@@ -455,17 +470,21 @@ class TestIntegratedShutdownFlow:
         shutdown_started = threading.Event()
         shutdown_completed = threading.Event()
 
-        with patch.object(
-            shutdown_manager, "_shutdown_all_workers"
-        ) as mock_stop_workers, patch.object(
-            shutdown_manager._client_tracker, "disconnect_all"
-        ) as mock_disconnect_clients, patch.object(
-            shutdown_manager._resource_tracker, "cleanup_all"
-        ) as mock_cleanup_resources, patch.object(
-            shutdown_manager, "_verify_clean_shutdown"
-        ) as mock_verify, patch.object(
-            shutdown_manager.system_monitor, "log_system_state"
-        ) as mock_log_system:
+        with (
+            patch.object(
+                shutdown_manager, "_shutdown_all_workers"
+            ) as mock_stop_workers,
+            patch.object(
+                shutdown_manager._client_tracker, "disconnect_all"
+            ) as mock_disconnect_clients,
+            patch.object(
+                shutdown_manager._resource_tracker, "cleanup_all"
+            ) as mock_cleanup_resources,
+            patch.object(shutdown_manager, "_verify_clean_shutdown") as mock_verify,
+            patch.object(
+                shutdown_manager.system_monitor, "log_system_state"
+            ) as mock_log_system,
+        ):
 
             async def slow_shutdown_impl(grace_period, force_timeout):
                 import asyncio
@@ -533,17 +552,21 @@ class TestIntegratedShutdownFlow:
         }
 
         # Mock shutdown with partial failures
-        with patch.object(
-            shutdown_manager, "_shutdown_all_workers"
-        ) as mock_stop_workers, patch.object(
-            shutdown_manager._client_tracker, "disconnect_all"
-        ) as mock_disconnect_clients, patch.object(
-            shutdown_manager._resource_tracker, "cleanup_all"
-        ) as mock_cleanup_resources, patch.object(
-            shutdown_manager, "_verify_clean_shutdown"
-        ) as mock_verify, patch.object(
-            shutdown_manager.system_monitor, "log_system_state"
-        ) as mock_log_system:
+        with (
+            patch.object(
+                shutdown_manager, "_shutdown_all_workers"
+            ) as mock_stop_workers,
+            patch.object(
+                shutdown_manager._client_tracker, "disconnect_all"
+            ) as mock_disconnect_clients,
+            patch.object(
+                shutdown_manager._resource_tracker, "cleanup_all"
+            ) as mock_cleanup_resources,
+            patch.object(shutdown_manager, "_verify_clean_shutdown") as mock_verify,
+            patch.object(
+                shutdown_manager.system_monitor, "log_system_state"
+            ) as mock_log_system,
+        ):
 
             async def mock_stop_workers_impl(grace_period, force_timeout):
                 # Good worker stops, bad worker doesn't

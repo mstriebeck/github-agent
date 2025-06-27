@@ -99,17 +99,21 @@ class TestShutdownManager:
         # Add mock workers so shutdown_all_workers gets called
         manager_master._workers = {"worker1": Mock()}
 
-        with patch.object(
-            manager_master, "_shutdown_all_workers"
-        ) as mock_shutdown_workers, patch.object(
-            manager_master._client_tracker, "disconnect_all"
-        ) as mock_disconnect_clients, patch.object(
-            manager_master._resource_tracker, "cleanup_all"
-        ) as mock_cleanup_resources, patch.object(
-            manager_master, "_verify_clean_shutdown"
-        ) as mock_verify, patch.object(
-            manager_master._health_monitor, "set_shutdown_phase"
-        ) as mock_set_phase:
+        with (
+            patch.object(
+                manager_master, "_shutdown_all_workers"
+            ) as mock_shutdown_workers,
+            patch.object(
+                manager_master._client_tracker, "disconnect_all"
+            ) as mock_disconnect_clients,
+            patch.object(
+                manager_master._resource_tracker, "cleanup_all"
+            ) as mock_cleanup_resources,
+            patch.object(manager_master, "_verify_clean_shutdown") as mock_verify,
+            patch.object(
+                manager_master._health_monitor, "set_shutdown_phase"
+            ) as mock_set_phase,
+        ):
             # Configure mocks to return success
             mock_shutdown_workers.return_value = asyncio.Future()
             mock_shutdown_workers.return_value.set_result(True)
@@ -138,15 +142,18 @@ class TestShutdownManager:
     @pytest.mark.asyncio
     async def test_worker_shutdown_phases(self, manager_worker, mock_logger):
         """Test worker shutdown skips worker management phase."""
-        with patch.object(
-            manager_worker._client_tracker, "disconnect_all"
-        ) as mock_disconnect_clients, patch.object(
-            manager_worker._resource_tracker, "cleanup_all"
-        ) as mock_cleanup_resources, patch.object(
-            manager_worker, "_verify_clean_shutdown"
-        ) as mock_verify, patch.object(
-            manager_worker._health_monitor, "set_shutdown_phase"
-        ) as mock_set_phase:
+        with (
+            patch.object(
+                manager_worker._client_tracker, "disconnect_all"
+            ) as mock_disconnect_clients,
+            patch.object(
+                manager_worker._resource_tracker, "cleanup_all"
+            ) as mock_cleanup_resources,
+            patch.object(manager_worker, "_verify_clean_shutdown") as mock_verify,
+            patch.object(
+                manager_worker._health_monitor, "set_shutdown_phase"
+            ) as mock_set_phase,
+        ):
             # Configure mocks to return success
             mock_disconnect_clients.return_value = True
             mock_cleanup_resources.return_value = True
@@ -175,13 +182,17 @@ class TestShutdownManager:
         # Add mock workers so shutdown_all_workers gets called
         manager_master._workers = {"worker1": Mock()}
 
-        with patch.object(
-            manager_master, "_shutdown_all_workers"
-        ) as mock_shutdown_workers, patch.object(
-            manager_master._client_tracker, "disconnect_all"
-        ) as mock_disconnect_clients, patch.object(
-            manager_master._resource_tracker, "cleanup_all"
-        ) as mock_cleanup_resources:
+        with (
+            patch.object(
+                manager_master, "_shutdown_all_workers"
+            ) as mock_shutdown_workers,
+            patch.object(
+                manager_master._client_tracker, "disconnect_all"
+            ) as mock_disconnect_clients,
+            patch.object(
+                manager_master._resource_tracker, "cleanup_all"
+            ) as mock_cleanup_resources,
+        ):
             # Make workers phase fail
             mock_shutdown_workers.return_value = asyncio.Future()
             mock_shutdown_workers.return_value.set_result(False)
@@ -198,17 +209,21 @@ class TestShutdownManager:
     @pytest.mark.asyncio
     async def test_exit_code_determination(self, manager_master, mock_logger):
         """Test exit code determination from shutdown result."""
-        with patch.object(
-            manager_master, "_shutdown_all_workers"
-        ) as mock_shutdown_workers, patch.object(
-            manager_master._client_tracker, "disconnect_all"
-        ) as mock_disconnect_clients, patch.object(
-            manager_master._resource_tracker, "cleanup_all"
-        ) as mock_cleanup_resources, patch.object(
-            manager_master, "_verify_clean_shutdown"
-        ) as mock_verify, patch.object(
-            manager_master._exit_code_manager, "determine_exit_code"
-        ) as mock_determine:
+        with (
+            patch.object(
+                manager_master, "_shutdown_all_workers"
+            ) as mock_shutdown_workers,
+            patch.object(
+                manager_master._client_tracker, "disconnect_all"
+            ) as mock_disconnect_clients,
+            patch.object(
+                manager_master._resource_tracker, "cleanup_all"
+            ) as mock_cleanup_resources,
+            patch.object(manager_master, "_verify_clean_shutdown") as mock_verify,
+            patch.object(
+                manager_master._exit_code_manager, "determine_exit_code"
+            ) as mock_determine,
+        ):
             # Configure successful shutdown
             mock_shutdown_workers.return_value = True
             mock_disconnect_clients.return_value = True
@@ -224,19 +239,24 @@ class TestShutdownManager:
     @pytest.mark.asyncio
     async def test_health_monitoring_integration(self, manager_master, mock_logger):
         """Test health monitoring is properly integrated."""
-        with patch.object(
-            manager_master._health_monitor, "set_server_status"
-        ) as mock_set_status, patch.object(
-            manager_master._health_monitor, "set_shutdown_phase"
-        ) as mock_set_phase, patch.object(
-            manager_master, "_shutdown_all_workers"
-        ) as mock_shutdown_workers, patch.object(
-            manager_master._client_tracker, "disconnect_all"
-        ) as mock_disconnect_clients, patch.object(
-            manager_master._resource_tracker, "cleanup_all"
-        ) as mock_cleanup_resources, patch.object(
-            manager_master, "_verify_clean_shutdown"
-        ) as mock_verify:
+        with (
+            patch.object(
+                manager_master._health_monitor, "set_server_status"
+            ) as mock_set_status,
+            patch.object(
+                manager_master._health_monitor, "set_shutdown_phase"
+            ) as mock_set_phase,
+            patch.object(
+                manager_master, "_shutdown_all_workers"
+            ) as mock_shutdown_workers,
+            patch.object(
+                manager_master._client_tracker, "disconnect_all"
+            ) as mock_disconnect_clients,
+            patch.object(
+                manager_master._resource_tracker, "cleanup_all"
+            ) as mock_cleanup_resources,
+            patch.object(manager_master, "_verify_clean_shutdown") as mock_verify,
+        ):
             # Configure successful shutdown
             mock_shutdown_workers.return_value = True
             mock_disconnect_clients.return_value = True
@@ -438,11 +458,12 @@ class TestShutdownManagerErrorHandling:
         worker = WorkerProcess("test-repo", 8080, "/test/path", "test worker")
         manager._workers["test-repo"] = worker
 
-        with patch.object(
-            manager, "_shutdown_all_workers"
-        ) as mock_shutdown_workers, patch.object(
-            manager._exit_code_manager, "report_system_error"
-        ) as mock_report_error:
+        with (
+            patch.object(manager, "_shutdown_all_workers") as mock_shutdown_workers,
+            patch.object(
+                manager._exit_code_manager, "report_system_error"
+            ) as _mock_report_error,
+        ):
             # Make shutdown_all_workers raise exception
             test_exception = Exception("Worker stop failed")
             mock_shutdown_workers.side_effect = test_exception
@@ -454,13 +475,15 @@ class TestShutdownManagerErrorHandling:
     @pytest.mark.asyncio
     async def test_exception_in_disconnect_clients(self, manager, mock_logger):
         """Test exception handling in client disconnection phase."""
-        with patch.object(
-            manager, "_shutdown_all_workers"
-        ) as mock_shutdown_workers, patch.object(
-            manager._client_tracker, "disconnect_all"
-        ) as mock_disconnect_clients, patch.object(
-            manager._exit_code_manager, "report_system_error"
-        ) as mock_report_error:
+        with (
+            patch.object(manager, "_shutdown_all_workers") as mock_shutdown_workers,
+            patch.object(
+                manager._client_tracker, "disconnect_all"
+            ) as mock_disconnect_clients,
+            patch.object(
+                manager._exit_code_manager, "report_system_error"
+            ) as _mock_report_error,
+        ):
             # Make workers succeed but clients fail
             mock_shutdown_workers.return_value = True
             test_exception = Exception("Client disconnect failed")
@@ -473,15 +496,18 @@ class TestShutdownManagerErrorHandling:
     @pytest.mark.asyncio
     async def test_exception_in_cleanup_resources(self, manager, mock_logger):
         """Test exception handling in resource cleanup phase."""
-        with patch.object(
-            manager, "_shutdown_all_workers"
-        ) as mock_shutdown_workers, patch.object(
-            manager._client_tracker, "disconnect_all"
-        ) as mock_disconnect_clients, patch.object(
-            manager._resource_tracker, "cleanup_all"
-        ) as mock_cleanup_resources, patch.object(
-            manager._exit_code_manager, "report_system_error"
-        ) as mock_report_error:
+        with (
+            patch.object(manager, "_shutdown_all_workers") as mock_shutdown_workers,
+            patch.object(
+                manager._client_tracker, "disconnect_all"
+            ) as mock_disconnect_clients,
+            patch.object(
+                manager._resource_tracker, "cleanup_all"
+            ) as mock_cleanup_resources,
+            patch.object(
+                manager._exit_code_manager, "report_system_error"
+            ) as _mock_report_error,
+        ):
             # Make earlier phases succeed but cleanup fail
             mock_shutdown_workers.return_value = True
             mock_disconnect_clients.return_value = True
@@ -495,17 +521,19 @@ class TestShutdownManagerErrorHandling:
     @pytest.mark.asyncio
     async def test_exception_in_verification(self, manager, mock_logger):
         """Test exception handling in verification phase."""
-        with patch.object(
-            manager, "_shutdown_all_workers"
-        ) as mock_shutdown_workers, patch.object(
-            manager._client_tracker, "disconnect_all"
-        ) as mock_disconnect_clients, patch.object(
-            manager._resource_tracker, "cleanup_all"
-        ) as mock_cleanup_resources, patch.object(
-            manager, "_verify_clean_shutdown"
-        ) as mock_verify, patch.object(
-            manager._exit_code_manager, "report_system_error"
-        ) as mock_report_error:
+        with (
+            patch.object(manager, "_shutdown_all_workers") as mock_shutdown_workers,
+            patch.object(
+                manager._client_tracker, "disconnect_all"
+            ) as mock_disconnect_clients,
+            patch.object(
+                manager._resource_tracker, "cleanup_all"
+            ) as mock_cleanup_resources,
+            patch.object(manager, "_verify_clean_shutdown") as mock_verify,
+            patch.object(
+                manager._exit_code_manager, "report_system_error"
+            ) as _mock_report_error,
+        ):
             # Make all phases succeed except verification
             mock_shutdown_workers.return_value = True
             mock_disconnect_clients.return_value = True

@@ -16,7 +16,6 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from git import InvalidGitRepositoryError, Repo
 
@@ -28,7 +27,7 @@ class RepositoryConfig:
     name: str
     path: str
     description: str
-    port: Optional[int] = None
+    port: int | None = None
 
     def __post_init__(self):
         """Validate configuration after initialization"""
@@ -48,7 +47,7 @@ class RepositoryConfig:
 class RepositoryManager:
     """Manages multiple repository configurations for the MCP server"""
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: str | None = None):
         """
         Initialize repository manager
 
@@ -77,10 +76,10 @@ class RepositoryManager:
                 )
 
         self.repositories: dict[str, RepositoryConfig] = {}
-        self._fallback_repo: Optional[RepositoryConfig] = None
+        self._fallback_repo: RepositoryConfig | None = None
 
         # Hot reload support
-        self._last_modified: Optional[float] = None
+        self._last_modified: float | None = None
         self._reload_callbacks: list[Callable[[], None]] = []
 
     def load_configuration(self) -> bool:
@@ -165,7 +164,7 @@ class RepositoryManager:
                 except InvalidGitRepositoryError:
                     raise ValueError(
                         f"Path is not a git repository: {repo_config.path}"
-                    )
+                    ) from None
 
                 # Check read permissions
                 if not os.access(repo_config.path, os.R_OK):
@@ -208,7 +207,7 @@ class RepositoryManager:
             try:
                 Repo(repo_config.path)
             except InvalidGitRepositoryError:
-                raise ValueError(f"Path is not a git repository: {repo_config.path}")
+                raise ValueError(f"Path is not a git repository: {repo_config.path}") from None
 
             self._fallback_repo = repo_config
             self.logger.info(
@@ -220,7 +219,7 @@ class RepositoryManager:
             self.logger.error(f"Failed to configure fallback repository: {e}")
             return False
 
-    def get_repository(self, repo_name: str) -> Optional[RepositoryConfig]:
+    def get_repository(self, repo_name: str) -> RepositoryConfig | None:
         """
         Get repository configuration by name
 
@@ -254,7 +253,7 @@ class RepositoryManager:
         else:
             return []
 
-    def get_repository_info(self, repo_name: str) -> Optional[dict]:
+    def get_repository_info(self, repo_name: str) -> dict | None:
         """
         Get repository information dictionary
 
@@ -288,7 +287,7 @@ class RepositoryManager:
             repo_configs: List of repository configuration dictionaries
                          Each should have 'name', 'path', and optional 'description'
         """
-        config_data = {"repositories": {}}
+        config_data: dict[str, dict[str, dict[str, str]]] = {"repositories": {}}
 
         for repo_info in repo_configs:
             name = repo_info["name"]
@@ -401,7 +400,7 @@ class RepositoryManager:
         self.logger.info(f"Started watching configuration file: {self.config_path}")
 
 
-def extract_repo_name_from_url(url_path: str) -> Optional[str]:
+def extract_repo_name_from_url(url_path: str) -> str | None:
     """
     Extract repository name from URL path
 

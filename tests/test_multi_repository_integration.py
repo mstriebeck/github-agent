@@ -92,14 +92,16 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
         # 5. Get repository configurations
         repo_a = manager.get_repository("project-a")
         self.assertIsNotNone(repo_a, "Should find project-a")
-        self.assertEqual(repo_a.name, "project-a")
-        self.assertEqual(repo_a.path, str(self.repo1_path))
-        self.assertEqual(repo_a.description, "Project A repository")
+        if repo_a is not None:
+            self.assertEqual(repo_a.name, "project-a")
+            self.assertEqual(repo_a.path, str(self.repo1_path))
+            self.assertEqual(repo_a.description, "Project A repository")
 
         repo_b = manager.get_repository("project-b")
         self.assertIsNotNone(repo_b, "Should find project-b")
-        self.assertEqual(repo_b.name, "project-b")
-        self.assertEqual(repo_b.path, str(self.repo2_path))
+        if repo_b is not None:
+            self.assertEqual(repo_b.name, "project-b")
+            self.assertEqual(repo_b.path, str(self.repo2_path))
 
         # 6. Test non-existent repository
         non_existent = manager.get_repository("non-existent")
@@ -108,8 +110,9 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
         # 7. Get repository info
         info_a = manager.get_repository_info("project-a")
         self.assertIsNotNone(info_a, "Should get repository info")
-        self.assertTrue(info_a["exists"], "Repository should exist")
-        self.assertEqual(info_a["name"], "project-a")
+        if info_a is not None:
+            self.assertTrue(info_a["exists"], "Repository should exist")
+            self.assertEqual(info_a["name"], "project-a")
 
     def test_single_repo_fallback_workflow(self):
         """Test fallback to single repository mode"""
@@ -133,8 +136,9 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
             # Get default repository
             default_repo = manager.get_repository("default")
             self.assertIsNotNone(default_repo, "Should find default repository")
-            self.assertEqual(default_repo.path, str(self.repo1_path))
-            self.assertEqual(default_repo.name, "default")
+            if default_repo is not None:
+                self.assertEqual(default_repo.path, str(self.repo1_path))
+                self.assertEqual(default_repo.name, "default")
 
     def test_url_routing_extraction(self):
         """Test URL routing repository name extraction"""

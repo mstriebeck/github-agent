@@ -10,7 +10,7 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Optional, Protocol
+from typing import Any, Protocol
 
 from shutdown_core import ExitCodes
 from system_utils import log_system_state
@@ -46,12 +46,12 @@ class ResourceInfo:
 
     name: str
     resource: Any
-    cleanup_func: Optional[Callable] = None
+    cleanup_func: Callable | None = None
     is_async: bool = False
     priority: int = 0  # Lower number = higher priority for cleanup
     timeout: float = 10.0
     created_at: datetime = field(default_factory=datetime.now)
-    closed_at: Optional[datetime] = None
+    closed_at: datetime | None = None
     close_attempts: int = 0
 
 
@@ -263,7 +263,7 @@ class ExternalServiceManager:
         self._closed = False
 
     def add_service(
-        self, name: str, service: Any, cleanup_func: Optional[Callable] = None
+        self, name: str, service: Any, cleanup_func: Callable | None = None
     ) -> None:
         """Add an external service connection to be managed"""
         if self._closed:
@@ -364,7 +364,7 @@ class ResourceManager:
         self,
         name: str,
         resource: Any,
-        cleanup_func: Optional[Callable] = None,
+        cleanup_func: Callable | None = None,
         is_async: bool = False,
         priority: int = 0,
         timeout: float = 10.0,
@@ -412,7 +412,7 @@ class ResourceManager:
         self.file_manager.add_file_handle(name, file_handle)
 
     def add_external_service(
-        self, name: str, service: Any, cleanup_func: Optional[Callable] = None
+        self, name: str, service: Any, cleanup_func: Callable | None = None
     ) -> None:
         """Add an external service to be managed"""
         self.service_manager.add_service(name, service, cleanup_func)
@@ -475,7 +475,7 @@ class ResourceManager:
             if not files_success:
                 failed_resources.append("file_handles")
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self.logger.error(f"Resource cleanup timed out after {timeout}s")
             failed_resources.append("timeout")
         except Exception as e:
