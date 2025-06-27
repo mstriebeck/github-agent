@@ -112,7 +112,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.WORKFLOW_TOKEN || secrets.GITHUB_TOKEN }}
           ref: ${{ github.head_ref || github.ref }}
           clean: true
           fetch-depth: 0
