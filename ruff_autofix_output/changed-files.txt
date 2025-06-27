@@ -1,1 +1,0 @@
-ruff_autofix_output/changed-files.txt

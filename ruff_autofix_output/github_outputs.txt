@@ -1,2 +1,0 @@
-changes_made=true
-commit_needed=true
