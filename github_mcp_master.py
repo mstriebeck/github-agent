@@ -23,7 +23,7 @@ import time
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 # Import shutdown coordination components
 from shutdown_manager import ShutdownManager
@@ -38,7 +38,9 @@ log_dir.mkdir(parents=True, exist_ok=True)
 GLOBAL_LOG_LEVEL = logging.DEBUG
 
 
-def setup_enhanced_logging(logger: logging.Logger, log_file_path: Optional[Path] = None) -> logging.Logger:
+def setup_enhanced_logging(
+    logger: logging.Logger, log_file_path: Optional[Path] = None
+) -> logging.Logger:
     """Enhance an existing logger with microsecond precision formatting
 
     This is called from the master process to enhance the main logger
@@ -153,7 +155,7 @@ class GitHubMCPMaster:
 
     def __init__(self, config_path: str = "repositories.json"):
         self.config_path = config_path
-        self.workers: Dict[str, WorkerProcess] = {}
+        self.workers: dict[str, WorkerProcess] = {}
         self.running = False
 
         # Initialize shutdown coordination with our logger
@@ -226,7 +228,7 @@ class GitHubMCPMaster:
     def save_configuration(self) -> None:
         """Save current configuration back to file (with auto-assigned ports)"""
         try:
-            config: Dict[str, Any] = {"repositories": {}}
+            config: dict[str, Any] = {"repositories": {}}
             for repo_name, worker in self.workers.items():
                 config["repositories"][repo_name] = {
                     "path": worker.path,
@@ -767,7 +769,7 @@ class GitHubMCPMaster:
             await asyncio.sleep(0.2)  # Check every 200ms
         return False
 
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         """Get status of all workers"""
         status = {
             "master": {

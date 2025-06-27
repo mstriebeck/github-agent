@@ -22,7 +22,7 @@ import sys
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import uvicorn
 from dotenv import load_dotenv
@@ -166,7 +166,7 @@ class GitHubMCPWorker:
 
         self.logger.debug("Creating message queue...")
         # Message queue for MCP communication
-        self.message_queue: queue.Queue[Dict[str, Any]] = queue.Queue()
+        self.message_queue: queue.Queue[dict[str, Any]] = queue.Queue()
 
         # Server instance for shutdown
         self.server: Optional[uvicorn.Server] = None
@@ -241,7 +241,7 @@ class GitHubMCPWorker:
 
         # Root endpoint
         @app.get("/")
-        async def root() -> Dict[str, Any]:
+        async def root() -> dict[str, Any]:
             return {
                 "name": f"GitHub MCP Worker - {self.repo_name}",
                 "repository": self.repo_name,
@@ -255,7 +255,7 @@ class GitHubMCPWorker:
 
         # Health check endpoint
         @app.get("/health")
-        async def health_check() -> Dict[str, Any]:
+        async def health_check() -> dict[str, Any]:
             github_configured = bool(os.getenv("GITHUB_TOKEN"))
             return {
                 "status": "healthy",
@@ -317,7 +317,7 @@ class GitHubMCPWorker:
 
         # MCP POST endpoint (simplified - no repository routing)
         @app.post("/mcp/")
-        async def mcp_post_endpoint(request: Request) -> Dict[str, Any]:
+        async def mcp_post_endpoint(request: Request) -> dict[str, Any]:
             """Handle POST requests (JSON-RPC MCP protocol)"""
             try:
                 body = await request.json()

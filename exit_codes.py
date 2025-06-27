@@ -6,8 +6,8 @@ can interpret to understand how the server shutdown occurred.
 """
 
 import enum
-from typing import Any, Dict, List
 import logging
+from typing import Any
 
 
 class ShutdownExitCode(enum.IntEnum):
@@ -61,9 +61,9 @@ class ExitCodeManager:
 
     def __init__(self, logger: logging.Logger) -> None:
         self.logger = logger
-        self._issues: List[ShutdownExitCode] = []
-        self._forced_actions: List[ShutdownExitCode] = []
-        self._verification_failures: List[ShutdownExitCode] = []
+        self._issues: list[ShutdownExitCode] = []
+        self._forced_actions: list[ShutdownExitCode] = []
+        self._verification_failures: list[ShutdownExitCode] = []
 
     def report_timeout(self, component: str, timeout_duration: float) -> None:
         """Report a timeout during shutdown."""
@@ -156,7 +156,7 @@ class ExitCodeManager:
             )
             return ShutdownExitCode.SUCCESS_CLEAN_SHUTDOWN
 
-    def get_exit_summary(self) -> Dict[str, Any]:
+    def get_exit_summary(self) -> dict[str, Any]:
         """Get a summary of all shutdown events for logging."""
         return {
             "issues": [code.name for code in self._issues],

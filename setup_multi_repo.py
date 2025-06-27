@@ -11,7 +11,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Optional
 
 
 def check_requirements() -> bool:
@@ -59,7 +59,7 @@ def setup_config_directory() -> Path:
     return config_dir
 
 
-def run_cli_command(args: List[str]) -> Tuple[bool, str]:
+def run_cli_command(args: list[str]) -> tuple[bool, str]:
     """Run repository CLI command"""
     try:
         result = subprocess.run(

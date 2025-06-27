@@ -15,14 +15,14 @@ import asyncio
 import logging
 import signal
 import time
-from collections.abc import Callable
-from typing import Any, Optional, Awaitable
+from collections.abc import Awaitable, Callable
+from typing import Any, Optional
 
 from client_manager import ClientConnectionManager
-from resource_manager import ResourceManager
 
 # Import all our shutdown components
 from exit_codes import ShutdownExitCode
+from resource_manager import ResourceManager
 from shutdown_core import ShutdownCoordinator
 from system_utils import SystemMonitor
 from worker_manager import WorkerManager, WorkerProcess
@@ -98,11 +98,7 @@ class IntegratedShutdownManager:
             return None
 
         worker = WorkerProcess(
-            repo_name=repo_name,
-            port=port,
-            path=path,
-            description=description,
-            **kwargs
+            repo_name=repo_name, port=port, path=path, description=description, **kwargs
         )
         self.worker_manager.add_worker(worker)
         return worker
@@ -119,7 +115,9 @@ class IntegratedShutdownManager:
             return []
         return list(self.worker_manager.workers.values())
 
-    async def start_worker(self, repo_name: str, command: list[str], env: Optional[dict[str, str]] = None) -> bool:
+    async def start_worker(
+        self, repo_name: str, command: list[str], env: Optional[dict[str, str]] = None
+    ) -> bool:
         """Start a worker process"""
         if self.mode != "master" or not self.worker_manager:
             return False
@@ -362,7 +360,7 @@ class IntegratedShutdownManager:
                 )
 
             # Set exit code for the shutdown coordinator
-            # Note: ShutdownCoordinator doesn't have exit_code attribute, 
+            # Note: ShutdownCoordinator doesn't have exit_code attribute,
             # this should be handled by the application using this manager
             self.logger.info(
                 f"Shutdown completed with exit code: {exit_code if success else ShutdownExitCode.SHUTDOWN_COORDINATOR_ERROR}"
@@ -376,7 +374,9 @@ class IntegratedShutdownManager:
 
             self.logger.error(f"Traceback: {traceback.format_exc()}")
             # Log the error exit code instead of setting it on coordinator
-            self.logger.error(f"Critical shutdown error, exit code: {ShutdownExitCode.SHUTDOWN_COORDINATOR_ERROR}")
+            self.logger.error(
+                f"Critical shutdown error, exit code: {ShutdownExitCode.SHUTDOWN_COORDINATOR_ERROR}"
+            )
             return False
 
     async def _execute_shutdown_callbacks(self) -> bool:
@@ -395,10 +395,14 @@ class IntegratedShutdownManager:
         # Execute asynchronous callbacks
         for async_callback in self._async_shutdown_callbacks:
             try:
-                self.logger.debug(f"Executing async callback: {async_callback.__name__}")
+                self.logger.debug(
+                    f"Executing async callback: {async_callback.__name__}"
+                )
                 await async_callback()
             except Exception as e:
-                self.logger.error(f"Async callback {async_callback.__name__} failed: {e}")
+                self.logger.error(
+                    f"Async callback {async_callback.__name__} failed: {e}"
+                )
                 success = False
 
         return success
@@ -418,7 +422,9 @@ class IntegratedShutdownManager:
         # Check for remaining workers (master mode)
         if self.mode == "master" and self.worker_manager:
             active_workers = [
-                w for w in self.worker_manager.workers.values() if self.worker_manager.is_worker_healthy(w)
+                w
+                for w in self.worker_manager.workers.values()
+                if self.worker_manager.is_worker_healthy(w)
             ]
             if active_workers:
                 self.logger.warning(
@@ -479,23 +485,31 @@ class IntegratedShutdownManager:
 
         try:
             # Use proper cleanup methods instead of non-existent close() methods
-            if hasattr(self.resource_manager, 'cleanup_all_resources'):
+            if hasattr(self.resource_manager, "cleanup_all_resources"):
                 # Run async cleanup synchronously in emergency
                 import asyncio
+
                 try:
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
                         # If loop is running, schedule cleanup for later
-                        asyncio.create_task(self.resource_manager.cleanup_all_resources())
+                        asyncio.create_task(
+                            self.resource_manager.cleanup_all_resources()
+                        )
                     else:
-                        loop.run_until_complete(self.resource_manager.cleanup_all_resources())
+                        loop.run_until_complete(
+                            self.resource_manager.cleanup_all_resources()
+                        )
                 except RuntimeError:
                     # No event loop, skip async cleanup
-                    self.logger.warning("Cannot run async resource cleanup in emergency close")
-            
-            if hasattr(self.client_manager, 'graceful_shutdown'):
+                    self.logger.warning(
+                        "Cannot run async resource cleanup in emergency close"
+                    )
+
+            if hasattr(self.client_manager, "graceful_shutdown"):
                 # Similarly handle client manager cleanup
                 import asyncio
+
                 try:
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
@@ -503,19 +517,28 @@ class IntegratedShutdownManager:
                     else:
                         loop.run_until_complete(self.client_manager.graceful_shutdown())
                 except RuntimeError:
-                    self.logger.warning("Cannot run async client cleanup in emergency close")
-            
-            if self.worker_manager and hasattr(self.worker_manager, 'shutdown_all_workers'):
+                    self.logger.warning(
+                        "Cannot run async client cleanup in emergency close"
+                    )
+
+            if self.worker_manager and hasattr(
+                self.worker_manager, "shutdown_all_workers"
+            ):
                 # Handle worker manager cleanup
                 import asyncio
+
                 try:
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
                         asyncio.create_task(self.worker_manager.shutdown_all_workers())
                     else:
-                        loop.run_until_complete(self.worker_manager.shutdown_all_workers())
+                        loop.run_until_complete(
+                            self.worker_manager.shutdown_all_workers()
+                        )
                 except RuntimeError:
-                    self.logger.warning("Cannot run async worker cleanup in emergency close")
+                    self.logger.warning(
+                        "Cannot run async worker cleanup in emergency close"
+                    )
         except Exception as e:
             self.logger.error(f"Error during emergency close: {e}")
 
