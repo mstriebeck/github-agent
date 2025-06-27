@@ -524,35 +524,35 @@ async def get_artifact_id(
 async def read_lint_output_file(output_dir: str) -> str:
     """Read the lint output file from the extracted artifact directory"""
     import os
-    
+
     # Look for common lint output file names
     possible_files = [
         "lint-output.txt",
-        "linter-results.txt", 
+        "linter-results.txt",
         "ruff-output.txt",
         "mypy-output.txt",
-        "lint.txt"
+        "lint.txt",
     ]
-    
+
     for filename in possible_files:
         file_path = os.path.join(output_dir, filename)
         if os.path.exists(file_path):
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding="utf-8") as f:
                 return f.read()
-    
+
     # If no specific file found, try to read all .txt files and combine them
     txt_files = []
     if os.path.exists(output_dir):
         for file in os.listdir(output_dir):
-            if file.endswith('.txt'):
+            if file.endswith(".txt"):
                 file_path = os.path.join(output_dir, file)
                 if os.path.isfile(file_path):
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                    with open(file_path, encoding="utf-8") as f:
                         content = f.read().strip()
                         if content:
                             txt_files.append(content)
-    
-    return '\n'.join(txt_files) if txt_files else ""
+
+    return "\n".join(txt_files) if txt_files else ""
 
 
 async def download_and_extract_artifact(
@@ -704,21 +704,27 @@ async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None) -> s
         # Get artifact name based on repository language
         if not repo_manager or repo_name not in repo_manager.repositories:
             return json.dumps({"error": f"Repository {repo_name} not found"})
-        
+
         repo_config = repo_manager.repositories[repo_name]
         language = repo_config.language
-        
+
         # Try generic "lint-reports" first, fall back to language-specific names for backward compatibility
         try:
-            artifact_id = await get_artifact_id(context.repo_name, build_id, token, "lint-reports")
+            artifact_id = await get_artifact_id(
+                context.repo_name, build_id, token, "lint-reports"
+            )
         except RuntimeError:
             # Fall back to legacy artifact names for backward compatibility
-            fallback_name = "swiftlint-reports" if language == "swift" else "code-check-reports"
-            artifact_id = await get_artifact_id(context.repo_name, build_id, token, fallback_name)
+            fallback_name = (
+                "swiftlint-reports" if language == "swift" else "code-check-reports"
+            )
+            artifact_id = await get_artifact_id(
+                context.repo_name, build_id, token, fallback_name
+            )
         output_dir = await download_and_extract_artifact(
             context.repo_name, artifact_id, token
         )
-        
+
         # Parse output based on language
         if language == "swift":
             lint_results = await parse_swiftlint_output(output_dir)
@@ -994,8 +1000,6 @@ async def get_linter_errors(repo_name: str, error_output: str) -> str:
     except Exception as e:
         logger.error(f"Failed to parse linter errors: {e!s}", exc_info=True)
         return json.dumps({"error": f"Failed to parse linter errors: {e!s}"})
-
-
 
 
 async def execute_read_build_logs(repo_name: str, build_id: str | None = None) -> str:
