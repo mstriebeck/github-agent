@@ -1,2 +1,2 @@
- ruff_autofix_output/diff-stat.txt | 3 ---
- 1 file changed, 3 deletions(-)
+ ruff_autofix_output/diff-stat.txt | 2 --
+ 1 file changed, 2 deletions(-)
