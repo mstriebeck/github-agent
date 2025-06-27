@@ -789,7 +789,7 @@ async def get_linter_errors(repo_name: str, error_output: str) -> str:
         logger.error(f"Failed to parse linter errors: {e!s}", exc_info=True)
         return json.dumps({"error": f"Failed to parse linter errors: {e!s}"})
 
-async def execute_read_swiftlint_logs(build_id: Optional[str] = None) -> str:
+async def execute_read_swiftlint_logs(repo_name: str, build_id: Optional[str] = None) -> str:
     """Read SwiftLint violation logs from GitHub Actions artifacts"""
     logger.info(f"Reading SwiftLint logs for repository '{repo_name}' (build_id: {build_id})")
     
@@ -826,9 +826,9 @@ async def execute_read_swiftlint_logs(build_id: Optional[str] = None) -> str:
         return json.dumps({"error": f"Failed to read SwiftLint logs for {repo_name}: {str(e)}"})
 
 
-async def execute_read_build_logs(build_id: Optional[str] = None) -> str:
+async def execute_read_build_logs(repo_name: str, build_id: Optional[str] = None) -> str:
     """Read build logs and extract Swift compiler errors, warnings, and test failures"""
-    logger.info(f"Reading build logs (build_id: {build_id})")
+    logger.info(f"Reading build logs for repository '{repo_name}' (build_id: {build_id})")
     logger.warning("Build logs not implemented in multi-repo mode yet")
     return json.dumps({"error": "Build logs not implemented in multi-repo mode yet"})
 
