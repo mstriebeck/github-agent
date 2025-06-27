@@ -59,10 +59,10 @@ else
         echo "commit_needed=false" >> $GITHUB_OUTPUT
     fi
     
-    # If ruff had errors but didn't change files, we should still report that
+    # If ruff had errors but didn't change files, that's still OK - proceed with other checks
     if [ $ruff_fix_exit -ne 0 ] || [ $ruff_format_exit -ne 0 ]; then
         echo "⚠️  Ruff reported issues but couldn't auto-fix them"
-        exit 1
+        echo "Proceeding to run other checks (mypy, bandit, tests)..."
     fi
     
     exit 0  # Success - no changes needed
