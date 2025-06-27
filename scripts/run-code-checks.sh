@@ -102,4 +102,36 @@ else
 fi
 
 echo "Check results saved to code_check_output/"
+
+# Create a combined lint output file for the GitHub Agent linter tool
+echo "Creating combined lint output for linter tool..."
+COMBINED_OUTPUT="code_check_output/lint-output.txt"
+
+# Combine all linter outputs into a single file
+{
+    echo "=== RUFF CHECK OUTPUT ==="
+    if [ -f "code_check_output/ruff/ruff-check.log" ]; then
+        cat code_check_output/ruff/ruff-check.log
+    fi
+    echo ""
+    
+    echo "=== RUFF FORMAT OUTPUT ==="
+    if [ -f "code_check_output/ruff/ruff-format.log" ]; then
+        cat code_check_output/ruff/ruff-format.log
+    fi
+    echo ""
+    
+    echo "=== MYPY OUTPUT ==="
+    if [ -f "code_check_output/mypy/mypy.log" ]; then
+        cat code_check_output/mypy/mypy.log
+    fi
+    echo ""
+    
+    echo "=== BANDIT OUTPUT ==="
+    if [ -f "code_check_output/bandit/bandit.log" ]; then
+        cat code_check_output/bandit/bandit.log
+    fi
+} > "$COMBINED_OUTPUT"
+
+echo "Combined lint output saved to $COMBINED_OUTPUT"
 exit $exit_code

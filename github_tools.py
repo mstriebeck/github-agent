@@ -501,11 +501,11 @@ async def execute_get_current_commit(repo_name: str) -> str:
         )
 
 
-# SwiftLint helper functions
+# Linter helper functions
 async def get_artifact_id(
-    repo_name: str, run_id: str, token: str, name: str = "swiftlint-reports"
+    repo_name: str, run_id: str, token: str, name: str = "lint-reports"
 ) -> str:
-    """Get artifact ID for SwiftLint reports"""
+    """Get artifact ID for linter reports (supports both SwiftLint and Python linters)"""
     url = f"https://api.github.com/repos/{repo_name}/actions/runs/{run_id}/artifacts"
     headers = {"Authorization": f"Bearer {token}"}
     response = requests.get(url, headers=headers)
@@ -519,6 +519,40 @@ async def get_artifact_id(
             return artifact["id"]
 
     raise RuntimeError(f"No artifact named '{name}' found")
+
+
+async def read_lint_output_file(output_dir: str) -> str:
+    """Read the lint output file from the extracted artifact directory"""
+    import os
+    
+    # Look for common lint output file names
+    possible_files = [
+        "lint-output.txt",
+        "linter-results.txt", 
+        "ruff-output.txt",
+        "mypy-output.txt",
+        "lint.txt"
+    ]
+    
+    for filename in possible_files:
+        file_path = os.path.join(output_dir, filename)
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+    
+    # If no specific file found, try to read all .txt files and combine them
+    txt_files = []
+    if os.path.exists(output_dir):
+        for file in os.listdir(output_dir):
+            if file.endswith('.txt'):
+                file_path = os.path.join(output_dir, file)
+                if os.path.isfile(file_path):
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read().strip()
+                        if content:
+                            txt_files.append(content)
+    
+    return '\n'.join(txt_files) if txt_files else ""
 
 
 async def download_and_extract_artifact(
@@ -646,9 +680,9 @@ async def find_workflow_run(
 
 # Build/Lint helper functions (simplified - removed legacy single-repo functions)
 async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None) -> str:
-    """Read SwiftLint violation logs from GitHub Actions artifacts"""
+    """Read linter violation logs from GitHub Actions artifacts (supports both SwiftLint and Python linters)"""
     logger.info(
-        f"Reading SwiftLint logs for repository '{repo_name}' (build_id: {build_id})"
+        f"Reading linter logs for repository '{repo_name}' (build_id: {build_id})"
     )
 
     try:
@@ -667,17 +701,40 @@ async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None) -> s
             build_id = await find_workflow_run(context, commit_sha, token)
             logger.info(f"Using workflow run {build_id} for commit {commit_sha}")
 
-        artifact_id = await get_artifact_id(context.repo_name, build_id, token)
+        # Get artifact name based on repository language
+        if not repo_manager or repo_name not in repo_manager.repositories:
+            return json.dumps({"error": f"Repository {repo_name} not found"})
+        
+        repo_config = repo_manager.repositories[repo_name]
+        language = repo_config.language
+        
+        # Try generic "lint-reports" first, fall back to language-specific names for backward compatibility
+        try:
+            artifact_id = await get_artifact_id(context.repo_name, build_id, token, "lint-reports")
+        except RuntimeError:
+            # Fall back to legacy artifact names for backward compatibility
+            fallback_name = "swiftlint-reports" if language == "swift" else "code-check-reports"
+            artifact_id = await get_artifact_id(context.repo_name, build_id, token, fallback_name)
         output_dir = await download_and_extract_artifact(
             context.repo_name, artifact_id, token
         )
-        lint_results = await parse_swiftlint_output(output_dir)
+        
+        # Parse output based on language
+        if language == "swift":
+            lint_results = await parse_swiftlint_output(output_dir)
+        else:
+            # For Python, read the raw output and parse with get_linter_errors
+            lint_output = await read_lint_output_file(output_dir)
+            parsed_result = await get_linter_errors(repo_name, lint_output)
+            parsed_data = json.loads(parsed_result)
+            lint_results = parsed_data.get("errors", [])
 
         return json.dumps(
             {
                 "success": True,
                 "repo": context.repo_name,
                 "repo_config": repo_name,
+                "language": language,
                 "run_id": build_id,
                 "artifact_id": artifact_id,
                 "violations": lint_results,
@@ -687,10 +744,10 @@ async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None) -> s
 
     except Exception as e:
         logger.error(
-            f"Failed to read SwiftLint logs for {repo_name}: {e!s}", exc_info=True
+            f"Failed to read linter logs for {repo_name}: {e!s}", exc_info=True
         )
         return json.dumps(
-            {"error": f"Failed to read SwiftLint logs for {repo_name}: {e!s}"}
+            {"error": f"Failed to read linter logs for {repo_name}: {e!s}"}
         )
 
 
@@ -939,55 +996,6 @@ async def get_linter_errors(repo_name: str, error_output: str) -> str:
         return json.dumps({"error": f"Failed to parse linter errors: {e!s}"})
 
 
-async def execute_read_swiftlint_logs(
-    repo_name: str, build_id: str | None = None
-) -> str:
-    """Read SwiftLint violation logs from GitHub Actions artifacts"""
-    logger.info(
-        f"Reading SwiftLint logs for repository '{repo_name}' (build_id: {build_id})"
-    )
-
-    try:
-        context = get_github_context(repo_name)
-        if not context.repo:
-            return json.dumps(
-                {"error": f"GitHub repository not configured for {repo_name}"}
-            )
-
-        token = context.github_token
-        if not token:
-            return json.dumps({"error": "GITHUB_TOKEN is not set"})
-
-        if build_id is None:
-            commit_sha = context.get_current_commit()
-            build_id = await find_workflow_run(context, commit_sha, token)
-            logger.info(f"Using workflow run {build_id} for commit {commit_sha}")
-
-        artifact_id = await get_artifact_id(context.repo_name, build_id, token)
-        output_dir = await download_and_extract_artifact(
-            context.repo_name, artifact_id, token
-        )
-        lint_results = await parse_swiftlint_output(output_dir)
-
-        return json.dumps(
-            {
-                "success": True,
-                "repo": context.repo_name,
-                "repo_config": repo_name,
-                "run_id": build_id,
-                "artifact_id": artifact_id,
-                "violations": lint_results,
-                "total_violations": len(lint_results),
-            }
-        )
-
-    except Exception as e:
-        logger.error(
-            f"Failed to read SwiftLint logs for {repo_name}: {e!s}", exc_info=True
-        )
-        return json.dumps(
-            {"error": f"Failed to read SwiftLint logs for {repo_name}: {e!s}"}
-        )
 
 
 async def execute_read_build_logs(repo_name: str, build_id: str | None = None) -> str:
