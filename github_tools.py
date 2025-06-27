@@ -12,7 +12,6 @@ import zipfile
 import io
 import re
 import os
-from typing import Optional
 
 import requests
 from github import Github
@@ -616,6 +615,41 @@ async def find_workflow_run(context: GitHubAPIContext, commit_sha: str, token: s
     return str(runs[0]["id"])
 
 # Build/Lint helper functions (simplified - removed legacy single-repo functions)
+async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None) -> str:
+    """Read SwiftLint violation logs from GitHub Actions artifacts"""
+    logger.info(f"Reading SwiftLint logs for repository '{repo_name}' (build_id: {build_id})")
+    
+    try:
+        context = get_github_context(repo_name)
+        if not context.repo:
+            return json.dumps({"error": f"GitHub repository not configured for {repo_name}"})
+        
+        token = context.github_token
+        if not token:
+            return json.dumps({"error": "GITHUB_TOKEN is not set"})
+
+        if build_id is None:
+            commit_sha = context.get_current_commit()
+            build_id = await find_workflow_run(context, commit_sha, token)
+            logger.info(f"Using workflow run {build_id} for commit {commit_sha}")
+
+        artifact_id = await get_artifact_id(context.repo_name, build_id, token)
+        output_dir = await download_and_extract_artifact(context.repo_name, artifact_id, token)
+        lint_results = await parse_swiftlint_output(output_dir)
+        
+        return json.dumps({
+            "success": True,
+            "repo": context.repo_name,
+            "repo_config": repo_name,
+            "run_id": build_id,
+            "artifact_id": artifact_id,
+            "violations": lint_results,
+            "total_violations": len(lint_results)
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to read SwiftLint logs for {repo_name}: {str(e)}", exc_info=True)
+        return json.dumps({"error": f"Failed to read SwiftLint logs for {repo_name}: {str(e)}"})
 
 # Python linter error parsing functions
 def extract_file_from_ruff_error(error_line: str) -> str:
@@ -826,7 +860,7 @@ async def get_linter_errors(repo_name: str, error_output: str) -> str:
         logger.error(f"Failed to parse linter errors: {e!s}", exc_info=True)
         return json.dumps({"error": f"Failed to parse linter errors: {e!s}"})
 
-async def execute_read_swiftlint_logs(repo_name: str, build_id: Optional[str] = None) -> str:
+async def execute_read_swiftlint_logs(repo_name: str, build_id: str | None = None) -> str:
     """Read SwiftLint violation logs from GitHub Actions artifacts"""
     logger.info(f"Reading SwiftLint logs for repository '{repo_name}' (build_id: {build_id})")
     
@@ -863,7 +897,7 @@ async def execute_read_swiftlint_logs(repo_name: str, build_id: Optional[str] = 
         return json.dumps({"error": f"Failed to read SwiftLint logs for {repo_name}: {str(e)}"})
 
 
-async def execute_read_build_logs(repo_name: str, build_id: Optional[str] = None) -> str:
+async def execute_read_build_logs(repo_name: str, build_id: str | None = None) -> str:
     """Read build logs and extract Swift compiler errors, warnings, and test failures"""
     logger.info(f"Reading build logs for repository '{repo_name}' (build_id: {build_id})")
     logger.warning("Build logs not implemented in multi-repo mode yet")
