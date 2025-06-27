@@ -7,6 +7,7 @@ import threading
 import time
 from pathlib import Path
 from unittest.mock import Mock
+from typing import Any
 
 import pytest
 
@@ -107,7 +108,6 @@ def timeout_protection():
 
     def run_with_timeout(func, *args, **kwargs):
         """Run a function with timeout protection."""
-        from typing import Any
 
         result: list[Any] = [None]
         exception: list[Exception | None] = [None]

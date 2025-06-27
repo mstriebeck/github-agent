@@ -7,12 +7,11 @@ Contains all GitHub-related tool implementations.
 
 import json
 import logging
-import os
 import subprocess
 import zipfile
 import io
 import re
-from typing import Optional
+import os
 
 import requests
 from github import Github
@@ -23,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Global repository manager (set by worker)
 repo_manager: RepositoryManager | None = None
+
 
 
 class GitHubAPIContext:

@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 class SystemTestRunner:
@@ -203,7 +203,7 @@ class SystemTestRunner:
         test_path: Path,
         verbose: bool = False,
         timeout: int = 60,
-        test_pattern: Optional[str] = None,
+        test_pattern: str | None = None,
     ) -> dict:
         """Run pytest on a specific file."""
         cmd = [sys.executable, "-m", "pytest", str(test_path), "--tb=short"]

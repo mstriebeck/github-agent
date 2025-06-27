@@ -475,7 +475,7 @@ class ResourceManager:
             if not files_success:
                 failed_resources.append("file_handles")
 
-        except TimeoutError:
+        except asyncio.TimeoutError:
             self.logger.error(f"Resource cleanup timed out after {timeout}s")
             failed_resources.append("timeout")
         except Exception as e:

@@ -1,0 +1,86 @@
+client_manager.py:224:34: UP007 Use `X | Y` for type annotations
+client_manager.py:225:27: UP007 Use `X | Y` for type annotations
+client_manager.py:260:17: B007 Loop control variable `group_name` not used within loop body
+client_manager.py:267:45: UP007 Use `X | Y` for type annotations
+client_manager.py:287:43: UP007 Use `X | Y` for type annotations
+github_mcp_master.py:95:14: UP007 Use `X | Y` for type annotations
+github_mcp_master.py:96:17: UP007 Use `X | Y` for type annotations
+github_mcp_master.py:600:25: B007 Loop control variable `repo_name` not used within loop body
+github_mcp_worker.py:580:13: RUF006 Store a reference to the return value of `asyncio.create_task`
+github_tools.py:22:15: UP007 Use `X | Y` for type annotations
+github_tools.py:384:49: RUF013 PEP 484 prohibits implicit `Optional`
+github_tools.py:391:45: RUF013 PEP 484 prohibits implicit `Optional`
+github_tools.py:397:64: UP007 Use `X | Y` for type annotations
+health_monitor.py:45:10: UP007 Use `X | Y` for type annotations
+health_monitor.py:268:57: UP007 Use `X | Y` for type annotations
+health_monitor.py:421:82: UP007 Use `X | Y` for type annotations
+integrated_shutdown_manager.py:86:56: UP007 Use `X | Y` for type annotations
+integrated_shutdown_manager.py:94:45: UP007 Use `X | Y` for type annotations
+integrated_shutdown_manager.py:144:86: UP007 Use `X | Y` for type annotations
+integrated_shutdown_manager.py:395:17: RUF006 Store a reference to the return value of `asyncio.create_task`
+repository_cli.py:211:20: RUF001 String contains ambiguous `ℹ` (INFORMATION SOURCE). Did you mean `i` (LATIN SMALL LETTER I)?
+repository_manager.py:30:11: UP007 Use `X | Y` for type annotations
+repository_manager.py:50:37: UP007 Use `X | Y` for type annotations
+repository_manager.py:73:30: UP007 Use `X | Y` for type annotations
+repository_manager.py:76:30: UP007 Use `X | Y` for type annotations
+repository_manager.py:147:21: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+repository_manager.py:184:17: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+repository_manager.py:194:49: UP007 Use `X | Y` for type annotations
+repository_manager.py:228:54: UP007 Use `X | Y` for type annotations
+repository_manager.py:368:50: UP007 Use `X | Y` for type annotations
+resource_manager.py:48:19: UP007 Use `X | Y` for type annotations
+resource_manager.py:53:16: UP007 Use `X | Y` for type annotations
+resource_manager.py:240:66: UP007 Use `X | Y` for type annotations
+resource_manager.py:331:68: UP007 Use `X | Y` for type annotations
+resource_manager.py:371:75: UP007 Use `X | Y` for type annotations
+setup_multi_repo.py:64:33: RUF005 Consider `[sys.executable, "repository_cli.py", *args]` instead of concatenation
+shutdown_manager.py:56:14: UP007 Use `X | Y` for type annotations
+shutdown_manager.py:57:17: UP007 Use `X | Y` for type annotations
+shutdown_manager.py:384:60: UP007 Use `X | Y` for type annotations
+shutdown_manager.py:484:47: UP007 Use `X | Y` for type annotations
+shutdown_manager.py:520:59: UP007 Use `X | Y` for type annotations
+shutdown_manager.py:635:56: UP007 Use `X | Y` for type annotations
+shutdown_manager.py:673:60: UP007 Use `X | Y` for type annotations
+shutdown_manager.py:714:45: UP007 Use `X | Y` for type annotations
+shutdown_manager.py:889:9: F841 Local variable `exit_code` is assigned to but never used
+shutdown_manager.py:959:9: F841 Local variable `exit_code` is assigned to but never used
+shutdown_manager.py:1122:17: F841 Local variable `loop` is assigned to but never used
+shutdown_manager.py:1123:17: RUF006 Store a reference to the return value of `asyncio.create_task`
+system_utils.py:19:9: N802 Function name `formatTime` should be lowercase
+tests/test_abstracts.py:39:25: UP007 Use `X | Y` for type annotations
+tests/test_abstracts.py:41:29: UP007 Use `X | Y` for type annotations
+tests/test_abstracts.py:84:32: UP007 Use `X | Y` for type annotations
+tests/test_abstracts.py:234:27: UP007 Use `X | Y` for type annotations
+tests/test_abstracts.py:263:31: UP007 Use `X | Y` for type annotations
+tests/test_abstracts.py:377:34: UP007 Use `X | Y` for type annotations
+tests/test_abstracts.py:512:40: UP007 Use `X | Y` for type annotations
+tests/test_abstracts.py:516:38: UP007 Use `X | Y` for type annotations
+tests/test_abstracts.py:520:45: UP007 Use `X | Y` for type annotations
+tests/test_client_manager.py:19:1: E402 Module level import not at top of file
+tests/test_configuration_management.py:19:1: E402 Module level import not at top of file
+tests/test_configuration_management.py:56:17: RUF005 Consider `[sys.executable, "repository_cli.py", *args]` instead of concatenation
+tests/test_multi_repository_integration.py:17:1: E402 Module level import not at top of file
+tests/test_repository_aware_tools.py:22:12: F401 `github_tools` imported but unused; consider using `importlib.util.find_spec` to test for availability
+tests/test_repository_aware_tools.py:27:1: E402 Module level import not at top of file
+tests/test_repository_manager.py:17:1: E402 Module level import not at top of file
+tests/test_resource_manager.py:19:1: E402 Module level import not at top of file
+tests/test_resource_manager.py:25:1: E402 Module level import not at top of file
+tests/test_runner.py:185:53: RUF013 PEP 484 prohibits implicit `Optional`
+tests/test_shutdown_core.py:22:1: E402 Module level import not at top of file
+tests/test_shutdown_core.py:28:1: E402 Module level import not at top of file
+tests/test_shutdown_core.py:71:17: N802 Function name `formatTime` should be lowercase
+tests/test_shutdown_manager.py:415:81: F841 Local variable `mock_report_error` is assigned to but never used
+tests/test_shutdown_manager.py:430:81: F841 Local variable `mock_report_error` is assigned to but never used
+tests/test_shutdown_manager.py:447:81: F841 Local variable `mock_report_error` is assigned to but never used
+tests/test_shutdown_manager.py:466:81: F841 Local variable `mock_report_error` is assigned to but never used
+tests/test_worker_manager.py:21:1: E402 Module level import not at top of file
+tests/test_worker_manager.py:22:1: E402 Module level import not at top of file
+worker_manager.py:31:14: UP007 Use `X | Y` for type annotations
+worker_manager.py:32:17: UP007 Use `X | Y` for type annotations
+worker_manager.py:42:49: UP007 Use `X | Y` for type annotations
+worker_manager.py:63:48: UP007 Use `X | Y` for type annotations
+worker_manager.py:70:45: UP007 Use `X | Y` for type annotations
+worker_manager.py:74:76: UP007 Use `X | Y` for type annotations
+worker_manager.py:137:13: B007 Loop control variable `i` not used within loop body
+Found 2606 errors (2522 fixed, 84 remaining).
+No fixes available (63 hidden fixes can be enabled with the `--unsafe-fixes` option).

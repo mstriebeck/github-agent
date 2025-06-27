@@ -8,6 +8,7 @@ systems to verify server status and shutdown progress.
 import json
 import os
 import threading
+import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -154,6 +155,16 @@ class HealthMonitor:
                 self.logger.warning("Health monitoring thread did not stop gracefully")
             else:
                 self.logger.info("Health monitoring thread stopped")
+
+    def _monitoring_loop(self):
+        """Main monitoring loop that updates health status."""
+        while self._should_monitor:
+            try:
+                self._update_health_file()
+                time.sleep(1.0)  # Update every second
+            except Exception as e:
+                self.logger.error(f"Error in health monitoring loop: {e}")
+                time.sleep(5.0)  # Back off on errors
 
     def _update_health_file(self):
         """Update the health status file."""

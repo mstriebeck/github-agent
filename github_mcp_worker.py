@@ -629,13 +629,15 @@ class GitHubMCPWorker:
             self.logger.info("Stopping uvicorn server...")
             self.server.should_exit = True
 
-        # Set the shutdown event to wake up the main loop - unreachable code removed
+        # Set the shutdown event to wake up the main loop
+        if hasattr(self, "shutdown_event"):
+            asyncio.create_task(self._set_shutdown_event())
 
-    async def _set_shutdown_event(self) -> None:
+    async def _set_shutdown_event(self):
         """Set shutdown event from async context"""
         self.shutdown_event.set()
 
-    async def start(self) -> None:
+    async def start(self):
         """Start the worker process"""
         self.logger.debug("Setting up uvicorn...")
 

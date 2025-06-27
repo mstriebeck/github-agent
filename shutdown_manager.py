@@ -1167,7 +1167,7 @@ class ShutdownManager:
                         f"✓ Worker {worker.repo_name} terminated gracefully"
                     )
                     return True
-                except TimeoutError:
+                except asyncio.TimeoutError:
                     self.logger.warning(
                         f"Worker {worker.repo_name} didn't respond to SIGTERM"
                     )

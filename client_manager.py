@@ -407,7 +407,7 @@ class ClientConnectionManager:
                     asyncio.gather(*disconnect_tasks, return_exceptions=True),
                     timeout=force_timeout,
                 )
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 self.logger.warning(
                     f"Some clients failed to disconnect within {force_timeout}s"
                 )
@@ -441,7 +441,7 @@ class ClientConnectionManager:
             return await asyncio.wait_for(
                 client.close_connection(DisconnectionReason.SHUTDOWN), timeout=timeout
             )
-        except TimeoutError:
+        except asyncio.TimeoutError:
             self.logger.error(
                 f"✗ Client {client.client_id} disconnect timed out after {timeout}s"
             )
