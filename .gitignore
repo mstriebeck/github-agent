@@ -9,3 +9,4 @@ coverage.lcov
 coverage.xml
 output.txt
 code_check_output/
+ruff_autofix_output/

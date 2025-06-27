@@ -168,7 +168,11 @@ jobs:
         if: steps.autofix.outputs.commit_needed == 'true'
         run: |
           echo "Committing auto-fix changes..."
-          git add -A
+          
+          # Add only the files that ruff actually changed, not the output directory
+          git add .
+          git reset -- ruff_autofix_output/
+          
           git commit -m "🤖 Auto-fix: Apply ruff formatting and linting fixes
 
           - Applied ruff check --fix
