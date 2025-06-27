@@ -207,7 +207,9 @@ class RepositoryManager:
             try:
                 Repo(repo_config.path)
             except InvalidGitRepositoryError:
-                raise ValueError(f"Path is not a git repository: {repo_config.path}") from None
+                raise ValueError(
+                    f"Path is not a git repository: {repo_config.path}"
+                ) from None
 
             self._fallback_repo = repo_config
             self.logger.info(

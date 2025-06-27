@@ -63,6 +63,7 @@ class TestCentralLogging(unittest.TestCase):
 
         # Cleanup
         from logging import StreamHandler
+
         for handler in logger.handlers[:]:
             if isinstance(handler, StreamHandler):
                 handler.close()
@@ -131,6 +132,7 @@ class TestCentralLogging(unittest.TestCase):
 
         # Cleanup
         from logging import StreamHandler
+
         for handler in logger.handlers[:]:
             if isinstance(handler, StreamHandler):
                 handler.close()

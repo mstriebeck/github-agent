@@ -962,7 +962,9 @@ class ShutdownManager:
             self._health_monitor.set_shutdown_phase(ShutdownPhase.FAILED)
 
         # Determine exit code
-        _exit_code = self._exit_code_manager.determine_exit_code(self._shutdown_reason or "unknown")
+        _exit_code = self._exit_code_manager.determine_exit_code(
+            self._shutdown_reason or "unknown"
+        )
 
         await self.system_monitor.log_system_state(
             self.logger, "MASTER_SHUTDOWN_COMPLETED"
@@ -1049,7 +1051,9 @@ class ShutdownManager:
             self._health_monitor.set_shutdown_phase(ShutdownPhase.FAILED)
 
         # Determine exit code
-        _exit_code = self._exit_code_manager.determine_exit_code(self._shutdown_reason or "unknown")
+        _exit_code = self._exit_code_manager.determine_exit_code(
+            self._shutdown_reason or "unknown"
+        )
 
         await self.system_monitor.log_system_state(
             self.logger, "WORKER_SHUTDOWN_COMPLETED"
@@ -1191,7 +1195,7 @@ class ShutdownManager:
         finally:
             # Clean up worker reference
             worker.process = None
-            
+
         return False
 
     async def _wait_for_process_exit(self, process: subprocess.Popen) -> None:

@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any, Optional
 
 
 class SystemTestRunner:
