@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 repo_manager: RepositoryManager | None = None
 
 
-
 class GitHubAPIContext:
     """Context for GitHub API operations with repository information"""
 
@@ -616,7 +615,7 @@ async def find_workflow_run(context: GitHubAPIContext, commit_sha: str, token: s
     return str(runs[0]["id"])
 
 # Build/Lint helper functions (simplified - removed legacy single-repo functions)
-async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None) -> str:
+async def execute_read_swiftlint_logs(repo_name: str, build_id: str | None = None) -> str:
     """Read SwiftLint violation logs from GitHub Actions artifacts"""
     logger.info(f"Reading SwiftLint logs for repository '{repo_name}' (build_id: {build_id})")
     

@@ -10,7 +10,6 @@ import threading
 import time
 from collections.abc import Callable
 from enum import Enum
-from typing import Optional
 
 class ProcessState(Enum):
     """Process state enumeration."""

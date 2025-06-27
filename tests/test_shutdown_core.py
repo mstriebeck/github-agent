@@ -16,6 +16,7 @@ import time
 import unittest
 from datetime import datetime
 from unittest.mock import MagicMock, patch
+from logging import StreamHandler
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -62,8 +63,6 @@ class TestCentralLogging(unittest.TestCase):
         logger.debug("Debug message")
 
         # Cleanup
-        from logging import StreamHandler
-
         for handler in logger.handlers[:]:
             if isinstance(handler, StreamHandler):
                 handler.close()
@@ -131,8 +130,6 @@ class TestCentralLogging(unittest.TestCase):
         mock_process.assert_called_once()
 
         # Cleanup
-        from logging import StreamHandler
-
         for handler in logger.handlers[:]:
             if isinstance(handler, StreamHandler):
                 handler.close()

@@ -1167,7 +1167,7 @@ class ShutdownManager:
                         f"✓ Worker {worker.repo_name} terminated gracefully"
                     )
                     return True
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     self.logger.warning(
                         f"Worker {worker.repo_name} didn't respond to SIGTERM"
                     )
@@ -1195,6 +1195,8 @@ class ShutdownManager:
         finally:
             # Clean up worker reference
             worker.process = None
+            
+        return False
 
         return False
 

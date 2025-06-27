@@ -387,7 +387,8 @@ class TestResourceManager(unittest.TestCase):
                 close_order.append(name)
                 original_close()
 
-            resource.close = close_with_tracking
+            # Use setattr to avoid mypy method assignment error
+            setattr(resource, 'close', close_with_tracking)
             return resource
 
         # Add resources with different priorities (lower number = higher priority)

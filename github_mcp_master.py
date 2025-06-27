@@ -346,7 +346,7 @@ class GitHubMCPMaster:
                     )
                     worker.process = None
                     return True
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.error(
                         f"Worker for {worker.repo_name} couldn't be killed even with SIGKILL"
                     )
@@ -604,7 +604,7 @@ class GitHubMCPMaster:
 
                         worker.process = None
                         return True
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         logger.warning(
                             f"Worker {repo_name} didn't stop gracefully within 3s, force killing"
                         )
@@ -646,7 +646,7 @@ class GitHubMCPMaster:
                             )
                             worker.process = None
                             return True
-                        except asyncio.TimeoutError:
+                        except TimeoutError:
                             logger.error(
                                 f"Worker {repo_name} couldn't be killed even with SIGKILL"
                             )
@@ -699,7 +699,7 @@ class GitHubMCPMaster:
                         f"Worker stop results: {successful_stops} successful, {failed_stops} failed"
                     )
 
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.error("Overall worker shutdown timeout after 150s")
                     self.shutdown_manager._exit_code_manager.report_timeout(
                         "worker_shutdown", 150.0

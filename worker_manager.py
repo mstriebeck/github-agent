@@ -233,7 +233,7 @@ class WorkerManager:
                     )
                     await self._comprehensive_worker_verification(worker)
                     return True
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     graceful_duration = (
                         datetime.now() - graceful_start
                     ).total_seconds()
@@ -266,7 +266,7 @@ class WorkerManager:
                     self.logger.info(
                         f"Worker {repo_name} terminated gracefully after {elapsed:.3f}s"
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     elapsed = (datetime.now() - sigterm_start).total_seconds()
                     self.logger.warning(
                         f"Worker {repo_name} didn't respond to SIGTERM after {elapsed:.3f}s"
