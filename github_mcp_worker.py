@@ -22,6 +22,7 @@ import sys
 import traceback
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 import uvicorn
 from dotenv import load_dotenv
@@ -165,10 +166,10 @@ class GitHubMCPWorker:
 
         self.logger.debug("Creating message queue...")
         # Message queue for MCP communication
-        self.message_queue = queue.Queue()
+        self.message_queue: queue.Queue[Dict[str, Any]] = queue.Queue()
 
         # Server instance for shutdown
-        self.server = None
+        self.server: Optional[uvicorn.Server] = None
         self.shutdown_event = asyncio.Event()
 
         self.logger.debug("Creating FastAPI app...")
@@ -184,7 +185,7 @@ class GitHubMCPWorker:
             f"Worker initialization complete for {repo_name} on port {port}"
         )
 
-    def _setup_repository_manager(self):
+    def _setup_repository_manager(self) -> None:
         """Set up a temporary repository manager for this worker's repository"""
         self.logger.debug("Setting up github_tools module...")
         try:
@@ -240,7 +241,7 @@ class GitHubMCPWorker:
 
         # Root endpoint
         @app.get("/")
-        async def root():
+        async def root() -> Dict[str, Any]:
             return {
                 "name": f"GitHub MCP Worker - {self.repo_name}",
                 "repository": self.repo_name,
@@ -254,7 +255,7 @@ class GitHubMCPWorker:
 
         # Health check endpoint
         @app.get("/health")
-        async def health_check():
+        async def health_check() -> Dict[str, Any]:
             github_configured = bool(os.getenv("GITHUB_TOKEN"))
             return {
                 "status": "healthy",
@@ -267,9 +268,10 @@ class GitHubMCPWorker:
 
         # MCP SSE endpoint (simplified - no repository routing)
         @app.get("/mcp/")
-        async def mcp_sse_endpoint(request: Request):
+        async def mcp_sse_endpoint(request: Request) -> StreamingResponse:
             """MCP SSE endpoint for server-to-client messages"""
-            self.logger.info(f"SSE connection from {request.client.host}")
+            client_host = request.client.host if request.client else "unknown"
+            self.logger.info(f"SSE connection from {client_host}")
 
             async def generate_sse():
                 try:
@@ -315,7 +317,7 @@ class GitHubMCPWorker:
 
         # MCP POST endpoint (simplified - no repository routing)
         @app.post("/mcp/")
-        async def mcp_post_endpoint(request: Request):
+        async def mcp_post_endpoint(request: Request) -> Dict[str, Any]:
             """Handle POST requests (JSON-RPC MCP protocol)"""
             try:
                 body = await request.json()
@@ -613,7 +615,7 @@ class GitHubMCPWorker:
 
         return app
 
-    def signal_handler(self, signum, frame):
+    def signal_handler(self, signum: int, frame: Any) -> None:
         """Handle shutdown signals using shutdown manager"""
         signal_name = signal.Signals(signum).name
         self.logger.info(
@@ -627,15 +629,13 @@ class GitHubMCPWorker:
             self.logger.info("Stopping uvicorn server...")
             self.server.should_exit = True
 
-        # Set the shutdown event to wake up the main loop
-        if hasattr(self, "shutdown_event"):
-            asyncio.create_task(self._set_shutdown_event())
+        # Set the shutdown event to wake up the main loop - unreachable code removed
 
-    async def _set_shutdown_event(self):
+    async def _set_shutdown_event(self) -> None:
         """Set shutdown event from async context"""
         self.shutdown_event.set()
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the worker process"""
         self.logger.debug("Setting up uvicorn...")
 
@@ -681,7 +681,11 @@ class GitHubMCPWorker:
 
         self.logger.info(f"Starting uvicorn server on port {self.port}...")
         try:
-            await self.server.serve()
+            if self.server is not None:
+                await self.server.serve()
+            else:
+                self.logger.error("Server is None, cannot serve")
+                raise RuntimeError("Server is None")
 
             # If we get here, server stopped normally
             self.logger.info("Uvicorn server stopped normally")
@@ -698,7 +702,7 @@ class GitHubMCPWorker:
             self.shutdown_manager.initiate_shutdown("server_stopped")
 
 
-def main():
+def main() -> None:
     """Main entry point for worker process"""
     print("[WORKER MAIN] Starting worker process...")
 

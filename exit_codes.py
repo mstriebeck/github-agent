@@ -6,6 +6,8 @@ can interpret to understand how the server shutdown occurred.
 """
 
 import enum
+from typing import Any, Dict, List
+import logging
 
 
 class ShutdownExitCode(enum.IntEnum):
@@ -57,13 +59,13 @@ class ShutdownExitCode(enum.IntEnum):
 class ExitCodeManager:
     """Manages exit code determination and reporting during shutdown."""
 
-    def __init__(self, logger):
+    def __init__(self, logger: logging.Logger) -> None:
         self.logger = logger
-        self._issues = []
-        self._forced_actions = []
-        self._verification_failures = []
+        self._issues: List[ShutdownExitCode] = []
+        self._forced_actions: List[ShutdownExitCode] = []
+        self._verification_failures: List[ShutdownExitCode] = []
 
-    def report_timeout(self, component: str, timeout_duration: float):
+    def report_timeout(self, component: str, timeout_duration: float) -> None:
         """Report a timeout during shutdown."""
         self.logger.error(f"Timeout in {component} after {timeout_duration}s")
         if "worker" in component.lower():
@@ -75,7 +77,7 @@ class ExitCodeManager:
         elif "port" in component.lower():
             self._issues.append(ShutdownExitCode.TIMEOUT_PORT_RELEASE)
 
-    def report_force_action(self, action: str, target: str):
+    def report_force_action(self, action: str, target: str) -> None:
         """Report a forced action during shutdown."""
         self.logger.warning(f"Forced {action} on {target}")
         if "worker" in target.lower() or "process" in target.lower():
@@ -85,7 +87,7 @@ class ExitCodeManager:
         elif "resource" in target.lower():
             self._forced_actions.append(ShutdownExitCode.FORCE_RESOURCE_CLEANUP)
 
-    def report_verification_failure(self, check: str, details: str):
+    def report_verification_failure(self, check: str, details: str) -> None:
         """Report a verification failure after shutdown."""
         self.logger.error(f"Verification failed: {check} - {details}")
         if "zombie" in check.lower():
@@ -99,7 +101,7 @@ class ExitCodeManager:
         else:
             self._verification_failures.append(ShutdownExitCode.VERIFICATION_FAILED)
 
-    def report_system_error(self, component: str, error: Exception):
+    def report_system_error(self, component: str, error: Exception) -> None:
         """Report a system error during shutdown."""
         self.logger.error(f"System error in {component}: {error}")
         if "signal" in component.lower():
@@ -120,7 +122,7 @@ class ExitCodeManager:
 
         # Critical failures take precedence
         if self._verification_failures:
-            critical_code = max(self._verification_failures)
+            critical_code: ShutdownExitCode = max(self._verification_failures)
             self.logger.critical(
                 f"Exiting with critical failure code: {critical_code.name} ({critical_code})"
             )
@@ -128,7 +130,7 @@ class ExitCodeManager:
 
         # System errors next
         if self._issues:
-            error_code = max(self._issues)
+            error_code: ShutdownExitCode = max(self._issues)
             self.logger.error(
                 f"Exiting with error code: {error_code.name} ({error_code})"
             )
@@ -136,7 +138,7 @@ class ExitCodeManager:
 
         # Force actions indicate degraded shutdown
         if self._forced_actions:
-            force_code = max(self._forced_actions)
+            force_code: ShutdownExitCode = max(self._forced_actions)
             self.logger.warning(
                 f"Exiting with force action code: {force_code.name} ({force_code})"
             )
@@ -154,7 +156,7 @@ class ExitCodeManager:
             )
             return ShutdownExitCode.SUCCESS_CLEAN_SHUTDOWN
 
-    def get_exit_summary(self) -> dict:
+    def get_exit_summary(self) -> Dict[str, Any]:
         """Get a summary of all shutdown events for logging."""
         return {
             "issues": [code.name for code in self._issues],

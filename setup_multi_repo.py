@@ -11,9 +11,10 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import List, Optional, Tuple
 
 
-def check_requirements():
+def check_requirements() -> bool:
     """Check that required dependencies are available"""
     try:
         print("✅ GitHub MCP Server modules found")
@@ -24,7 +25,7 @@ def check_requirements():
         return False
 
 
-def check_github_token():
+def check_github_token() -> bool:
     """Check if GitHub token is configured"""
     token = os.getenv("GITHUB_TOKEN")
     if token:
@@ -37,7 +38,7 @@ def check_github_token():
         return False
 
 
-def detect_existing_repo():
+def detect_existing_repo() -> Optional[str]:
     """Detect if there's an existing LOCAL_REPO_PATH configuration"""
     repo_path = os.getenv("LOCAL_REPO_PATH")
     if repo_path:
@@ -50,7 +51,7 @@ def detect_existing_repo():
     return None
 
 
-def setup_config_directory():
+def setup_config_directory() -> Path:
     """Ensure configuration directory exists"""
     config_dir = Path.home() / ".local" / "share" / "github-agent"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -58,7 +59,7 @@ def setup_config_directory():
     return config_dir
 
 
-def run_cli_command(args):
+def run_cli_command(args: List[str]) -> Tuple[bool, str]:
     """Run repository CLI command"""
     try:
         result = subprocess.run(
@@ -72,7 +73,7 @@ def run_cli_command(args):
         return False, e.stderr
 
 
-def migration_flow():
+def migration_flow() -> bool:
     """Handle migration from single-repository setup"""
     print("\n🔄 Migration from Single Repository Setup")
     print("=" * 50)
@@ -139,7 +140,7 @@ def migration_flow():
     return True
 
 
-def fresh_setup_flow():
+def fresh_setup_flow() -> bool:
     """Handle fresh multi-repository setup"""
     print("\n🆕 Fresh Multi-Repository Setup")
     print("=" * 40)
@@ -232,7 +233,7 @@ def fresh_setup_flow():
     return True
 
 
-def main():
+def main() -> None:
     """Main setup flow"""
     print("GitHub MCP Server - Multi-Repository Setup")
     print("=" * 45)

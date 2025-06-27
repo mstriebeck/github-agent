@@ -17,9 +17,9 @@ class SystemTestRunner:
 
     def __init__(self, test_dir: Path):
         self.test_dir = test_dir
-        self.results = {}
+        self.results: dict[str, dict] = {}
 
-    def run_unit_tests(self, verbose: bool = False) -> dict:
+    def run_unit_tests(self, verbose: bool = False) -> dict[str, dict]:
         """Run unit tests for individual components."""
         print("🧪 Running Unit Tests...")
 
@@ -29,7 +29,7 @@ class SystemTestRunner:
             "test_shutdown_manager.py",
         ]
 
-        results = {}
+        results: dict[str, dict] = {}
         for test_file in unit_test_files:
             test_path = self.test_dir / test_file
             if test_path.exists():
@@ -42,13 +42,13 @@ class SystemTestRunner:
 
         return results
 
-    def run_integration_tests(self, verbose: bool = False) -> dict:
+    def run_integration_tests(self, verbose: bool = False) -> dict[str, dict]:
         """Run integration tests with mock processes."""
         print("🔗 Running Integration Tests...")
 
         integration_files = ["test_shutdown_integration.py"]
 
-        results = {}
+        results: dict[str, dict] = {}
         for test_file in integration_files:
             test_path = self.test_dir / test_file
             if test_path.exists():
@@ -61,13 +61,13 @@ class SystemTestRunner:
 
         return results
 
-    def run_edge_case_tests(self, verbose: bool = False) -> dict:
+    def run_edge_case_tests(self, verbose: bool = False) -> dict[str, dict]:
         """Run edge case and stress tests."""
         print("⚡ Running Edge Case Tests...")
 
         edge_case_files = ["test_edge_cases.py"]
 
-        results = {}
+        results: dict[str, dict] = {}
         for test_file in edge_case_files:
             test_path = self.test_dir / test_file
             if test_path.exists():
@@ -80,7 +80,7 @@ class SystemTestRunner:
 
         return results
 
-    def run_abstract_tests(self, verbose: bool = False) -> dict:
+    def run_abstract_tests(self, verbose: bool = False) -> dict[str, dict]:
         """Run tests for abstract base classes."""
         print("🎭 Running Abstract Base Class Tests...")
 
@@ -96,7 +96,7 @@ class SystemTestRunner:
             print("  ⚠️  test_abstracts.py not found")
             return {"test_abstracts.py": {"status": "not_found"}}
 
-    def run_performance_tests(self, verbose: bool = False) -> dict:
+    def run_performance_tests(self, verbose: bool = False) -> dict[str, dict]:
         """Run performance and timing tests."""
         print("🏎️  Running Performance Tests...")
 
@@ -117,7 +117,7 @@ class SystemTestRunner:
 
         return {"performance": self._run_command(cmd, timeout=180)}
 
-    def run_coverage_analysis(self) -> dict:
+    def run_coverage_analysis(self) -> dict[str, dict]:
         """Run tests with coverage analysis."""
         print("📊 Running Coverage Analysis...")
 

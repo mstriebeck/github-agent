@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 
-def main():
+def main() -> int:
     """Main verification function"""
 
     # Get the script directory (parent of setup directory)

@@ -23,7 +23,7 @@ import time
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 # Import shutdown coordination components
 from shutdown_manager import ShutdownManager
@@ -38,7 +38,7 @@ log_dir.mkdir(parents=True, exist_ok=True)
 GLOBAL_LOG_LEVEL = logging.DEBUG
 
 
-def setup_enhanced_logging(logger, log_file_path=None):
+def setup_enhanced_logging(logger: logging.Logger, log_file_path: Optional[Path] = None) -> logging.Logger:
     """Enhance an existing logger with microsecond precision formatting
 
     This is called from the master process to enhance the main logger
@@ -94,7 +94,7 @@ class WorkerProcess:
     port: int
     path: str
     description: str
-    process: Optional[subprocess.Popen] = None
+    process: Optional[subprocess.Popen[bytes]] = None
     start_time: Optional[float] = None
     restart_count: int = 0
     max_restarts: int = 5
@@ -153,7 +153,7 @@ class GitHubMCPMaster:
 
     def __init__(self, config_path: str = "repositories.json"):
         self.config_path = config_path
-        self.workers: dict[str, WorkerProcess] = {}
+        self.workers: Dict[str, WorkerProcess] = {}
         self.running = False
 
         # Initialize shutdown coordination with our logger
@@ -223,10 +223,10 @@ class GitHubMCPMaster:
             logger.error(f"Failed to load configuration: {e}")
             return False
 
-    def save_configuration(self):
+    def save_configuration(self) -> None:
         """Save current configuration back to file (with auto-assigned ports)"""
         try:
-            config = {"repositories": {}}
+            config: Dict[str, Any] = {"repositories": {}}
             for repo_name, worker in self.workers.items():
                 config["repositories"][repo_name] = {
                     "path": worker.path,
@@ -331,13 +331,14 @@ class GitHubMCPMaster:
                     f"Worker for {worker.repo_name} didn't respond to SIGTERM within {timeout}s, force killing"
                 )
                 try:
-                    worker.process.kill()
-                    await asyncio.wait_for(
-                        asyncio.create_task(
-                            self._wait_for_process_exit(worker.process)
-                        ),
-                        timeout=2,
-                    )
+                    if worker.process is not None:
+                        worker.process.kill()
+                        await asyncio.wait_for(
+                            asyncio.create_task(
+                                self._wait_for_process_exit(worker.process)
+                            ),
+                            timeout=2,
+                        )
                     logger.info(
                         f"Worker for {worker.repo_name} force killed successfully"
                     )
@@ -387,7 +388,7 @@ class GitHubMCPMaster:
         # For now, just check if process is running
         return True
 
-    async def monitor_workers(self):
+    async def monitor_workers(self) -> None:
         """Monitor worker processes and restart if needed"""
         logger.debug("Worker monitoring task started")
         try:
@@ -429,10 +430,10 @@ class GitHubMCPMaster:
                                 )
 
                     # Sleep in smaller chunks to allow for faster cancellation
-                    for _ in range(30):  # 30 seconds total, 1 second chunks
-                        if not self.running:
-                            break
+                    sleep_remaining = 30  # 30 seconds total, 1 second chunks
+                    while sleep_remaining > 0 and self.running:
                         await asyncio.sleep(1)
+                        sleep_remaining -= 1
 
                 except Exception as e:
                     logger.error(f"Error in worker monitoring: {e}")
@@ -440,7 +441,7 @@ class GitHubMCPMaster:
         finally:
             logger.debug("Worker monitoring task ending")
 
-    def signal_handler(self, signum, frame):
+    def signal_handler(self, signum: int, frame: Any) -> None:
         """Handle shutdown signals using the shutdown manager"""
         signal_name = signal.Signals(signum).name
         logger.info(
@@ -458,7 +459,7 @@ class GitHubMCPMaster:
             except Exception as e:
                 logger.debug(f"Could not wake up main loop: {e}")
 
-    async def start(self):
+    async def start(self) -> bool:
         """Start the master process"""
         logger.info("Starting GitHub MCP Master Process")
 
@@ -614,11 +615,12 @@ class GitHubMCPMaster:
                             logger.info(
                                 f"Sending SIGKILL to worker {repo_name} (PID: {pid})"
                             )
-                            worker.process.kill()
-                            await asyncio.wait_for(
-                                self._wait_for_process_exit(worker.process),
-                                timeout=5,  # Increased timeout for SIGKILL
-                            )
+                            if worker.process is not None:
+                                worker.process.kill()
+                                await asyncio.wait_for(
+                                    self._wait_for_process_exit(worker.process),
+                                    timeout=5,  # Increased timeout for SIGKILL
+                                )
                             logger.info(f"Worker {repo_name} process terminated")
 
                             # Wait for port to be actually free before considering worker stopped
@@ -749,7 +751,7 @@ class GitHubMCPMaster:
             )
             return False
 
-    async def _wait_for_process_exit(self, process: subprocess.Popen):
+    async def _wait_for_process_exit(self, process: subprocess.Popen[bytes]) -> int:
         """Async wrapper for process.wait() with polling"""
         while True:
             if process.poll() is not None:
@@ -765,7 +767,7 @@ class GitHubMCPMaster:
             await asyncio.sleep(0.2)  # Check every 200ms
         return False
 
-    def status(self) -> dict:
+    def status(self) -> Dict[str, Any]:
         """Get status of all workers"""
         status = {
             "master": {
@@ -792,7 +794,7 @@ class GitHubMCPMaster:
         return status
 
 
-async def main():
+async def main() -> None:
     """Main entry point"""
     master = GitHubMCPMaster()
 
