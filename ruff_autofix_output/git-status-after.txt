@@ -1,4 +1,1 @@
  M ruff_autofix_output/git-status-after.txt
- M ruff_autofix_output/git-status-before.txt
- M ruff_autofix_output/ruff-fix.log
- M ruff_autofix_output/ruff-format.log
