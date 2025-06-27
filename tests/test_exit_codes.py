@@ -337,10 +337,7 @@ class TestExitCodeDescriptions:
 
     def test_get_exit_code_description_unknown(self):
         """Test getting description for unknown code."""
-<<<<<<< HEAD
 
-=======
->>>>>>> 77d49bb (fix typing issues and set mypy settings)
         # Test with a simple object that simulates an unknown enum value
         class FakeExitCode:
             def __init__(self, value):

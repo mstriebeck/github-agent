@@ -12,6 +12,7 @@ import zipfile
 import io
 import re
 import os
+from typing import Optional
 
 import requests
 from github import Github
@@ -620,57 +621,93 @@ async def find_workflow_run(context: GitHubAPIContext, commit_sha: str, token: s
 def extract_file_from_ruff_error(error_line: str) -> str:
     """Extract file path from ruff error line"""
     import re
-    # Ruff format: ::error title=Ruff (UP045),file=/path/to/file.py,line=503,col=49,endLine=503,endColumn=62::message
-    match = re.search(r'file=([^,]+)', error_line)
+    # GitHub Actions format: ::error title=Ruff (UP045),file=/path/to/file.py,line=503,col=49,endLine=503,endColumn=62::message
+    match = re.search(r'::error title=Ruff.*?file=([^,]+)', error_line)
+    if match:
+        return match.group(1)
+    
+    # Direct command format: Error: filename.py:line:col: RULE message
+    match = re.match(r'^Error: ([^:]+):\d+:\d+:', error_line)
     return match.group(1) if match else ""
 
 def extract_line_number_from_ruff_error(error_line: str) -> int:
     """Extract line number from ruff error line"""
     import re
-    match = re.search(r'line=(\d+)', error_line)
+    # GitHub Actions format
+    match = re.search(r'::error title=Ruff.*?line=(\d+)', error_line)
+    if match:
+        return int(match.group(1))
+    
+    # Direct command format: Error: filename.py:line:col: RULE message
+    match = re.match(r'^Error: [^:]+:(\d+):\d+:', error_line)
     return int(match.group(1)) if match else 0
 
 def extract_column_from_ruff_error(error_line: str) -> int:
     """Extract column number from ruff error line"""
     import re
-    match = re.search(r'col=(\d+)', error_line)
+    # GitHub Actions format
+    match = re.search(r'::error title=Ruff.*?col=(\d+)', error_line)
+    if match:
+        return int(match.group(1))
+    
+    # Direct command format: Error: filename.py:line:col: RULE message
+    match = re.match(r'^Error: [^:]+:\d+:(\d+):', error_line)
     return int(match.group(1)) if match else 0
 
 def extract_rule_from_ruff_error(error_line: str) -> str:
     """Extract rule code from ruff error line"""
     import re
-    match = re.search(r'Ruff \(([^)]+)\)', error_line)
+    # GitHub Actions format
+    match = re.search(r'::error title=Ruff \(([^)]+)\)', error_line)
+    if match:
+        return match.group(1)
+    
+    # Direct command format: Error: filename.py:line:col: RULE message
+    match = re.match(r'^Error: [^:]+:\d+:\d+: ([A-Z]+\d+)', error_line)
     return match.group(1) if match else ""
 
 def extract_message_from_ruff_error(error_line: str) -> str:
     """Extract message from ruff error line"""
     import re
-    # Message is after the last ::
-    match = re.search(r'::([^:]+:[^:]+: [A-Z]+\d+.*)$', error_line)
+    # GitHub Actions format: message is after the last ::
+    match = re.search(r'::error title=Ruff.*?::(.+)$', error_line)
+    if match:
+        return match.group(1)
+    
+    # Direct command format: Error: filename.py:line:col: RULE message
+    match = re.match(r'^Error: ([^:]+:\d+:\d+: [A-Z]+\d+ .+)$', error_line)
     return match.group(1) if match else ""
 
 def extract_file_from_mypy_error(error_line: str) -> str:
     """Extract file path from mypy error line"""
     import re
     # Mypy format: file.py:line: error: message [error-code]
-    match = re.match(r'^([^:]+\.py):', error_line)
+    # Must have numeric line number and contain "error:"
+    match = re.match(r'^([^:]+\.py):(\d+): error:', error_line)
     return match.group(1) if match else ""
 
 def extract_line_number_from_mypy_error(error_line: str) -> int:
     """Extract line number from mypy error line"""
     import re
-    match = re.match(r'^[^:]+\.py:(\d+):', error_line)
+    # Must contain "error:" to be valid
+    match = re.match(r'^[^:]+\.py:(\d+): error:', error_line)
     return int(match.group(1)) if match else 0
 
 def extract_message_from_mypy_error(error_line: str) -> str:
     """Extract message from mypy error line"""
     import re
+    # Must be valid mypy error format with numeric line number
+    if not re.match(r'^[^:]+\.py:\d+: error:', error_line):
+        return ""
     match = re.search(r': error: (.+?)(?:\s+\[[^\]]+\])?$', error_line)
     return match.group(1) if match else ""
 
 def extract_error_code_from_mypy_error(error_line: str) -> str:
     """Extract error code from mypy error line"""
     import re
+    # Must be valid mypy error format with numeric line number
+    if not re.match(r'^[^:]+\.py:\d+: error:', error_line):
+        return ""
     match = re.search(r'\[([^\]]+)\]$', error_line)
     return match.group(1) if match else ""
 
