@@ -7,8 +7,9 @@ on:
     branches: [ main ]
 
 permissions:
-  contents: read
+  contents: write  # Need write permission to push auto-fix commits
   actions: read
+  pull-requests: write  # Need this to update PR status
 
 # Debug control - set to true to enable debugging output
 env:
