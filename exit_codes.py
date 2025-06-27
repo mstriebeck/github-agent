@@ -9,6 +9,7 @@ import enum
 import logging
 from typing import Any
 
+
 class ShutdownExitCode(enum.IntEnum):
     """Exit codes for different shutdown scenarios.
 

@@ -6,8 +6,8 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from unittest.mock import Mock
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 
@@ -93,7 +93,7 @@ def isolated_logger():
     logger.addHandler(handler)
 
     # Add log_records as an attribute for test access
-    setattr(logger, 'log_records', log_records)
+    logger.log_records = log_records
 
     yield logger
 
@@ -279,14 +279,14 @@ def assert_clean_shutdown(shutdown_result, exit_code_manager, expected_exit_code
 
     if expected_exit_code:
         actual_exit_code = exit_code_manager.determine_exit_code("test")
-        assert actual_exit_code == expected_exit_code, (
-            f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
-        )
+        assert (
+            actual_exit_code == expected_exit_code
+        ), f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
 
     summary = exit_code_manager.get_exit_summary()
-    assert summary["total_problems"] == 0, (
-        f"Expected clean shutdown but found problems: {summary}"
-    )
+    assert (
+        summary["total_problems"] == 0
+    ), f"Expected clean shutdown but found problems: {summary}"
 
 
 def assert_shutdown_with_issues(
@@ -297,17 +297,17 @@ def assert_shutdown_with_issues(
     if shutdown_result is False:
         # Failed shutdown should have critical issues
         summary = exit_code_manager.get_exit_summary()
-        assert summary["total_problems"] > 0, (
-            "Failed shutdown should have reported problems"
-        )
+        assert (
+            summary["total_problems"] > 0
+        ), "Failed shutdown should have reported problems"
 
     if expected_problems:
         summary = exit_code_manager.get_exit_summary()
-        assert summary["total_problems"] >= expected_problems, (
-            f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
-        )
+        assert (
+            summary["total_problems"] >= expected_problems
+        ), f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
 
 
 # Add to pytest namespace for easy import
-setattr(pytest, 'assert_clean_shutdown', assert_clean_shutdown)
-setattr(pytest, 'assert_shutdown_with_issues', assert_shutdown_with_issues)
+pytest.assert_clean_shutdown = assert_clean_shutdown
+pytest.assert_shutdown_with_issues = assert_shutdown_with_issues

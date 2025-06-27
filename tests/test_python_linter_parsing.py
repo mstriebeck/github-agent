@@ -14,15 +14,15 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from github_tools import (
-    extract_file_from_ruff_error,
-    extract_line_number_from_ruff_error,
     extract_column_from_ruff_error,
-    extract_rule_from_ruff_error,
-    extract_message_from_ruff_error,
-    extract_file_from_mypy_error,
-    extract_line_number_from_mypy_error,
-    extract_message_from_mypy_error,
     extract_error_code_from_mypy_error,
+    extract_file_from_mypy_error,
+    extract_file_from_ruff_error,
+    extract_line_number_from_mypy_error,
+    extract_line_number_from_ruff_error,
+    extract_message_from_mypy_error,
+    extract_message_from_ruff_error,
+    extract_rule_from_ruff_error,
 )
 
 
@@ -54,7 +54,9 @@ class TestRuffErrorParsing(unittest.TestCase):
             "/Users/dev/project/utils/helpers.py",
         ]
 
-        for error_line, expected_file in zip(self.sample_ruff_errors, expected_files, strict=False):
+        for error_line, expected_file in zip(
+            self.sample_ruff_errors, expected_files, strict=False
+        ):
             with self.subTest(error_line=error_line):
                 result = extract_file_from_ruff_error(error_line)
                 self.assertEqual(result, expected_file)
@@ -63,7 +65,9 @@ class TestRuffErrorParsing(unittest.TestCase):
         """Test line number extraction from ruff error lines"""
         expected_line_numbers = [503, 42, 15]
 
-        for error_line, expected_line in zip(self.sample_ruff_errors, expected_line_numbers, strict=False):
+        for error_line, expected_line in zip(
+            self.sample_ruff_errors, expected_line_numbers, strict=False
+        ):
             with self.subTest(error_line=error_line):
                 result = extract_line_number_from_ruff_error(error_line)
                 self.assertEqual(result, expected_line)
@@ -72,7 +76,9 @@ class TestRuffErrorParsing(unittest.TestCase):
         """Test column number extraction from ruff error lines"""
         expected_columns = [49, 80, 1]
 
-        for error_line, expected_col in zip(self.sample_ruff_errors, expected_columns, strict=False):
+        for error_line, expected_col in zip(
+            self.sample_ruff_errors, expected_columns, strict=False
+        ):
             with self.subTest(error_line=error_line):
                 result = extract_column_from_ruff_error(error_line)
                 self.assertEqual(result, expected_col)
@@ -81,7 +87,9 @@ class TestRuffErrorParsing(unittest.TestCase):
         """Test rule code extraction from ruff error lines"""
         expected_rules = ["UP045", "E501", "F401"]
 
-        for error_line, expected_rule in zip(self.sample_ruff_errors, expected_rules, strict=False):
+        for error_line, expected_rule in zip(
+            self.sample_ruff_errors, expected_rules, strict=False
+        ):
             with self.subTest(error_line=error_line):
                 result = extract_rule_from_ruff_error(error_line)
                 self.assertEqual(result, expected_rule)
@@ -94,26 +102,51 @@ class TestRuffErrorParsing(unittest.TestCase):
             "helpers.py:15:1: F401 'os' imported but unused",
         ]
 
-        for error_line, expected_message in zip(self.sample_ruff_errors, expected_messages, strict=False):
+        for error_line, expected_message in zip(
+            self.sample_ruff_errors, expected_messages, strict=False
+        ):
             with self.subTest(error_line=error_line):
                 result = extract_message_from_ruff_error(error_line)
                 self.assertEqual(result, expected_message)
 
     def test_extract_from_direct_ruff_errors(self):
         """Test extraction from direct ruff command output"""
-        expected_files = ["github_mcp_master.py", "github_mcp_worker.py", "repository_manager.py"]
+        expected_files = [
+            "github_mcp_master.py",
+            "github_mcp_worker.py",
+            "repository_manager.py",
+        ]
         expected_lines = [97, 632, 166]
         expected_columns = [14, 13, 21]
         expected_rules = ["UP007", "RUF006", "B904"]
-        
-        for error_line, expected_file, expected_line, expected_col, expected_rule in zip(
-            self.sample_ruff_errors_direct, expected_files, expected_lines, expected_columns, expected_rules, strict=False
+
+        for (
+            error_line,
+            expected_file,
+            expected_line,
+            expected_col,
+            expected_rule,
+        ) in zip(
+            self.sample_ruff_errors_direct,
+            expected_files,
+            expected_lines,
+            expected_columns,
+            expected_rules,
+            strict=False,
         ):
             with self.subTest(error_line=error_line):
-                self.assertEqual(extract_file_from_ruff_error(error_line), expected_file)
-                self.assertEqual(extract_line_number_from_ruff_error(error_line), expected_line)
-                self.assertEqual(extract_column_from_ruff_error(error_line), expected_col)
-                self.assertEqual(extract_rule_from_ruff_error(error_line), expected_rule)
+                self.assertEqual(
+                    extract_file_from_ruff_error(error_line), expected_file
+                )
+                self.assertEqual(
+                    extract_line_number_from_ruff_error(error_line), expected_line
+                )
+                self.assertEqual(
+                    extract_column_from_ruff_error(error_line), expected_col
+                )
+                self.assertEqual(
+                    extract_rule_from_ruff_error(error_line), expected_rule
+                )
 
     def test_extract_from_invalid_ruff_lines(self):
         """Test extraction functions with invalid ruff lines"""
@@ -141,15 +174,15 @@ class TestMypyErrorParsing(unittest.TestCase):
         """Set up test data with realistic mypy error lines"""
         self.sample_mypy_errors = [
             "tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-assign]",
-            "src/main.py:25: error: Incompatible types in assignment (expression has type \"str\", variable has type \"int\")  [assignment]",
-            "utils/helpers.py:156: error: Argument 1 to \"open\" has incompatible type \"int\"; expected \"str\"  [arg-type]",
+            'src/main.py:25: error: Incompatible types in assignment (expression has type "str", variable has type "int")  [assignment]',
+            'utils/helpers.py:156: error: Argument 1 to "open" has incompatible type "int"; expected "str"  [arg-type]',
             "models/user.py:42: error: Missing return statement  [return]",
         ]
         # Actual mypy errors from user
         self.sample_mypy_errors_actual = [
             "setup_multi_repo.py:40: error: Function is missing a return type annotation  [no-untyped-def]",
-            "tests/test_runner.py:20: error: Need type annotation for \"results\" (hint: \"results: dict[<type>, <type>] = ...\")  [var-annotated]",
-            "health_monitor.py:111: error: Need type annotation for \"_shutdown_progress\" (hint: \"_shutdown_progress: dict[<type>, <type>] = ...\")  [var-annotated]",
+            'tests/test_runner.py:20: error: Need type annotation for "results" (hint: "results: dict[<type>, <type>] = ...")  [var-annotated]',
+            'health_monitor.py:111: error: Need type annotation for "_shutdown_progress" (hint: "_shutdown_progress: dict[<type>, <type>] = ...")  [var-annotated]',
         ]
 
     def test_extract_file_from_mypy_error(self):
@@ -161,7 +194,9 @@ class TestMypyErrorParsing(unittest.TestCase):
             "models/user.py",
         ]
 
-        for error_line, expected_file in zip(self.sample_mypy_errors, expected_files, strict=False):
+        for error_line, expected_file in zip(
+            self.sample_mypy_errors, expected_files, strict=False
+        ):
             with self.subTest(error_line=error_line):
                 result = extract_file_from_mypy_error(error_line)
                 self.assertEqual(result, expected_file)
@@ -170,7 +205,9 @@ class TestMypyErrorParsing(unittest.TestCase):
         """Test line number extraction from mypy error lines"""
         expected_line_numbers = [391, 25, 156, 42]
 
-        for error_line, expected_line in zip(self.sample_mypy_errors, expected_line_numbers, strict=False):
+        for error_line, expected_line in zip(
+            self.sample_mypy_errors, expected_line_numbers, strict=False
+        ):
             with self.subTest(error_line=error_line):
                 result = extract_line_number_from_mypy_error(error_line)
                 self.assertEqual(result, expected_line)
@@ -179,12 +216,14 @@ class TestMypyErrorParsing(unittest.TestCase):
         """Test message extraction from mypy error lines"""
         expected_messages = [
             "Cannot assign to a method",
-            "Incompatible types in assignment (expression has type \"str\", variable has type \"int\")",
-            "Argument 1 to \"open\" has incompatible type \"int\"; expected \"str\"",
+            'Incompatible types in assignment (expression has type "str", variable has type "int")',
+            'Argument 1 to "open" has incompatible type "int"; expected "str"',
             "Missing return statement",
         ]
 
-        for error_line, expected_message in zip(self.sample_mypy_errors, expected_messages, strict=False):
+        for error_line, expected_message in zip(
+            self.sample_mypy_errors, expected_messages, strict=False
+        ):
             with self.subTest(error_line=error_line):
                 result = extract_message_from_mypy_error(error_line)
                 self.assertEqual(result, expected_message)
@@ -193,24 +232,40 @@ class TestMypyErrorParsing(unittest.TestCase):
         """Test error code extraction from mypy error lines"""
         expected_codes = ["method-assign", "assignment", "arg-type", "return"]
 
-        for error_line, expected_code in zip(self.sample_mypy_errors, expected_codes, strict=False):
+        for error_line, expected_code in zip(
+            self.sample_mypy_errors, expected_codes, strict=False
+        ):
             with self.subTest(error_line=error_line):
                 result = extract_error_code_from_mypy_error(error_line)
                 self.assertEqual(result, expected_code)
 
     def test_extract_from_actual_mypy_errors(self):
         """Test extraction from actual mypy errors provided by user"""
-        expected_files = ["setup_multi_repo.py", "tests/test_runner.py", "health_monitor.py"]
+        expected_files = [
+            "setup_multi_repo.py",
+            "tests/test_runner.py",
+            "health_monitor.py",
+        ]
         expected_lines = [40, 20, 111]
         expected_codes = ["no-untyped-def", "var-annotated", "var-annotated"]
-        
+
         for error_line, expected_file, expected_line, expected_code in zip(
-            self.sample_mypy_errors_actual, expected_files, expected_lines, expected_codes, strict=False
+            self.sample_mypy_errors_actual,
+            expected_files,
+            expected_lines,
+            expected_codes,
+            strict=False,
         ):
             with self.subTest(error_line=error_line):
-                self.assertEqual(extract_file_from_mypy_error(error_line), expected_file)
-                self.assertEqual(extract_line_number_from_mypy_error(error_line), expected_line)
-                self.assertEqual(extract_error_code_from_mypy_error(error_line), expected_code)
+                self.assertEqual(
+                    extract_file_from_mypy_error(error_line), expected_file
+                )
+                self.assertEqual(
+                    extract_line_number_from_mypy_error(error_line), expected_line
+                )
+                self.assertEqual(
+                    extract_error_code_from_mypy_error(error_line), expected_code
+                )
 
     def test_extract_from_invalid_mypy_lines(self):
         """Test extraction functions with invalid mypy lines"""
@@ -233,10 +288,14 @@ class TestMypyErrorParsing(unittest.TestCase):
     def test_mypy_error_without_error_code(self):
         """Test mypy error line without error code brackets"""
         error_without_code = "src/main.py:25: error: Some error message"
-        
-        self.assertEqual(extract_file_from_mypy_error(error_without_code), "src/main.py")
+
+        self.assertEqual(
+            extract_file_from_mypy_error(error_without_code), "src/main.py"
+        )
         self.assertEqual(extract_line_number_from_mypy_error(error_without_code), 25)
-        self.assertEqual(extract_message_from_mypy_error(error_without_code), "Some error message")
+        self.assertEqual(
+            extract_message_from_mypy_error(error_without_code), "Some error message"
+        )
         self.assertEqual(extract_error_code_from_mypy_error(error_without_code), "")
 
 

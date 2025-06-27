@@ -5,13 +5,13 @@ GitHub Tools for MCP Server
 Contains all GitHub-related tool implementations.
 """
 
+import io
 import json
 import logging
+import os
+import re
 import subprocess
 import zipfile
-import io
-import re
-import os
 
 import requests
 from github import Github
@@ -502,128 +502,162 @@ async def execute_get_current_commit(repo_name: str) -> str:
 
 
 # SwiftLint helper functions
-async def get_artifact_id(repo_name: str, run_id: str, token: str, name: str = "swiftlint-reports") -> str:
+async def get_artifact_id(
+    repo_name: str, run_id: str, token: str, name: str = "swiftlint-reports"
+) -> str:
     """Get artifact ID for SwiftLint reports"""
     url = f"https://api.github.com/repos/{repo_name}/actions/runs/{run_id}/artifacts"
     headers = {"Authorization": f"Bearer {token}"}
     response = requests.get(url, headers=headers)
     response.raise_for_status()
-    
+
     artifacts_data = response.json()
     artifacts = artifacts_data.get("artifacts", [])
-    
+
     for artifact in artifacts:
         if artifact["name"] == name:
             return artifact["id"]
-    
+
     raise RuntimeError(f"No artifact named '{name}' found")
 
-async def download_and_extract_artifact(repo_name: str, artifact_id: str, token: str, extract_dir: str = None) -> str:
+
+async def download_and_extract_artifact(
+    repo_name: str, artifact_id: str, token: str, extract_dir: str = None
+) -> str:
     """Download and extract SwiftLint artifact"""
-    url = f"https://api.github.com/repos/{repo_name}/actions/artifacts/{artifact_id}/zip"
+    url = (
+        f"https://api.github.com/repos/{repo_name}/actions/artifacts/{artifact_id}/zip"
+    )
     headers = {"Authorization": f"Bearer {token}"}
     response = requests.get(url, headers=headers)
     response.raise_for_status()
-    
+
     if extract_dir is None:
         extract_dir = "/tmp/swiftlint_output"
-    
+
     with zipfile.ZipFile(io.BytesIO(response.content)) as z:
         z.extractall(extract_dir)
     return extract_dir
 
-async def parse_swiftlint_output(output_dir: str, expected_filename: str = "swiftlint_all.txt") -> list:
+
+async def parse_swiftlint_output(
+    output_dir: str, expected_filename: str = "swiftlint_all.txt"
+) -> list:
     """Parse SwiftLint output to extract only actual violations/errors"""
     violations = []
-    
+
     # Look for the expected SwiftLint output file
     expected_file_path = os.path.join(output_dir, expected_filename)
     if not os.path.exists(expected_file_path):
         # Try common alternative names
-        alternatives = ["swiftlint.txt", "violations.txt", "lint-results.txt", "output.txt"]
+        alternatives = [
+            "swiftlint.txt",
+            "violations.txt",
+            "lint-results.txt",
+            "output.txt",
+        ]
         found_file = None
         for alt_name in alternatives:
             alt_path = os.path.join(output_dir, alt_name)
             if os.path.exists(alt_path):
                 found_file = alt_path
                 break
-        
+
         if not found_file:
-            raise FileNotFoundError(f"Expected SwiftLint output file '{expected_filename}' not found in {output_dir}. Available files: {os.listdir(output_dir)}")
-        
+            raise FileNotFoundError(
+                f"Expected SwiftLint output file '{expected_filename}' not found in {output_dir}. Available files: {os.listdir(output_dir)}"
+            )
+
         expected_file_path = found_file
-    
+
     # Pattern to match SwiftLint violation lines
-    violation_pattern = re.compile(r'^/.+\.swift:\d+:\d+:\s+(error|warning):\s+.+\s+\(.+\)$')
-    
+    violation_pattern = re.compile(
+        r"^/.+\.swift:\d+:\d+:\s+(error|warning):\s+.+\s+\(.+\)$"
+    )
+
     with open(expected_file_path) as f:
         for line_num, line in enumerate(f, 1):
             line = line.strip()
             if line and violation_pattern.match(line):
-                violations.append({
-                    "raw_line": line,
-                    "file": extract_file_from_violation(line),
-                    "line_number": extract_line_number_from_violation(line),
-                    "severity": extract_severity_from_violation(line),
-                    "message": extract_message_from_violation(line),
-                    "rule": extract_rule_from_violation(line)
-                })
-    
+                violations.append(
+                    {
+                        "raw_line": line,
+                        "file": extract_file_from_violation(line),
+                        "line_number": extract_line_number_from_violation(line),
+                        "severity": extract_severity_from_violation(line),
+                        "message": extract_message_from_violation(line),
+                        "rule": extract_rule_from_violation(line),
+                    }
+                )
+
     return violations
+
 
 def extract_file_from_violation(violation_line: str) -> str:
     """Extract file path from violation line"""
-    match = re.match(r'^(/[^:]+\.swift):', violation_line)
+    match = re.match(r"^(/[^:]+\.swift):", violation_line)
     return match.group(1) if match else ""
+
 
 def extract_line_number_from_violation(violation_line: str) -> int:
     """Extract line number from violation line"""
-    match = re.match(r'^/[^:]+\.swift:(\d+):', violation_line)
+    match = re.match(r"^/[^:]+\.swift:(\d+):", violation_line)
     return int(match.group(1)) if match else 0
+
 
 def extract_severity_from_violation(violation_line: str) -> str:
     """Extract severity (error/warning) from violation line"""
-    match = re.search(r':\s+(error|warning):', violation_line)
+    match = re.search(r":\s+(error|warning):", violation_line)
     return match.group(1) if match else ""
+
 
 def extract_message_from_violation(violation_line: str) -> str:
     """Extract violation message from violation line"""
-    match = re.search(r':\s+(?:error|warning):\s+(.+)\s+\(.+\)$', violation_line)
+    match = re.search(r":\s+(?:error|warning):\s+(.+)\s+\(.+\)$", violation_line)
     return match.group(1) if match else ""
+
 
 def extract_rule_from_violation(violation_line: str) -> str:
     """Extract rule name from violation line"""
-    match = re.search(r'\(([^)]+)\)$', violation_line)
+    match = re.search(r"\(([^)]+)\)$", violation_line)
     return match.group(1) if match else ""
 
-async def find_workflow_run(context: GitHubAPIContext, commit_sha: str, token: str) -> str:
+
+async def find_workflow_run(
+    context: GitHubAPIContext, commit_sha: str, token: str
+) -> str:
     """Find the most recent workflow run ID for a commit"""
     url = f"https://api.github.com/repos/{context.repo_name}/actions/runs"
     headers = {"Authorization": f"Bearer {token}"}
     params = {"head_sha": commit_sha}
-    
+
     response = requests.get(url, headers=headers, params=params)
     response.raise_for_status()
-    
+
     runs_data = response.json()
     runs = runs_data.get("workflow_runs", [])
-    
+
     if not runs:
         raise RuntimeError(f"No workflow runs found for commit {commit_sha}")
-    
+
     # Return the most recent run
     return str(runs[0]["id"])
+
 
 # Build/Lint helper functions (simplified - removed legacy single-repo functions)
 async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None) -> str:
     """Read SwiftLint violation logs from GitHub Actions artifacts"""
-    logger.info(f"Reading SwiftLint logs for repository '{repo_name}' (build_id: {build_id})")
-    
+    logger.info(
+        f"Reading SwiftLint logs for repository '{repo_name}' (build_id: {build_id})"
+    )
+
     try:
         context = get_github_context(repo_name)
         if not context.repo:
-            return json.dumps({"error": f"GitHub repository not configured for {repo_name}"})
-        
+            return json.dumps(
+                {"error": f"GitHub repository not configured for {repo_name}"}
+            )
+
         token = context.github_token
         if not token:
             return json.dumps({"error": "GITHUB_TOKEN is not set"})
@@ -634,168 +668,206 @@ async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None) -> s
             logger.info(f"Using workflow run {build_id} for commit {commit_sha}")
 
         artifact_id = await get_artifact_id(context.repo_name, build_id, token)
-        output_dir = await download_and_extract_artifact(context.repo_name, artifact_id, token)
+        output_dir = await download_and_extract_artifact(
+            context.repo_name, artifact_id, token
+        )
         lint_results = await parse_swiftlint_output(output_dir)
-        
-        return json.dumps({
-            "success": True,
-            "repo": context.repo_name,
-            "repo_config": repo_name,
-            "run_id": build_id,
-            "artifact_id": artifact_id,
-            "violations": lint_results,
-            "total_violations": len(lint_results)
-        })
-        
+
+        return json.dumps(
+            {
+                "success": True,
+                "repo": context.repo_name,
+                "repo_config": repo_name,
+                "run_id": build_id,
+                "artifact_id": artifact_id,
+                "violations": lint_results,
+                "total_violations": len(lint_results),
+            }
+        )
+
     except Exception as e:
-        logger.error(f"Failed to read SwiftLint logs for {repo_name}: {str(e)}", exc_info=True)
-        return json.dumps({"error": f"Failed to read SwiftLint logs for {repo_name}: {str(e)}"})
+        logger.error(
+            f"Failed to read SwiftLint logs for {repo_name}: {e!s}", exc_info=True
+        )
+        return json.dumps(
+            {"error": f"Failed to read SwiftLint logs for {repo_name}: {e!s}"}
+        )
+
 
 # Python linter error parsing functions
 def extract_file_from_ruff_error(error_line: str) -> str:
     """Extract file path from ruff error line"""
     import re
+
     # GitHub Actions format: ::error title=Ruff (UP045),file=/path/to/file.py,line=503,col=49,endLine=503,endColumn=62::message
-    match = re.search(r'::error title=Ruff.*?file=([^,]+)', error_line)
+    match = re.search(r"::error title=Ruff.*?file=([^,]+)", error_line)
     if match:
         return match.group(1)
-    
+
     # Direct command format: Error: filename.py:line:col: RULE message
-    match = re.match(r'^Error: ([^:]+):\d+:\d+:', error_line)
+    match = re.match(r"^Error: ([^:]+):\d+:\d+:", error_line)
     return match.group(1) if match else ""
+
 
 def extract_line_number_from_ruff_error(error_line: str) -> int:
     """Extract line number from ruff error line"""
     import re
+
     # GitHub Actions format
-    match = re.search(r'::error title=Ruff.*?line=(\d+)', error_line)
+    match = re.search(r"::error title=Ruff.*?line=(\d+)", error_line)
     if match:
         return int(match.group(1))
-    
+
     # Direct command format: Error: filename.py:line:col: RULE message
-    match = re.match(r'^Error: [^:]+:(\d+):\d+:', error_line)
+    match = re.match(r"^Error: [^:]+:(\d+):\d+:", error_line)
     return int(match.group(1)) if match else 0
+
 
 def extract_column_from_ruff_error(error_line: str) -> int:
     """Extract column number from ruff error line"""
     import re
+
     # GitHub Actions format
-    match = re.search(r'::error title=Ruff.*?col=(\d+)', error_line)
+    match = re.search(r"::error title=Ruff.*?col=(\d+)", error_line)
     if match:
         return int(match.group(1))
-    
+
     # Direct command format: Error: filename.py:line:col: RULE message
-    match = re.match(r'^Error: [^:]+:\d+:(\d+):', error_line)
+    match = re.match(r"^Error: [^:]+:\d+:(\d+):", error_line)
     return int(match.group(1)) if match else 0
+
 
 def extract_rule_from_ruff_error(error_line: str) -> str:
     """Extract rule code from ruff error line"""
     import re
+
     # GitHub Actions format
-    match = re.search(r'::error title=Ruff \(([^)]+)\)', error_line)
+    match = re.search(r"::error title=Ruff \(([^)]+)\)", error_line)
     if match:
         return match.group(1)
-    
+
     # Direct command format: Error: filename.py:line:col: RULE message
-    match = re.match(r'^Error: [^:]+:\d+:\d+: ([A-Z]+\d+)', error_line)
+    match = re.match(r"^Error: [^:]+:\d+:\d+: ([A-Z]+\d+)", error_line)
     return match.group(1) if match else ""
+
 
 def extract_message_from_ruff_error(error_line: str) -> str:
     """Extract message from ruff error line"""
     import re
+
     # GitHub Actions format: message is after the last ::
-    match = re.search(r'::error title=Ruff.*?::(.+)$', error_line)
+    match = re.search(r"::error title=Ruff.*?::(.+)$", error_line)
     if match:
         return match.group(1)
-    
+
     # Direct command format: Error: filename.py:line:col: RULE message
-    match = re.match(r'^Error: ([^:]+:\d+:\d+: [A-Z]+\d+ .+)$', error_line)
+    match = re.match(r"^Error: ([^:]+:\d+:\d+: [A-Z]+\d+ .+)$", error_line)
     return match.group(1) if match else ""
+
 
 def extract_file_from_mypy_error(error_line: str) -> str:
     """Extract file path from mypy error line"""
     import re
+
     # Mypy format: file.py:line: error: message [error-code]
     # Must have numeric line number and contain "error:"
-    match = re.match(r'^([^:]+\.py):(\d+): error:', error_line)
+    match = re.match(r"^([^:]+\.py):(\d+): error:", error_line)
     return match.group(1) if match else ""
+
 
 def extract_line_number_from_mypy_error(error_line: str) -> int:
     """Extract line number from mypy error line"""
     import re
+
     # Must contain "error:" to be valid
-    match = re.match(r'^[^:]+\.py:(\d+): error:', error_line)
+    match = re.match(r"^[^:]+\.py:(\d+): error:", error_line)
     return int(match.group(1)) if match else 0
+
 
 def extract_message_from_mypy_error(error_line: str) -> str:
     """Extract message from mypy error line"""
     import re
+
     # Must be valid mypy error format with numeric line number
-    if not re.match(r'^[^:]+\.py:\d+: error:', error_line):
+    if not re.match(r"^[^:]+\.py:\d+: error:", error_line):
         return ""
-    match = re.search(r': error: (.+?)(?:\s+\[[^\]]+\])?$', error_line)
+    match = re.search(r": error: (.+?)(?:\s+\[[^\]]+\])?$", error_line)
     return match.group(1) if match else ""
+
 
 def extract_error_code_from_mypy_error(error_line: str) -> str:
     """Extract error code from mypy error line"""
     import re
+
     # Must be valid mypy error format with numeric line number
-    if not re.match(r'^[^:]+\.py:\d+: error:', error_line):
+    if not re.match(r"^[^:]+\.py:\d+: error:", error_line):
         return ""
-    match = re.search(r'\[([^\]]+)\]$', error_line)
+    match = re.search(r"\[([^\]]+)\]$", error_line)
     return match.group(1) if match else ""
+
 
 # Swift linter error parsing functions
 def extract_file_from_violation(violation_line: str) -> str:
     """Extract file path from SwiftLint violation line"""
     import re
+
     match = re.match(r"^(/[^:]+\.swift):", violation_line)
     return match.group(1) if match else ""
+
 
 def extract_line_number_from_violation(violation_line: str) -> int:
     """Extract line number from SwiftLint violation line"""
     import re
+
     match = re.match(r"^/[^:]+\.swift:(\d+):", violation_line)
     return int(match.group(1)) if match else 0
+
 
 def extract_severity_from_violation(violation_line: str) -> str:
     """Extract severity (error/warning) from SwiftLint violation line"""
     import re
+
     match = re.search(r":\s+(error|warning):", violation_line)
     return match.group(1) if match else ""
+
 
 def extract_message_from_violation(violation_line: str) -> str:
     """Extract violation message from SwiftLint violation line"""
     import re
+
     match = re.search(r":\s+(?:error|warning):\s+(.+)\s+\(.+\)$", violation_line)
     return match.group(1) if match else ""
+
 
 def extract_rule_from_violation(violation_line: str) -> str:
     """Extract rule name from SwiftLint violation line"""
     import re
+
     match = re.search(r"\(([^)]+)\)$", violation_line)
     return match.group(1) if match else ""
+
+
 async def get_linter_errors(repo_name: str, error_output: str) -> str:
     """Parse linter errors based on repository language configuration"""
     logger.info(f"Parsing linter errors for repository '{repo_name}'")
-    
+
     try:
         if not repo_manager or repo_name not in repo_manager.repositories:
             logger.error(f"Repository {repo_name} not found in configuration")
             return json.dumps({"error": f"Repository {repo_name} not found"})
-        
+
         repo_config = repo_manager.repositories[repo_name]
         language = repo_config.language
-        
+
         errors = []
-        lines = error_output.strip().split('\n')
-        
+        lines = error_output.strip().split("\n")
+
         if language == "python":
             # Parse Python linter errors (ruff and mypy)
             for line in lines:
                 if not line.strip():
                     continue
-                    
+
                 # Try to parse as ruff error first
                 if "::error title=Ruff" in line:
                     error_info = {
@@ -805,11 +877,13 @@ async def get_linter_errors(repo_name: str, error_output: str) -> str:
                         "column": extract_column_from_ruff_error(line),
                         "rule": extract_rule_from_ruff_error(line),
                         "message": extract_message_from_ruff_error(line),
-                        "severity": "error"
+                        "severity": "error",
                     }
-                    if error_info["file"]:  # Only add if we successfully parsed the file
+                    if error_info[
+                        "file"
+                    ]:  # Only add if we successfully parsed the file
                         errors.append(error_info)
-                
+
                 # Try to parse as mypy error
                 elif ": error:" in line and line.endswith("]"):
                     error_info = {
@@ -818,17 +892,19 @@ async def get_linter_errors(repo_name: str, error_output: str) -> str:
                         "line": extract_line_number_from_mypy_error(line),
                         "message": extract_message_from_mypy_error(line),
                         "error_code": extract_error_code_from_mypy_error(line),
-                        "severity": "error"
+                        "severity": "error",
                     }
-                    if error_info["file"]:  # Only add if we successfully parsed the file
+                    if error_info[
+                        "file"
+                    ]:  # Only add if we successfully parsed the file
                         errors.append(error_info)
-        
+
         elif language == "swift":
             # Parse Swift linter errors (SwiftLint)
             for line in lines:
                 if not line.strip():
                     continue
-                    
+
                 # Parse SwiftLint violations
                 if ".swift:" in line and ("error:" in line or "warning:" in line):
                     error_info = {
@@ -837,38 +913,47 @@ async def get_linter_errors(repo_name: str, error_output: str) -> str:
                         "line": extract_line_number_from_violation(line),
                         "severity": extract_severity_from_violation(line),
                         "message": extract_message_from_violation(line),
-                        "rule": extract_rule_from_violation(line)
+                        "rule": extract_rule_from_violation(line),
                     }
-                    if error_info["file"]:  # Only add if we successfully parsed the file
+                    if error_info[
+                        "file"
+                    ]:  # Only add if we successfully parsed the file
                         errors.append(error_info)
-        
+
         else:
             logger.warning(f"Unsupported language: {language}")
             return json.dumps({"error": f"Unsupported language: {language}"})
-        
+
         result = {
             "repository": repo_name,
             "language": language,
             "total_errors": len(errors),
-            "errors": errors
+            "errors": errors,
         }
-        
+
         logger.info(f"Parsed {len(errors)} linter errors for {repo_name}")
         return json.dumps(result)
-        
+
     except Exception as e:
         logger.error(f"Failed to parse linter errors: {e!s}", exc_info=True)
         return json.dumps({"error": f"Failed to parse linter errors: {e!s}"})
 
-async def execute_read_swiftlint_logs(repo_name: str, build_id: str | None = None) -> str:
+
+async def execute_read_swiftlint_logs(
+    repo_name: str, build_id: str | None = None
+) -> str:
     """Read SwiftLint violation logs from GitHub Actions artifacts"""
-    logger.info(f"Reading SwiftLint logs for repository '{repo_name}' (build_id: {build_id})")
-    
+    logger.info(
+        f"Reading SwiftLint logs for repository '{repo_name}' (build_id: {build_id})"
+    )
+
     try:
         context = get_github_context(repo_name)
         if not context.repo:
-            return json.dumps({"error": f"GitHub repository not configured for {repo_name}"})
-        
+            return json.dumps(
+                {"error": f"GitHub repository not configured for {repo_name}"}
+            )
+
         token = context.github_token
         if not token:
             return json.dumps({"error": "GITHUB_TOKEN is not set"})
@@ -879,27 +964,37 @@ async def execute_read_swiftlint_logs(repo_name: str, build_id: str | None = Non
             logger.info(f"Using workflow run {build_id} for commit {commit_sha}")
 
         artifact_id = await get_artifact_id(context.repo_name, build_id, token)
-        output_dir = await download_and_extract_artifact(context.repo_name, artifact_id, token)
+        output_dir = await download_and_extract_artifact(
+            context.repo_name, artifact_id, token
+        )
         lint_results = await parse_swiftlint_output(output_dir)
-        
-        return json.dumps({
-            "success": True,
-            "repo": context.repo_name,
-            "repo_config": repo_name,
-            "run_id": build_id,
-            "artifact_id": artifact_id,
-            "violations": lint_results,
-            "total_violations": len(lint_results)
-        })
-        
+
+        return json.dumps(
+            {
+                "success": True,
+                "repo": context.repo_name,
+                "repo_config": repo_name,
+                "run_id": build_id,
+                "artifact_id": artifact_id,
+                "violations": lint_results,
+                "total_violations": len(lint_results),
+            }
+        )
+
     except Exception as e:
-        logger.error(f"Failed to read SwiftLint logs for {repo_name}: {str(e)}", exc_info=True)
-        return json.dumps({"error": f"Failed to read SwiftLint logs for {repo_name}: {str(e)}"})
+        logger.error(
+            f"Failed to read SwiftLint logs for {repo_name}: {e!s}", exc_info=True
+        )
+        return json.dumps(
+            {"error": f"Failed to read SwiftLint logs for {repo_name}: {e!s}"}
+        )
 
 
 async def execute_read_build_logs(repo_name: str, build_id: str | None = None) -> str:
     """Read build logs and extract Swift compiler errors, warnings, and test failures"""
-    logger.info(f"Reading build logs for repository '{repo_name}' (build_id: {build_id})")
+    logger.info(
+        f"Reading build logs for repository '{repo_name}' (build_id: {build_id})"
+    )
     logger.warning("Build logs not implemented in multi-repo mode yet")
     return json.dumps({"error": "Build logs not implemented in multi-repo mode yet"})
 

@@ -11,6 +11,7 @@ import time
 from collections.abc import Callable
 from enum import Enum
 
+
 class ProcessState(Enum):
     """Process state enumeration."""
 

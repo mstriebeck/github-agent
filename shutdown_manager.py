@@ -1195,7 +1195,7 @@ class ShutdownManager:
         finally:
             # Clean up worker reference
             worker.process = None
-            
+
         return False
 
         return False

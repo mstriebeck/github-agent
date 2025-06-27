@@ -556,8 +556,10 @@ class GitHubMCPWorker:
 
                     elif tool_name == "github_get_lint_errors":
                         build_id = tool_args.get("build_id")
-                        result = await execute_read_swiftlint_logs(self.repo_name, build_id)
-                        
+                        result = await execute_read_swiftlint_logs(
+                            self.repo_name, build_id
+                        )
+
                     elif tool_name == "github_get_build_and_test_errors":
                         build_id = tool_args.get("build_id")
                         result = await execute_read_build_logs(self.repo_name, build_id)
