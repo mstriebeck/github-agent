@@ -28,6 +28,7 @@ class RepositoryConfig:
     path: str
     description: str
     port: int | None = None
+    language: str = "swift"  # Default to swift for backward compatibility
 
     def __post_init__(self):
         """Validate configuration after initialization"""
@@ -35,6 +36,14 @@ class RepositoryConfig:
             raise ValueError("Repository name cannot be empty")
         if not self.path:
             raise ValueError("Repository path cannot be empty")
+
+        # Validate language
+        supported_languages = {"python", "swift"}
+        if self.language not in supported_languages:
+            raise ValueError(
+                f"Unsupported language '{self.language}' for repository '{self.name}'. "
+                f"Supported languages: {', '.join(sorted(supported_languages))}"
+            )
 
         # Require absolute paths
         if not os.path.isabs(self.path):
@@ -144,6 +153,7 @@ class RepositoryManager:
                 path=repo_data["path"],
                 description=repo_data.get("description", ""),
                 port=repo_data.get("port"),
+                language=repo_data.get("language", "swift"),
             )
 
             self.repositories[name] = repo_config

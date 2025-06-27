@@ -615,7 +615,181 @@ async def find_workflow_run(context: GitHubAPIContext, commit_sha: str, token: s
     return str(runs[0]["id"])
 
 # Build/Lint helper functions (simplified - removed legacy single-repo functions)
-async def execute_read_swiftlint_logs(repo_name: str, build_id: str | None = None) -> str:
+
+# Python linter error parsing functions
+def extract_file_from_ruff_error(error_line: str) -> str:
+    """Extract file path from ruff error line"""
+    import re
+    # Ruff format: ::error title=Ruff (UP045),file=/path/to/file.py,line=503,col=49,endLine=503,endColumn=62::message
+    match = re.search(r'file=([^,]+)', error_line)
+    return match.group(1) if match else ""
+
+def extract_line_number_from_ruff_error(error_line: str) -> int:
+    """Extract line number from ruff error line"""
+    import re
+    match = re.search(r'line=(\d+)', error_line)
+    return int(match.group(1)) if match else 0
+
+def extract_column_from_ruff_error(error_line: str) -> int:
+    """Extract column number from ruff error line"""
+    import re
+    match = re.search(r'col=(\d+)', error_line)
+    return int(match.group(1)) if match else 0
+
+def extract_rule_from_ruff_error(error_line: str) -> str:
+    """Extract rule code from ruff error line"""
+    import re
+    match = re.search(r'Ruff \(([^)]+)\)', error_line)
+    return match.group(1) if match else ""
+
+def extract_message_from_ruff_error(error_line: str) -> str:
+    """Extract message from ruff error line"""
+    import re
+    # Message is after the last ::
+    match = re.search(r'::([^:]+:[^:]+: [A-Z]+\d+.*)$', error_line)
+    return match.group(1) if match else ""
+
+def extract_file_from_mypy_error(error_line: str) -> str:
+    """Extract file path from mypy error line"""
+    import re
+    # Mypy format: file.py:line: error: message [error-code]
+    match = re.match(r'^([^:]+\.py):', error_line)
+    return match.group(1) if match else ""
+
+def extract_line_number_from_mypy_error(error_line: str) -> int:
+    """Extract line number from mypy error line"""
+    import re
+    match = re.match(r'^[^:]+\.py:(\d+):', error_line)
+    return int(match.group(1)) if match else 0
+
+def extract_message_from_mypy_error(error_line: str) -> str:
+    """Extract message from mypy error line"""
+    import re
+    match = re.search(r': error: (.+?)(?:\s+\[[^\]]+\])?$', error_line)
+    return match.group(1) if match else ""
+
+def extract_error_code_from_mypy_error(error_line: str) -> str:
+    """Extract error code from mypy error line"""
+    import re
+    match = re.search(r'\[([^\]]+)\]$', error_line)
+    return match.group(1) if match else ""
+
+# Swift linter error parsing functions
+def extract_file_from_violation(violation_line: str) -> str:
+    """Extract file path from SwiftLint violation line"""
+    import re
+    match = re.match(r"^(/[^:]+\.swift):", violation_line)
+    return match.group(1) if match else ""
+
+def extract_line_number_from_violation(violation_line: str) -> int:
+    """Extract line number from SwiftLint violation line"""
+    import re
+    match = re.match(r"^/[^:]+\.swift:(\d+):", violation_line)
+    return int(match.group(1)) if match else 0
+
+def extract_severity_from_violation(violation_line: str) -> str:
+    """Extract severity (error/warning) from SwiftLint violation line"""
+    import re
+    match = re.search(r":\s+(error|warning):", violation_line)
+    return match.group(1) if match else ""
+
+def extract_message_from_violation(violation_line: str) -> str:
+    """Extract violation message from SwiftLint violation line"""
+    import re
+    match = re.search(r":\s+(?:error|warning):\s+(.+)\s+\(.+\)$", violation_line)
+    return match.group(1) if match else ""
+
+def extract_rule_from_violation(violation_line: str) -> str:
+    """Extract rule name from SwiftLint violation line"""
+    import re
+    match = re.search(r"\(([^)]+)\)$", violation_line)
+    return match.group(1) if match else ""
+async def get_linter_errors(repo_name: str, error_output: str) -> str:
+    """Parse linter errors based on repository language configuration"""
+    logger.info(f"Parsing linter errors for repository '{repo_name}'")
+    
+    try:
+        if not repo_manager or repo_name not in repo_manager.repositories:
+            logger.error(f"Repository {repo_name} not found in configuration")
+            return json.dumps({"error": f"Repository {repo_name} not found"})
+        
+        repo_config = repo_manager.repositories[repo_name]
+        language = repo_config.language
+        
+        errors = []
+        lines = error_output.strip().split('\n')
+        
+        if language == "python":
+            # Parse Python linter errors (ruff and mypy)
+            for line in lines:
+                if not line.strip():
+                    continue
+                    
+                # Try to parse as ruff error first
+                if "::error title=Ruff" in line:
+                    error_info = {
+                        "type": "ruff",
+                        "file": extract_file_from_ruff_error(line),
+                        "line": extract_line_number_from_ruff_error(line),
+                        "column": extract_column_from_ruff_error(line),
+                        "rule": extract_rule_from_ruff_error(line),
+                        "message": extract_message_from_ruff_error(line),
+                        "severity": "error"
+                    }
+                    if error_info["file"]:  # Only add if we successfully parsed the file
+                        errors.append(error_info)
+                
+                # Try to parse as mypy error
+                elif ": error:" in line and line.endswith("]"):
+                    error_info = {
+                        "type": "mypy",
+                        "file": extract_file_from_mypy_error(line),
+                        "line": extract_line_number_from_mypy_error(line),
+                        "message": extract_message_from_mypy_error(line),
+                        "error_code": extract_error_code_from_mypy_error(line),
+                        "severity": "error"
+                    }
+                    if error_info["file"]:  # Only add if we successfully parsed the file
+                        errors.append(error_info)
+        
+        elif language == "swift":
+            # Parse Swift linter errors (SwiftLint)
+            for line in lines:
+                if not line.strip():
+                    continue
+                    
+                # Parse SwiftLint violations
+                if ".swift:" in line and ("error:" in line or "warning:" in line):
+                    error_info = {
+                        "type": "swiftlint",
+                        "file": extract_file_from_violation(line),
+                        "line": extract_line_number_from_violation(line),
+                        "severity": extract_severity_from_violation(line),
+                        "message": extract_message_from_violation(line),
+                        "rule": extract_rule_from_violation(line)
+                    }
+                    if error_info["file"]:  # Only add if we successfully parsed the file
+                        errors.append(error_info)
+        
+        else:
+            logger.warning(f"Unsupported language: {language}")
+            return json.dumps({"error": f"Unsupported language: {language}"})
+        
+        result = {
+            "repository": repo_name,
+            "language": language,
+            "total_errors": len(errors),
+            "errors": errors
+        }
+        
+        logger.info(f"Parsed {len(errors)} linter errors for {repo_name}")
+        return json.dumps(result)
+        
+    except Exception as e:
+        logger.error(f"Failed to parse linter errors: {e!s}", exc_info=True)
+        return json.dumps({"error": f"Failed to parse linter errors: {e!s}"})
+
+async def execute_read_swiftlint_logs(build_id: Optional[str] = None) -> str:
     """Read SwiftLint violation logs from GitHub Actions artifacts"""
     logger.info(f"Reading SwiftLint logs for repository '{repo_name}' (build_id: {build_id})")
     

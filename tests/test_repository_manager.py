@@ -65,6 +65,74 @@ class TestRepositoryConfig(unittest.TestCase):
 
         self.assertIn("Repository path must be absolute", str(context.exception))
 
+    def test_valid_language_python(self):
+        """Test that 'python' language is accepted"""
+        config = RepositoryConfig(
+            name="test-repo", 
+            path="/path/to/repo", 
+            description="Test repository",
+            language="python"
+        )
+        self.assertEqual(config.language, "python")
+
+    def test_valid_language_swift(self):
+        """Test that 'swift' language is accepted"""
+        config = RepositoryConfig(
+            name="test-repo", 
+            path="/path/to/repo", 
+            description="Test repository",
+            language="swift"
+        )
+        self.assertEqual(config.language, "swift")
+
+    def test_default_language_is_swift(self):
+        """Test that default language is 'swift' for backward compatibility"""
+        config = RepositoryConfig(
+            name="test-repo", 
+            path="/path/to/repo", 
+            description="Test repository"
+        )
+        self.assertEqual(config.language, "swift")
+
+    def test_invalid_language_raises_error(self):
+        """Test that invalid language raises ValueError"""
+        with self.assertRaises(ValueError) as context:
+            RepositoryConfig(
+                name="test-repo", 
+                path="/path/to/repo", 
+                description="Test repository",
+                language="javascript"
+            )
+        
+        error_msg = str(context.exception)
+        self.assertIn("Unsupported language 'javascript'", error_msg)
+        self.assertIn("test-repo", error_msg)
+        self.assertIn("python, swift", error_msg)
+
+    def test_case_sensitive_language_validation(self):
+        """Test that language validation is case sensitive"""
+        with self.assertRaises(ValueError) as context:
+            RepositoryConfig(
+                name="test-repo", 
+                path="/path/to/repo", 
+                description="Test repository",
+                language="Python"  # Capital P should fail
+            )
+        
+        self.assertIn("Unsupported language 'Python'", str(context.exception))
+
+    def test_empty_language_raises_error(self):
+        """Test that empty language raises ValueError"""
+        with self.assertRaises(ValueError) as context:
+            RepositoryConfig(
+                name="test-repo", 
+                path="/path/to/repo", 
+                description="Test repository",
+                language=""
+            )
+        
+        self.assertIn("Unsupported language ''", str(context.exception))
+
 
 class TestRepositoryManager(unittest.TestCase):
     """Test RepositoryManager class"""
