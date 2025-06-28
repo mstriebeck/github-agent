@@ -1496,10 +1496,12 @@ async def execute_read_build_logs(
         logger.info(
             f"Repository config language: {repo_config.language if 'repo_config' in locals() else 'N/A'}"
         )
-        
+
         # TEMPORARY DEBUG: Force Python language for github-agent
         if repo_name == "github-agent":
-            logger.info(f"TEMP DEBUG: Forcing language to 'python' for github-agent (was: {language})")
+            logger.info(
+                f"TEMP DEBUG: Forcing language to 'python' for github-agent (was: {language})"
+            )
             language = "python"
 
         token = context.github_token

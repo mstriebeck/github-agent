@@ -53,7 +53,9 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         """Test parsing of ruff errors for Python repository"""
         mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
 
-        result_json = asyncio.run(get_linter_errors("python-repo", self.python_ruff_output))
+        result_json = asyncio.run(
+            get_linter_errors("python-repo", self.python_ruff_output)
+        )
         result = json.loads(result_json)
 
         self.assertEqual(result["repository"], "python-repo")
@@ -83,7 +85,9 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         """Test parsing of mypy errors for Python repository"""
         mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
 
-        result_json = asyncio.run(get_linter_errors("python-repo", self.python_mypy_output))
+        result_json = asyncio.run(
+            get_linter_errors("python-repo", self.python_mypy_output)
+        )
         result = json.loads(result_json)
 
         self.assertEqual(result["repository"], "python-repo")
@@ -111,7 +115,9 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         """Test parsing of mixed ruff and mypy errors for Python repository"""
         mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
 
-        result_json = asyncio.run(get_linter_errors("python-repo", self.mixed_python_output))
+        result_json = asyncio.run(
+            get_linter_errors("python-repo", self.mixed_python_output)
+        )
         result = json.loads(result_json)
 
         self.assertEqual(result["repository"], "python-repo")
@@ -184,9 +190,9 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         """Test handling of non-existent repository"""
         mock_repo_manager.repositories = {}
 
-        result_json = asyncio.run(get_linter_errors(
-            "nonexistent-repo", self.python_ruff_output
-        ))
+        result_json = asyncio.run(
+            get_linter_errors("nonexistent-repo", self.python_ruff_output)
+        )
         result = json.loads(result_json)
 
         self.assertIn("error", result)
@@ -195,7 +201,9 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
     @patch("github_tools.repo_manager", None)
     def test_no_repo_manager(self):
         """Test handling when repo_manager is None"""
-        result_json = asyncio.run(get_linter_errors("any-repo", self.python_ruff_output))
+        result_json = asyncio.run(
+            get_linter_errors("any-repo", self.python_ruff_output)
+        )
         result = json.loads(result_json)
 
         self.assertIn("error", result)
@@ -209,7 +217,9 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         invalid_config.language = "javascript"
         mock_repo_manager.repositories = {"invalid-repo": invalid_config}
 
-        result_json = asyncio.run(get_linter_errors("invalid-repo", self.python_ruff_output))
+        result_json = asyncio.run(
+            get_linter_errors("invalid-repo", self.python_ruff_output)
+        )
         result = json.loads(result_json)
 
         self.assertIn("error", result)
@@ -241,9 +251,13 @@ Another invalid line
         """Test that exceptions are handled gracefully"""
         # Mock repo_manager to raise an exception when accessing repositories
         mock_repo_manager.repositories = Mock()
-        mock_repo_manager.repositories.__getitem__ = Mock(side_effect=Exception("Test exception"))
+        mock_repo_manager.repositories.__getitem__ = Mock(
+            side_effect=Exception("Test exception")
+        )
 
-        result_json = asyncio.run(get_linter_errors("python-repo", self.python_ruff_output))
+        result_json = asyncio.run(
+            get_linter_errors("python-repo", self.python_ruff_output)
+        )
         result = json.loads(result_json)
 
         self.assertIn("error", result)
