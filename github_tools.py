@@ -551,6 +551,8 @@ async def read_lint_output_file(output_dir: str) -> str:
     """Read the lint output file from the extracted artifact directory"""
     import os
 
+    logger.info(f"=== READING LINT OUTPUT FROM {output_dir} ===")
+
     # Look for common lint output file names
     possible_files = [
         "lint-output.txt",
@@ -560,25 +562,62 @@ async def read_lint_output_file(output_dir: str) -> str:
         "lint.txt",
     ]
 
+    logger.info(f"Looking for lint output files: {possible_files}")
+
     for filename in possible_files:
         file_path = os.path.join(output_dir, filename)
+        logger.info(f"Checking: {file_path}")
         if os.path.exists(file_path):
-            with open(file_path, encoding="utf-8") as f:
-                return f.read()
+            logger.info(f"✓ Found {filename}!")
+            try:
+                file_size = os.path.getsize(file_path)
+                logger.info(f"File size: {file_size} bytes")
+                with open(file_path, encoding="utf-8") as f:
+                    content = f.read()
+                    logger.info(f"✓ Successfully read {len(content)} characters from {filename}")
+                    # Show preview of content
+                    if content:
+                        preview = content[:200] + "..." if len(content) > 200 else content
+                        logger.info(f"Content preview: {repr(preview)}")
+                    return content
+            except Exception as e:
+                logger.error(f"✗ Error reading {filename}: {e}")
+        else:
+            logger.info(f"✗ {filename} not found")
 
     # If no specific file found, try to read all .txt files and combine them
+    logger.info("No specific lint output file found, searching for all .txt files...")
     txt_files = []
+    txt_files_found = []
+
     if os.path.exists(output_dir):
         for file in os.listdir(output_dir):
             if file.endswith(".txt"):
                 file_path = os.path.join(output_dir, file)
+                logger.info(f"Found .txt file: {file}")
                 if os.path.isfile(file_path):
-                    with open(file_path, encoding="utf-8") as f:
-                        content = f.read().strip()
-                        if content:
-                            txt_files.append(content)
+                    try:
+                        with open(file_path, encoding="utf-8") as f:
+                            content = f.read().strip()
+                            if content:
+                                txt_files.append(content)
+                                txt_files_found.append(file)
+                                logger.info(f"✓ Added content from {file} ({len(content)} chars)")
+                            else:
+                                logger.info(f"✗ {file} is empty")
+                    except Exception as e:
+                        logger.error(f"✗ Error reading {file}: {e}")
 
-    return "\n".join(txt_files) if txt_files else ""
+    combined_content = "\n".join(txt_files) if txt_files else ""
+    logger.info(f"=== COMBINED RESULT ===")
+    logger.info(f"Files used: {txt_files_found}")
+    logger.info(f"Total content length: {len(combined_content)} characters")
+    if combined_content:
+        preview = combined_content[:200] + "..." if len(combined_content) > 200 else combined_content
+        logger.info(f"Combined content preview: {repr(preview)}")
+    logger.info("=== END LINT OUTPUT READING ===")
+
+    return combined_content
 
 
 async def download_and_extract_artifact(
@@ -757,19 +796,75 @@ async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None) -> s
             except RuntimeError as e2:
                 logger.error(f"✗ '{fallback_name}' also not found: {e2}")
                 raise e2
+        logger.info(f"Downloading and extracting artifact {artifact_id}...")
         output_dir = await download_and_extract_artifact(
             context.repo_name, artifact_id, token
         )
-
-        # Parse output based on language
-        if language == "swift":
-            lint_results = await parse_swiftlint_output(output_dir)
+        logger.info(f"✓ Artifact extracted to: {output_dir}")
+        
+        # Debug: List contents of extracted directory
+        import os
+        if os.path.exists(output_dir):
+            logger.info(f"=== EXTRACTED ARTIFACT CONTENTS ===")
+            for root, dirs, files in os.walk(output_dir):
+                level = root.replace(output_dir, '').count(os.sep)
+                indent = ' ' * 2 * level
+                logger.info(f"{indent}{os.path.basename(root)}/")
+                subindent = ' ' * 2 * (level + 1)
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    try:
+                        file_size = os.path.getsize(file_path)
+                        logger.info(f"{subindent}{file} ({file_size} bytes)")
+                    except:
+                        logger.info(f"{subindent}{file} (size unknown)")
+            logger.info("=== END ARTIFACT CONTENTS ===")
         else:
+            logger.error(f"✗ Output directory does not exist: {output_dir}")
+        
+        # Parse output based on language
+        logger.info(f"Parsing linter output for {language} repository...")
+        if language == "swift":
+            logger.info("Using Swift/SwiftLint parser...")
+            lint_results = await parse_swiftlint_output(output_dir)
+            logger.info(f"✓ SwiftLint parser found {len(lint_results)} violations")
+        else:
+            logger.info("Using Python linter parser...")
             # For Python, read the raw output and parse with get_linter_errors
+            logger.info("Step 1: Reading lint output file...")
             lint_output = await read_lint_output_file(output_dir)
+            logger.info(f"✓ Read {len(lint_output)} characters from lint output")
+            
+            # Debug: Show first part of lint output
+            if lint_output:
+                preview = lint_output[:500] + "..." if len(lint_output) > 500 else lint_output
+                logger.info(f"Lint output preview: {preview}")
+            else:
+                logger.warning("⚠️ Lint output is empty!")
+            
+            logger.info("Step 2: Parsing lint errors...")
             parsed_result = await get_linter_errors(repo_name, lint_output)
-            parsed_data = json.loads(parsed_result)
-            lint_results = parsed_data.get("errors", [])
+            logger.info(f"✓ Parser returned: {len(parsed_result)} characters")
+            
+            logger.info("Step 3: Parsing JSON result...")
+            try:
+                parsed_data = json.loads(parsed_result)
+                logger.info(f"✓ JSON parsed successfully")
+                logger.info(f"Parser result keys: {list(parsed_data.keys())}")
+                lint_results = parsed_data.get("errors", [])
+                logger.info(f"✓ Extracted {len(lint_results)} errors from parser result")
+                
+                # Debug: Show first few errors
+                if lint_results:
+                    logger.info("First few errors:")
+                    for i, error in enumerate(lint_results[:3]):
+                        logger.info(f"  Error {i+1}: {error}")
+                else:
+                    logger.warning("⚠️ No errors found in parser result")
+            except json.JSONDecodeError as e:
+                logger.error(f"✗ Failed to parse JSON result: {e}")
+                logger.error(f"Raw result: {parsed_result}")
+                lint_results = []
 
         return json.dumps(
             {
@@ -948,7 +1043,8 @@ def extract_rule_from_violation(violation_line: str) -> str:
 
 async def get_linter_errors(repo_name: str, error_output: str) -> str:
     """Parse linter errors based on repository language configuration"""
-    logger.info(f"Parsing linter errors for repository '{repo_name}'")
+    logger.info(f"=== PARSING LINTER ERRORS FOR '{repo_name}' ===")
+    logger.info(f"Input length: {len(error_output)} characters")
 
     try:
         if not repo_manager or repo_name not in repo_manager.repositories:
@@ -957,18 +1053,24 @@ async def get_linter_errors(repo_name: str, error_output: str) -> str:
 
         repo_config = repo_manager.repositories[repo_name]
         language = repo_config.language
+        logger.info(f"Repository language: {language}")
 
         errors = []
         lines = error_output.strip().split("\n")
+        logger.info(f"Split into {len(lines)} lines for processing")
 
         if language == "python":
+            logger.info("Processing Python linter errors (ruff and mypy)...")
             # Parse Python linter errors (ruff and mypy)
-            for line in lines:
+            for i, line in enumerate(lines, 1):
                 if not line.strip():
                     continue
 
+                logger.debug(f"Line {i}: {repr(line[:100])}")  # Show first 100 chars
+
                 # Try to parse as ruff error first
                 if "::error title=Ruff" in line:
+                    logger.info(f"Line {i}: Found ruff error")
                     error_info = {
                         "type": "ruff",
                         "file": extract_file_from_ruff_error(line),
@@ -978,13 +1080,15 @@ async def get_linter_errors(repo_name: str, error_output: str) -> str:
                         "message": extract_message_from_ruff_error(line),
                         "severity": "error",
                     }
-                    if error_info[
-                        "file"
-                    ]:  # Only add if we successfully parsed the file
+                    if error_info["file"]:  # Only add if we successfully parsed the file
                         errors.append(error_info)
+                        logger.info(f"✓ Added ruff error: {error_info['file']}:{error_info['line']} [{error_info['rule']}]")
+                    else:
+                        logger.warning(f"✗ Failed to parse ruff error (no file): {line}")
 
                 # Try to parse as mypy error
                 elif ": error:" in line and line.endswith("]"):
+                    logger.info(f"Line {i}: Found mypy error")
                     error_info = {
                         "type": "mypy",
                         "file": extract_file_from_mypy_error(line),
@@ -993,10 +1097,13 @@ async def get_linter_errors(repo_name: str, error_output: str) -> str:
                         "error_code": extract_error_code_from_mypy_error(line),
                         "severity": "error",
                     }
-                    if error_info[
-                        "file"
-                    ]:  # Only add if we successfully parsed the file
+                    if error_info["file"]:  # Only add if we successfully parsed the file
                         errors.append(error_info)
+                        logger.info(f"✓ Added mypy error: {error_info['file']}:{error_info['line']} [{error_info['error_code']}]")
+                    else:
+                        logger.warning(f"✗ Failed to parse mypy error (no file): {line}")
+                else:
+                    logger.debug(f"Line {i}: Not a recognized error format")
 
         elif language == "swift":
             # Parse Swift linter errors (SwiftLint)
@@ -1023,6 +1130,17 @@ async def get_linter_errors(repo_name: str, error_output: str) -> str:
             logger.warning(f"Unsupported language: {language}")
             return json.dumps({"error": f"Unsupported language: {language}"})
 
+        logger.info(f"=== PARSING COMPLETE ===")
+        logger.info(f"Total errors found: {len(errors)}")
+        if errors:
+            logger.info("Error summary:")
+            ruff_count = sum(1 for e in errors if e.get("type") == "ruff")
+            mypy_count = sum(1 for e in errors if e.get("type") == "mypy")
+            logger.info(f"  - Ruff errors: {ruff_count}")
+            logger.info(f"  - Mypy errors: {mypy_count}")
+        else:
+            logger.warning("No errors found during parsing!")
+
         result = {
             "repository": repo_name,
             "language": language,
@@ -1030,7 +1148,7 @@ async def get_linter_errors(repo_name: str, error_output: str) -> str:
             "errors": errors,
         }
 
-        logger.info(f"Parsed {len(errors)} linter errors for {repo_name}")
+        logger.info(f"✓ Returning result for {repo_name} with {len(errors)} errors")
         return json.dumps(result)
 
     except Exception as e:
