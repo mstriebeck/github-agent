@@ -1,7 +1,5 @@
 """Basic tests to verify the testing setup works."""
 
-import pytest
-
 
 def test_basic_addition():
     """Test basic addition."""
@@ -15,13 +13,14 @@ def test_basic_string():
 
 class TestGitHubAgent:
     """Test class for GitHub Agent functionality."""
-    
+
     def test_placeholder(self):
         """Placeholder test for the main functionality."""
         # This will be replaced with actual tests as the code develops
         assert True
-        
+
     def test_environment_setup(self):
         """Test that the environment is set up correctly."""
         import sys
+
         assert sys.version_info >= (3, 12)

@@ -214,37 +214,39 @@ if [[ "$INSTALL_MODE" == false ]]; then
     fi
 fi
 
+# Function to deploy a file (print, remove, copy)
+deploy_file() {
+    local filename="$1"
+    echo "Copying $filename..."
+    
+    # Force remove with extended attributes
+    if [ -f "$INSTALL_DIR/$filename" ]; then
+        rm -f "$INSTALL_DIR/$filename"
+        # Clear any extended attributes that might prevent overwrite
+        [ -f "$INSTALL_DIR/$filename" ] && xattr -c "$INSTALL_DIR/$filename" 2>/dev/null || true
+    fi
+    
+    cp "$filename" "$INSTALL_DIR/"
+}
+
 # Copy files from project root
 echo "Copying service files..."
 cd "$PROJECT_ROOT"
 
-# Remove existing Python files to avoid permission issues
-[ -f "$INSTALL_DIR/github_mcp_master.py" ] && rm -f "$INSTALL_DIR/github_mcp_master.py"
-[ -f "$INSTALL_DIR/github_mcp_worker.py" ] && rm -f "$INSTALL_DIR/github_mcp_worker.py"
-[ -f "$INSTALL_DIR/github_tools.py" ] && rm -f "$INSTALL_DIR/github_tools.py"
-[ -f "$INSTALL_DIR/repository_manager.py" ] && rm -f "$INSTALL_DIR/repository_manager.py"
-[ -f "$INSTALL_DIR/repository_cli.py" ] && rm -f "$INSTALL_DIR/repository_cli.py"
-[ -f "$INSTALL_DIR/requirements.txt" ] && rm -f "$INSTALL_DIR/requirements.txt"
-# Remove shutdown system files
-[ -f "$INSTALL_DIR/shutdown_manager.py" ] && rm -f "$INSTALL_DIR/shutdown_manager.py"
-[ -f "$INSTALL_DIR/exit_codes.py" ] && rm -f "$INSTALL_DIR/exit_codes.py"
-[ -f "$INSTALL_DIR/health_monitor.py" ] && rm -f "$INSTALL_DIR/health_monitor.py"
-[ -f "$INSTALL_DIR/shutdown_core.py" ] && rm -f "$INSTALL_DIR/shutdown_core.py"
-[ -f "$INSTALL_DIR/system_utils.py" ] && rm -f "$INSTALL_DIR/system_utils.py"
+# Deploy core service files
+deploy_file "github_mcp_master.py"
+deploy_file "github_mcp_worker.py"
+deploy_file "github_tools.py"
+deploy_file "repository_manager.py"
+deploy_file "repositories.json"
+deploy_file "requirements.txt"
 
-# Copy updated files
-cp github_mcp_master.py "$INSTALL_DIR/"
-cp github_mcp_worker.py "$INSTALL_DIR/"
-cp github_tools.py "$INSTALL_DIR/"
-cp repository_manager.py "$INSTALL_DIR/"
-cp repository_cli.py "$INSTALL_DIR/"
-cp requirements.txt "$INSTALL_DIR/"
-# Copy shutdown system files
-cp shutdown_manager.py "$INSTALL_DIR/"
-cp exit_codes.py "$INSTALL_DIR/"
-cp health_monitor.py "$INSTALL_DIR/"
-cp shutdown_core.py "$INSTALL_DIR/"
-cp system_utils.py "$INSTALL_DIR/"
+# Deploy shutdown system files
+deploy_file "shutdown_manager.py"
+deploy_file "exit_codes.py"
+deploy_file "health_monitor.py"
+deploy_file "shutdown_core.py"
+deploy_file "system_utils.py"
 
 # Update dependencies if requirements changed
 echo "Updating Python dependencies..."
