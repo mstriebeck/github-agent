@@ -1310,6 +1310,8 @@ async def parse_build_output(
             expected_filename = "python_test_output.txt"
         else:
             expected_filename = "build_and_test_all.txt"
+    
+    logger.info(f"parse_build_output: language={language}, expected_filename={expected_filename}")
 
     # Look for the expected build output file
     expected_file_path = os.path.join(output_dir, expected_filename)
@@ -1489,7 +1491,8 @@ async def execute_read_build_logs(
             language = repo_config.language
 
         logger.info(f"Using language: {language}")
-
+        logger.info(f"Repository config language: {repo_config.language if 'repo_config' in locals() else 'N/A'}")
+        
         token = context.github_token
         if not token:
             return json.dumps({"error": "GITHUB_TOKEN is not set"})
