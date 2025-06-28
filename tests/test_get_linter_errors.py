@@ -7,13 +7,9 @@ Tests parsing of linter errors based on repository language configuration.
 """
 
 import json
-import os
-import sys
 import unittest
 from unittest.mock import Mock, patch
 
-# Add parent directory to path to import the main modules
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from github_tools import get_linter_errors
 from repository_manager import RepositoryConfig
 

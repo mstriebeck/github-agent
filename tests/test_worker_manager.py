@@ -15,8 +15,6 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shutdown_core import IProcessSpawner
 from worker_manager import WorkerManager, WorkerProcess
 

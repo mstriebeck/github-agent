@@ -7,29 +7,17 @@ Tests for Repository-Aware GitHub Tools and MCP Integration
 import asyncio
 import json
 import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+import github_tools  # noqa: F401
 
 import pytest
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# Check if the required module exists
-try:
-    import github_tools  # noqa: F401
-
-    GITHUB_MCP_SERVER_AVAILABLE = True
-except ImportError:
-    GITHUB_MCP_SERVER_AVAILABLE = False
 
 from repository_manager import RepositoryConfig, RepositoryManager
 
 
-@pytest.mark.skipif(
-    not GITHUB_MCP_SERVER_AVAILABLE, reason="github_tools module not available"
-)
 class TestRepositoryAwareTools(unittest.TestCase):
     """Test repository-aware GitHub tools and MCP integration"""
 

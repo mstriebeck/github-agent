@@ -9,12 +9,8 @@ Tests graceful client disconnection, connection tracking, and MCP protocol handl
 import asyncio
 import json
 import logging
-import os
-import sys
 import time
 import unittest
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from client_manager import (
     ClientConnectionManager,

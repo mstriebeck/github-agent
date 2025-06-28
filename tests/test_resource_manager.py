@@ -8,13 +8,9 @@ database connections, file handles, external services, and cleanup procedures.
 
 import asyncio
 import logging
-import os
-import sys
 import time
 import unittest
 
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from resource_manager import (
     DatabaseConnectionManager,
     ExternalServiceManager,

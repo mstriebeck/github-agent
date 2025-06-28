@@ -7,10 +7,8 @@ signal handling, and shutdown coordination.
 """
 
 import logging
-import os
 import re
 import signal
-import sys
 import threading
 import time
 import unittest
@@ -18,7 +16,6 @@ from datetime import datetime
 from logging import StreamHandler
 from unittest.mock import MagicMock, patch
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shutdown_core import (
     ExitCodes,
     RealProcessSpawner,

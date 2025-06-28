@@ -7,13 +7,8 @@ These tests focus on pure functions that parse SwiftLint violations
 and build output without requiring external dependencies.
 """
 
-import os
 import re
-import sys
 import unittest
-
-# Add parent directory to path to import the main module
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 # Extract just the parsing functions we need to test without importing the whole module

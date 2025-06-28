@@ -8,8 +8,6 @@ import os
 import sys
 import unittest
 
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 if __name__ == "__main__":
     # Discover and run all tests in the tests directory
