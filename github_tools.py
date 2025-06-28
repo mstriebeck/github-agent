@@ -1298,17 +1298,27 @@ async def execute_get_build_status(
 
 async def parse_build_output(
     output_dir: str,
-    expected_filename: str = "build_and_test_all.txt",
+    expected_filename: str = None,
     language: str = "swift",
 ) -> list:
     """Parse build output to extract compiler errors, warnings, and test failures"""
     issues = []
 
+    # Set default filename based on language if not provided
+    if expected_filename is None:
+        if language == "python":
+            expected_filename = "python_test_output.txt"
+        else:
+            expected_filename = "build_and_test_all.txt"
+
     # Look for the expected build output file
     expected_file_path = os.path.join(output_dir, expected_filename)
     if not os.path.exists(expected_file_path):
-        # Try common alternative names
-        alternatives = ["build.txt", "output.log", "output.txt", "log.txt"]
+        # Try common alternative names based on language
+        if language == "python":
+            alternatives = ["python_test_output.txt", "output.txt", "log.txt", "test_output.txt"]
+        else:
+            alternatives = ["build.txt", "output.log", "output.txt", "log.txt"]
         found_file = None
         for alt_name in alternatives:
             alt_path = os.path.join(output_dir, alt_name)
@@ -1490,7 +1500,7 @@ async def execute_read_build_logs(
         output_dir = await download_and_extract_artifact(
             context.repo_name, artifact_id, token, "/tmp/build_output"
         )
-        build_issues = await parse_build_output(output_dir, language=language)
+        build_issues = await parse_build_output(output_dir, expected_filename=None, language=language)
 
         # Filter and limit results to prevent huge responses based on language
         if language == "swift":
