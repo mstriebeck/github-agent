@@ -107,31 +107,24 @@ echo "Check results saved to code_check_output/"
 echo "Creating combined lint output for linter tool..."
 COMBINED_OUTPUT="code_check_output/lint-output.txt"
 
-# Combine all linter outputs into a single file
+# Combine only ruff-check and mypy outputs (the ones we need for parsing)
 {
     echo "=== RUFF CHECK OUTPUT ==="
     if [ -f "code_check_output/ruff/ruff-check.log" ]; then
         cat code_check_output/ruff/ruff-check.log
-    fi
-    echo ""
-    
-    echo "=== RUFF FORMAT OUTPUT ==="
-    if [ -f "code_check_output/ruff/ruff-format.log" ]; then
-        cat code_check_output/ruff/ruff-format.log
+    else
+        echo "No ruff check output found"
     fi
     echo ""
     
     echo "=== MYPY OUTPUT ==="
-    if [ -f "code_check_output/mypy/mypy.log" ]; then
-        cat code_check_output/mypy/mypy.log
-    fi
-    echo ""
-    
-    echo "=== BANDIT OUTPUT ==="
-    if [ -f "code_check_output/bandit/bandit.log" ]; then
-        cat code_check_output/bandit/bandit.log
+    if [ -f "code_check_output/mypy/mypy-results.log" ]; then
+        cat code_check_output/mypy/mypy-results.log
+    else
+        echo "No mypy output found"
     fi
 } > "$COMBINED_OUTPUT"
 
 echo "Combined lint output saved to $COMBINED_OUTPUT"
+echo "Contents: ruff-check.log + mypy-results.log"
 exit $exit_code
