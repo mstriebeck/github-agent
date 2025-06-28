@@ -16,7 +16,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 # Check if the required module exists
 try:
     import github_tools  # noqa: F401

@@ -655,7 +655,8 @@ class GitHubMCPWorker:
 
         # Set the shutdown event to wake up the main loop
         if hasattr(self, "shutdown_event"):
-            asyncio.create_task(self._set_shutdown_event())
+            task = asyncio.create_task(self._set_shutdown_event())
+            # Store reference to prevent task being garbage collected
 
     async def _set_shutdown_event(self):
         """Set shutdown event from async context"""

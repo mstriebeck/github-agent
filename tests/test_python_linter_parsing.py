@@ -12,7 +12,6 @@ import unittest
 
 # Add parent directory to path to import the main module
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from github_tools import (
     extract_column_from_ruff_error,
     extract_error_code_from_mypy_error,

@@ -15,7 +15,6 @@ import unittest
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from resource_manager import (
     DatabaseConnectionManager,
     ExternalServiceManager,

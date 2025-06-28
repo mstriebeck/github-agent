@@ -13,7 +13,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from repository_manager import RepositoryManager, extract_repo_name_from_url
 
 

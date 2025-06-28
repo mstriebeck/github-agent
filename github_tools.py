@@ -631,7 +631,7 @@ async def read_lint_output_file(output_dir: str) -> str:
 
 
 async def download_and_extract_artifact(
-    repo_name: str, artifact_id: str, token: str, extract_dir: str = None
+    repo_name: str, artifact_id: str, token: str, extract_dir: str | None = None
 ) -> str:
     """Download and extract SwiftLint artifact"""
     url = (
@@ -685,7 +685,7 @@ async def parse_swiftlint_output(
     )
 
     with open(expected_file_path) as f:
-        for line_num, line in enumerate(f, 1):
+        for line in f:
             line = line.strip()
             if line and violation_pattern.match(line):
                 violations.append(
@@ -754,7 +754,7 @@ async def find_workflow_run(
 
 
 # Build/Lint helper functions (simplified - removed legacy single-repo functions)
-async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None, language: str = None) -> str:
+async def execute_read_swiftlint_logs(repo_name: str, build_id: str | None = None, language: str | None = None) -> str:
     """Read linter violation logs from GitHub Actions artifacts (supports both SwiftLint and Python linters)"""
     logger.info(
         f"Reading linter logs for repository '{repo_name}' (build_id: {build_id})"
@@ -819,10 +819,10 @@ async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None, lang
         import os
 
         if os.path.exists(output_dir):
-            logger.info("=== EXTRACTED ARTIFACT CONTENTS ===")
-            for root, dirs, files in os.walk(output_dir):
-                level = root.replace(output_dir, "").count(os.sep)
-                indent = " " * 2 * level
+            logger.info(f"=== EXTRACTED ARTIFACT CONTENTS ===")
+            for root, _, files in os.walk(output_dir):
+                level = root.replace(output_dir, '').count(os.sep)
+                indent = ' ' * 2 * level
                 logger.info(f"{indent}{os.path.basename(root)}/")
                 subindent = " " * 2 * (level + 1)
                 for file in files:
@@ -830,7 +830,7 @@ async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None, lang
                     try:
                         file_size = os.path.getsize(file_path)
                         logger.info(f"{subindent}{file} ({file_size} bytes)")
-                    except:
+                    except OSError:
                         logger.info(f"{subindent}{file} (size unknown)")
             logger.info("=== END ARTIFACT CONTENTS ===")
         else:
@@ -1017,46 +1017,6 @@ def extract_error_code_from_mypy_error(error_line: str) -> str:
     match = re.search(r"\[([^\]]+)\]$", error_line)
     return match.group(1) if match else ""
 
-
-# Swift linter error parsing functions
-def extract_file_from_violation(violation_line: str) -> str:
-    """Extract file path from SwiftLint violation line"""
-    import re
-
-    match = re.match(r"^(/[^:]+\.swift):", violation_line)
-    return match.group(1) if match else ""
-
-
-def extract_line_number_from_violation(violation_line: str) -> int:
-    """Extract line number from SwiftLint violation line"""
-    import re
-
-    match = re.match(r"^/[^:]+\.swift:(\d+):", violation_line)
-    return int(match.group(1)) if match else 0
-
-
-def extract_severity_from_violation(violation_line: str) -> str:
-    """Extract severity (error/warning) from SwiftLint violation line"""
-    import re
-
-    match = re.search(r":\s+(error|warning):", violation_line)
-    return match.group(1) if match else ""
-
-
-def extract_message_from_violation(violation_line: str) -> str:
-    """Extract violation message from SwiftLint violation line"""
-    import re
-
-    match = re.search(r":\s+(?:error|warning):\s+(.+)\s+\(.+\)$", violation_line)
-    return match.group(1) if match else ""
-
-
-def extract_rule_from_violation(violation_line: str) -> str:
-    """Extract rule name from SwiftLint violation line"""
-    import re
-
-    match = re.search(r"\(([^)]+)\)$", violation_line)
-    return match.group(1) if match else ""
 
 
 async def get_linter_errors(repo_name: str, error_output: str, language: str = None) -> str:
