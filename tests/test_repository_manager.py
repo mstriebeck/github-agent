@@ -232,8 +232,8 @@ class TestRepositoryManager(unittest.TestCase):
 
             default_repo = manager.get_repository("default")
             self.assertIsNotNone(default_repo)
-            if default_repo is not None:
-                self.assertEqual(default_repo.path, str(self.repo1_path))
+            assert default_repo
+            self.assertEqual(default_repo.path, str(self.repo1_path))
 
     def test_invalid_configuration_missing_repositories_key(self):
         """Test handling of invalid configuration missing 'repositories' key"""
@@ -302,8 +302,8 @@ class TestRepositoryManager(unittest.TestCase):
 
         repo1 = manager.get_repository("repo1")
         self.assertIsNotNone(repo1)
-        if repo1 is not None:
-            self.assertEqual(repo1.name, "repo1")
+        assert repo1
+        self.assertEqual(repo1.name, "repo1")
 
         nonexistent = manager.get_repository("nonexistent")
         self.assertIsNone(nonexistent)
@@ -327,11 +327,11 @@ class TestRepositoryManager(unittest.TestCase):
 
         info = manager.get_repository_info("repo1")
         self.assertIsNotNone(info)
-        if info is not None:
-            self.assertEqual(info["name"], "repo1")
-            self.assertEqual(info["path"], str(self.repo1_path))
-            self.assertEqual(info["description"], "Test repository 1")
-            self.assertTrue(info["exists"])
+        assert info
+        self.assertEqual(info["name"], "repo1")
+        self.assertEqual(info["path"], str(self.repo1_path))
+        self.assertEqual(info["description"], "Test repository 1")
+        self.assertTrue(info["exists"])
 
         nonexistent_info = manager.get_repository_info("nonexistent")
         self.assertIsNone(nonexistent_info)
@@ -431,10 +431,7 @@ class TestUtilityFunctions(unittest.TestCase):
         for name_item in invalid_names:
             with self.subTest(name=name_item):
                 if name_item is not None:
-                    result = validate_repo_name(name_item)
-                else:
-                    result = False
-                self.assertFalse(result)
+                    self.assertFalse(validate_repo_name(name_item))
 
 
 if __name__ == "__main__":

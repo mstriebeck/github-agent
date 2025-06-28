@@ -233,8 +233,8 @@ class TestRepositoryAwareTools(unittest.TestCase):
             # Test that tools can work with default repository
             default_repo = manager.get_repository("default")
             self.assertIsNotNone(default_repo)
-            if default_repo is not None:
-                self.assertEqual(default_repo.path, str(self.repo1_path))
+            assert default_repo
+            self.assertEqual(default_repo.path, str(self.repo1_path))
 
 
 if __name__ == "__main__":

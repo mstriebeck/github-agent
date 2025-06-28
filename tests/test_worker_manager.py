@@ -99,9 +99,9 @@ class TestWorkerManager(unittest.TestCase):
         self.assertEqual(self.manager.get_worker_count(), 1)
         retrieved_worker = self.manager.get_worker("test-repo")
         self.assertIsNotNone(retrieved_worker)
-        if retrieved_worker is not None:
-            self.assertEqual(retrieved_worker.repo_name, "test-repo")
-            self.assertEqual(retrieved_worker.port, 8000)
+        assert retrieved_worker
+        self.assertEqual(retrieved_worker.repo_name, "test-repo")
+        self.assertEqual(retrieved_worker.port, 8000)
 
     def test_remove_worker(self):
         """Test removing a worker from the manager"""
@@ -117,8 +117,8 @@ class TestWorkerManager(unittest.TestCase):
 
         removed_worker = self.manager.remove_worker("test-repo")
         self.assertIsNotNone(removed_worker)
-        if removed_worker is not None:
-            self.assertEqual(removed_worker.repo_name, "test-repo")
+        assert removed_worker
+        self.assertEqual(removed_worker.repo_name, "test-repo")
         self.assertEqual(self.manager.get_worker_count(), 0)
 
     @patch("worker_manager.WorkerManager._is_port_available")
