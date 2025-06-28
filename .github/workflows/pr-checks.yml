@@ -344,7 +344,10 @@ jobs:
           echo "=== TIMING: Starting Python tests ==="
           start_time=$(date +%s)
           
-          # Run tests with coverage
+          # Create build output directory
+          mkdir -p build_output
+          
+          # Run tests with coverage and capture all output
           docker run --rm \
             --name "$CONTAINER_NAME" \
             --label monitoring.job_name=python-tests \
@@ -374,7 +377,7 @@ jobs:
 
               # Dependencies are pre-installed in the Docker image via setup script
 
-              # Run pytest with coverage on all tests
+              # Run pytest with coverage on all tests and capture output for build logs
               echo 'Running pytest with coverage on all tests...'
               pytest \
                 --cov=. \
@@ -384,11 +387,11 @@ jobs:
                 --cov-report=html:coverage_reports/html \
                 --junit-xml=coverage_reports/pytest-results.xml \
                 --verbose \
-                tests/
+                tests/ 2>&1 | tee build_output/python_test_output.txt
               
 
 
-              test_exit_code=\$?
+              test_exit_code=\${PIPESTATUS[0]}
               
               # Debug: Check what coverage files were created regardless of test outcome
               echo 'DEBUG: Coverage reports directory after pytest:'
@@ -399,6 +402,19 @@ jobs:
                 [ -f 'coverage_reports/coverage.lcov' ] && echo 'Found coverage.lcov' || echo 'Missing coverage.lcov'
               else
                 echo 'ERROR: coverage_reports directory was not created!'
+              fi
+              
+              # Debug: Check build output files
+              echo 'DEBUG: Build output directory after pytest:'
+              if [ -d 'build_output' ]; then
+                ls -la build_output/
+                echo 'DEBUG: Checking for build output file:'
+                [ -f 'build_output/python_test_output.txt' ] && echo 'Found python_test_output.txt' || echo 'Missing python_test_output.txt'
+                if [ -f 'build_output/python_test_output.txt' ]; then
+                  echo 'Build output file size:' \$(wc -l < build_output/python_test_output.txt) 'lines'
+                fi
+              else
+                echo 'ERROR: build_output directory was not created!'
               fi
 
               end_script=\$(date +%s)
@@ -458,6 +474,15 @@ jobs:
         with:
           name: python-test-results
           path: coverage_reports/pytest-results.xml
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload build output as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: build_output/
           retention-days: 7
           if-no-files-found: ignore
 
