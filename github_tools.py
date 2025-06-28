@@ -1316,7 +1316,12 @@ async def parse_build_output(
     if not os.path.exists(expected_file_path):
         # Try common alternative names based on language
         if language == "python":
-            alternatives = ["python_test_output.txt", "output.txt", "log.txt", "test_output.txt"]
+            alternatives = [
+                "python_test_output.txt",
+                "output.txt",
+                "log.txt",
+                "test_output.txt",
+            ]
         else:
             alternatives = ["build.txt", "output.log", "output.txt", "log.txt"]
         found_file = None
@@ -1500,7 +1505,9 @@ async def execute_read_build_logs(
         output_dir = await download_and_extract_artifact(
             context.repo_name, artifact_id, token, "/tmp/build_output"
         )
-        build_issues = await parse_build_output(output_dir, expected_filename=None, language=language)
+        build_issues = await parse_build_output(
+            output_dir, expected_filename=None, language=language
+        )
 
         # Filter and limit results to prevent huge responses based on language
         if language == "swift":
