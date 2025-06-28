@@ -11,3 +11,7 @@ output.txt
 code_check_output/
 ruff_autofix_output/
 htmlcov/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.vscode/
