@@ -764,7 +764,7 @@ async def execute_read_swiftlint_logs(
 
     try:
         context = get_github_context(repo_name)
-        if not context.repo:
+        if not context.repo or not context.repo_name:
             return json.dumps(
                 {"error": f"GitHub repository not configured for {repo_name}"}
             )
@@ -777,6 +777,9 @@ async def execute_read_swiftlint_logs(
             commit_sha = context.get_current_commit()
             build_id = await find_workflow_run(context, commit_sha, token)
             logger.info(f"Using workflow run {build_id} for commit {commit_sha}")
+
+        # At this point build_id is guaranteed to be a string
+        assert build_id is not None
 
         # Get artifact name based on repository language
         if not repo_manager or repo_name not in repo_manager.repositories:
@@ -1023,7 +1026,7 @@ def extract_error_code_from_mypy_error(error_line: str) -> str:
 
 
 async def get_linter_errors(
-    repo_name: str, error_output: str, language: str = None
+    repo_name: str, error_output: str, language: str | None = None
 ) -> str:
     """Parse linter errors based on repository language configuration"""
     logger.info(f"=== PARSING LINTER ERRORS FOR '{repo_name}' ===")

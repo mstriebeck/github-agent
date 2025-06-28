@@ -93,7 +93,7 @@ def isolated_logger():
     logger.addHandler(handler)
 
     # Add log_records as an attribute for test access
-    logger.log_records = log_records
+    logger.log_records = log_records  # type: ignore[attr-defined]
 
     yield logger
 
@@ -309,5 +309,5 @@ def assert_shutdown_with_issues(
 
 
 # Add to pytest namespace for easy import
-pytest.assert_clean_shutdown = assert_clean_shutdown
-pytest.assert_shutdown_with_issues = assert_shutdown_with_issues
+pytest.assert_clean_shutdown = assert_clean_shutdown  # type: ignore[attr-defined]
+pytest.assert_shutdown_with_issues = assert_shutdown_with_issues  # type: ignore[attr-defined]
