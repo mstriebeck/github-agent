@@ -543,7 +543,7 @@ async def get_artifact_id(
         error_msg += f". Available artifacts: {', '.join(available_names)}"
     else:
         error_msg += ". No artifacts available in this workflow run."
-    
+
     raise RuntimeError(error_msg)
 
 
@@ -738,15 +738,21 @@ async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None) -> s
         logger.info(f"Looking for linter artifacts for {language} repository...")
         try:
             logger.info("Step 1: Trying generic 'lint-reports' artifact...")
-            artifact_id = await get_artifact_id(context.repo_name, build_id, token, "lint-reports")
+            artifact_id = await get_artifact_id(
+                context.repo_name, build_id, token, "lint-reports"
+            )
             logger.info("✓ Found 'lint-reports' artifact")
         except RuntimeError as e:
             # Fall back to legacy artifact names for backward compatibility
-            fallback_name = "swiftlint-reports" if language == "swift" else "code-check-reports"
+            fallback_name = (
+                "swiftlint-reports" if language == "swift" else "code-check-reports"
+            )
             logger.warning(f"✗ 'lint-reports' not found: {e}")
             logger.info(f"Step 2: Trying fallback '{fallback_name}' artifact...")
             try:
-                artifact_id = await get_artifact_id(context.repo_name, build_id, token, fallback_name)
+                artifact_id = await get_artifact_id(
+                    context.repo_name, build_id, token, fallback_name
+                )
                 logger.info(f"✓ Found '{fallback_name}' artifact")
             except RuntimeError as e2:
                 logger.error(f"✗ '{fallback_name}' also not found: {e2}")

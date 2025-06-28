@@ -51,7 +51,7 @@ from system_utils import MicrosecondFormatter, log_system_state
 
 class GitHubMCPWorker:
     """Worker process for handling a single repository"""
-    
+
     # Class member type annotations
     repo_name: str
     repo_path: str
@@ -62,7 +62,14 @@ class GitHubMCPWorker:
     app: FastAPI
     shutdown_manager: ShutdownManager
 
-    def __init__(self, repo_name: str, repo_path: str, port: int, description: str, language: str = "swift"):
+    def __init__(
+        self,
+        repo_name: str,
+        repo_path: str,
+        port: int,
+        description: str,
+        language: str = "swift",
+    ):
         print(
             f"[WORKER INIT] Starting initialization for {repo_name} ({language})"
         )  # Use print for immediate output during startup
@@ -126,10 +133,12 @@ class GitHubMCPWorker:
         file_handler.setLevel(logging.DEBUG)
         self.logger.addHandler(file_handler)
 
-        self.logger.info(f"Worker initializing for {repo_name} ({language}) on port {port}")
+        self.logger.info(
+            f"Worker initializing for {repo_name} ({language}) on port {port}"
+        )
         self.logger.info(f"Repository path: {repo_path}")
         self.logger.info(f"Log directory: {log_dir}")
-        
+
         # From this point forward, use self.logger instead of print statements
 
         # Initialize shutdown coordination
@@ -735,7 +744,12 @@ def main() -> None:
     parser.add_argument("--repo-path", required=True, help="Repository filesystem path")
     parser.add_argument("--port", type=int, required=True, help="Port to listen on")
     parser.add_argument("--description", default="", help="Repository description")
-    parser.add_argument("--language", default="swift", choices=["python", "swift"], help="Repository language")
+    parser.add_argument(
+        "--language",
+        default="swift",
+        choices=["python", "swift"],
+        help="Repository language",
+    )
 
     print("[WORKER MAIN] Parsing arguments...")
     args = parser.parse_args()
