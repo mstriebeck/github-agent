@@ -1158,15 +1158,6 @@ async def get_linter_errors(
         return json.dumps({"error": f"Failed to parse linter errors: {e!s}"})
 
 
-async def execute_read_build_logs(repo_name: str, build_id: str | None = None) -> str:
-    """Read build logs and extract Swift compiler errors, warnings, and test failures"""
-    logger.info(
-        f"Reading build logs for repository '{repo_name}' (build_id: {build_id})"
-    )
-    logger.warning("Build logs not implemented in multi-repo mode yet")
-    return json.dumps({"error": "Build logs not implemented in multi-repo mode yet"})
-
-
 async def execute_get_build_status(
     repo_name: str, commit_sha: str | None = None
 ) -> str:
@@ -1303,3 +1294,227 @@ async def execute_get_build_status(
     except Exception as e:
         logger.error(f"Failed to get build status: {e!s}", exc_info=True)
         return json.dumps({"error": f"Failed to get build status: {e!s}"})
+
+async def parse_build_output(output_dir: str, expected_filename: str = "build_and_test_all.txt", language: str = "swift") -> list:
+    """Parse build output to extract compiler errors, warnings, and test failures"""
+    issues = []
+    
+    # Look for the expected build output file
+    expected_file_path = os.path.join(output_dir, expected_filename)
+    if not os.path.exists(expected_file_path):
+        # Try common alternative names
+        alternatives = ["build.txt", "output.log", "output.txt", "log.txt"]
+        found_file = None
+        for alt_name in alternatives:
+            alt_path = os.path.join(output_dir, alt_name)
+            if os.path.exists(alt_path):
+                found_file = alt_path
+                break
+        
+        if not found_file:
+            raise FileNotFoundError(f"Expected build output file '{expected_filename}' not found in {output_dir}. Available files: {os.listdir(output_dir)}")
+        
+        expected_file_path = found_file
+    
+    # Patterns to match different types of build issues based on language
+    if language == "swift":
+        compiler_error_pattern = re.compile(r'^(/.*\.swift):(\d+):(\d+): error: (.+)$')
+        compiler_warning_pattern = re.compile(r'^(/.*\.swift):(\d+):(\d+): warning: (.+)$')
+        test_failure_pattern = re.compile(r'^(/.*\.swift):(\d+): error: (.+) : (.+)$')
+    elif language == "python":
+        # Python warnings: /usr/lib/python3.12/unittest/case.py:690: DeprecationWarning: It is deprecated...
+        python_warning_pattern = re.compile(r'^(/.*\.py):(\d+): (\w+Warning): (.+)$')
+        # Python test failures: assert result is True -> E assert False is True
+        python_test_failure_pattern = re.compile(r'^>?\s*(assert .+)$')
+        python_test_error_pattern = re.compile(r'^E\s+(.+)$') 
+        # Python runtime errors: TypeError: is_server_healthy() got an unexpected keyword argument
+        python_runtime_error_pattern = re.compile(r'^E\s+(\w+Error): (.+)$')
+    else:
+        # Default to Swift patterns for unknown languages
+        compiler_error_pattern = re.compile(r'^(/.*\.swift):(\d+):(\d+): error: (.+)$')
+        compiler_warning_pattern = re.compile(r'^(/.*\.swift):(\d+):(\d+): warning: (.+)$')
+        test_failure_pattern = re.compile(r'^(/.*\.swift):(\d+): error: (.+) : (.+)$')
+    
+    with open(expected_file_path) as f:
+        lines = f.readlines()
+        
+    for line_num, line in enumerate(lines, 1):
+        line = line.strip()
+        
+        if language == "swift":
+            # Check for compiler errors
+            if match := compiler_error_pattern.match(line):
+                file_path, line_no, col_no, message = match.groups()
+                issues.append({
+                    "type": "compiler_error",
+                    "raw_line": line,
+                    "file": file_path,
+                    "line_number": int(line_no),
+                    "column": int(col_no),
+                    "message": message,
+                    "severity": "error"
+                })
+            
+            # Check for compiler warnings
+            elif match := compiler_warning_pattern.match(line):
+                file_path, line_no, col_no, message = match.groups()
+                issues.append({
+                    "type": "compiler_warning",
+                    "raw_line": line,
+                    "file": file_path,
+                    "line_number": int(line_no),
+                    "column": int(col_no),
+                    "message": message,
+                    "severity": "warning"
+                })
+            
+            # Check for test failures
+            elif match := test_failure_pattern.match(line):
+                file_path, line_no, test_info, failure_message = match.groups()
+                issues.append({
+                    "type": "test_failure",
+                    "raw_line": line,
+                    "file": file_path,
+                    "line_number": int(line_no),
+                    "test_info": test_info.strip(),
+                    "message": failure_message.strip(),
+                    "severity": "error"
+                })
+                
+        elif language == "python":
+            # Check for Python warnings
+            if match := python_warning_pattern.match(line):
+                file_path, line_no, warning_type, message = match.groups()
+                issues.append({
+                    "type": "python_warning",
+                    "raw_line": line,
+                    "file": file_path,
+                    "line_number": int(line_no),
+                    "warning_type": warning_type,
+                    "message": message,
+                    "severity": "warning"
+                })
+            
+            # Check for Python runtime errors
+            elif match := python_runtime_error_pattern.match(line):
+                error_type, message = match.groups()
+                issues.append({
+                    "type": "python_runtime_error",
+                    "raw_line": line,
+                    "error_type": error_type,
+                    "message": message,
+                    "severity": "error"
+                })
+            
+            # Check for Python test failures (assertion lines)
+            elif match := python_test_failure_pattern.match(line):
+                assertion = match.group(1)
+                # Look ahead for the error line
+                error_line = ""
+                if line_num < len(lines):
+                    next_line = lines[line_num].strip()
+                    if next_line.startswith("E "):
+                        error_line = next_line[2:]  # Remove "E " prefix
+                
+                issues.append({
+                    "type": "python_test_failure", 
+                    "raw_line": line,
+                    "assertion": assertion,
+                    "error": error_line,
+                    "severity": "error"
+                })
+    
+    return issues
+
+async def execute_read_build_logs(repo_name: str, build_id: str = None, language: str = None) -> str:
+    """Read build logs and extract compiler errors, warnings, and test failures for Swift and Python"""
+    logger.info(f"Reading build logs for repository '{repo_name}' (build_id: {build_id}, language: {language})")
+    
+    try:
+        context = get_github_context(repo_name)
+        if not context.repo:
+            return json.dumps({"error": f"GitHub repository not configured for {repo_name}"})
+        
+        # Use passed language parameter, fallback to repository config
+        if language is None:
+            if not repo_manager or repo_name not in repo_manager.repositories:
+                logger.error(f"Repository {repo_name} not found in configuration")
+                return json.dumps({"error": f"Repository {repo_name} not found"})
+            repo_config = repo_manager.repositories[repo_name]
+            language = repo_config.language
+        
+        logger.info(f"Using language: {language}")
+        
+        token = context.github_token
+        if not token:
+            return json.dumps({"error": "GITHUB_TOKEN is not set"})
+
+        if build_id is None:
+            commit_sha = context.get_current_commit()
+            build_id = await find_workflow_run(context, commit_sha, token)
+            logger.info(f"Using workflow run {build_id} for commit {commit_sha}")
+
+        artifact_id = await get_artifact_id(context.repo_name, build_id, token, name="build-output")
+        output_dir = await download_and_extract_artifact(context.repo_name, artifact_id, token, "/tmp/build_output")
+        build_issues = await parse_build_output(output_dir, language=language)
+        
+        # Filter and limit results to prevent huge responses based on language
+        if language == "swift":
+            compiler_errors = [issue for issue in build_issues if issue["type"] == "compiler_error"][:10]
+            compiler_warnings = [issue for issue in build_issues if issue["type"] == "compiler_warning"][:10] 
+            test_failures = [issue for issue in build_issues if issue["type"] == "test_failure"][:10]
+        elif language == "python":
+            python_warnings = [issue for issue in build_issues if issue["type"] == "python_warning"][:10]
+            python_runtime_errors = [issue for issue in build_issues if issue["type"] == "python_runtime_error"][:10]
+            python_test_failures = [issue for issue in build_issues if issue["type"] == "python_test_failure"][:10]
+        else:
+            # Default to Swift categorization
+            compiler_errors = [issue for issue in build_issues if issue["type"] == "compiler_error"][:10]
+            compiler_warnings = [issue for issue in build_issues if issue["type"] == "compiler_warning"][:10]
+            test_failures = [issue for issue in build_issues if issue["type"] == "test_failure"][:10]
+        
+        # Build response based on language
+        result = {
+            "success": True,
+            "language": language,
+            "repo": context.repo_name,
+            "repo_config": repo_name,
+            "run_id": build_id,
+            "artifact_id": artifact_id,
+            "total_issues": len(build_issues)
+        }
+        
+        if language == "swift":
+            result.update({
+                "compiler_errors": compiler_errors,
+                "compiler_warnings": compiler_warnings,
+                "test_failures": test_failures,
+                "total_errors": len([i for i in build_issues if i["type"] == "compiler_error"]),
+                "total_warnings": len([i for i in build_issues if i["type"] == "compiler_warning"]),
+                "total_test_failures": len([i for i in build_issues if i["type"] == "test_failure"])
+            })
+        elif language == "python":
+            result.update({
+                "python_warnings": python_warnings,
+                "python_runtime_errors": python_runtime_errors,
+                "python_test_failures": python_test_failures,
+                "total_warnings": len([i for i in build_issues if i["type"] == "python_warning"]),
+                "total_runtime_errors": len([i for i in build_issues if i["type"] == "python_runtime_error"]),
+                "total_test_failures": len([i for i in build_issues if i["type"] == "python_test_failure"])
+            })
+        else:
+            # Default to Swift format for unknown languages
+            result.update({
+                "compiler_errors": compiler_errors,
+                "compiler_warnings": compiler_warnings,
+                "test_failures": test_failures,
+                "total_errors": len([i for i in build_issues if i["type"] == "compiler_error"]),
+                "total_warnings": len([i for i in build_issues if i["type"] == "compiler_warning"]),
+                "total_test_failures": len([i for i in build_issues if i["type"] == "test_failure"])
+            })
+        
+        return json.dumps(result)
+        
+    except Exception as e:
+        logger.error(f"Failed to read build logs for {repo_name}: {str(e)}", exc_info=True)
+        return json.dumps({"error": f"Failed to read build logs for {repo_name}: {str(e)}"})
