@@ -8,9 +8,7 @@ process groups, graceful shutdown, and comprehensive verification.
 
 import asyncio
 import logging
-import os
 import socket
-import sys
 import time
 import unittest
 from unittest.mock import Mock, patch

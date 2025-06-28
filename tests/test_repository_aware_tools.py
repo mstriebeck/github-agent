@@ -11,10 +11,8 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
 import github_tools  # noqa: F401
-
-import pytest
-
 from repository_manager import RepositoryConfig, RepositoryManager
 
 
