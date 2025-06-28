@@ -754,7 +754,9 @@ async def find_workflow_run(
 
 
 # Build/Lint helper functions (simplified - removed legacy single-repo functions)
-async def execute_read_swiftlint_logs(repo_name: str, build_id: str | None = None, language: str | None = None) -> str:
+async def execute_read_swiftlint_logs(
+    repo_name: str, build_id: str | None = None, language: str | None = None
+) -> str:
     """Read linter violation logs from GitHub Actions artifacts (supports both SwiftLint and Python linters)"""
     logger.info(
         f"Reading linter logs for repository '{repo_name}' (build_id: {build_id})"
@@ -784,7 +786,9 @@ async def execute_read_swiftlint_logs(repo_name: str, build_id: str | None = Non
         # Use passed language parameter, fallback to repository config
         if language is None:
             language = repo_config.language
-        logger.info(f"Using language: {language} (from parameter: {language is not None})")
+        logger.info(
+            f"Using language: {language} (from parameter: {language is not None})"
+        )
 
         # Try generic "lint-reports" first, fall back to language-specific names for backward compatibility
         logger.info(f"Looking for linter artifacts for {language} repository...")
@@ -819,10 +823,10 @@ async def execute_read_swiftlint_logs(repo_name: str, build_id: str | None = Non
         import os
 
         if os.path.exists(output_dir):
-            logger.info(f"=== EXTRACTED ARTIFACT CONTENTS ===")
+            logger.info("=== EXTRACTED ARTIFACT CONTENTS ===")
             for root, _, files in os.walk(output_dir):
-                level = root.replace(output_dir, '').count(os.sep)
-                indent = ' ' * 2 * level
+                level = root.replace(output_dir, "").count(os.sep)
+                indent = " " * 2 * level
                 logger.info(f"{indent}{os.path.basename(root)}/")
                 subindent = " " * 2 * (level + 1)
                 for file in files:
@@ -1018,8 +1022,9 @@ def extract_error_code_from_mypy_error(error_line: str) -> str:
     return match.group(1) if match else ""
 
 
-
-async def get_linter_errors(repo_name: str, error_output: str, language: str = None) -> str:
+async def get_linter_errors(
+    repo_name: str, error_output: str, language: str = None
+) -> str:
     """Parse linter errors based on repository language configuration"""
     logger.info(f"=== PARSING LINTER ERRORS FOR '{repo_name}' ===")
     logger.info(f"Input length: {len(error_output)} characters")
@@ -1033,7 +1038,9 @@ async def get_linter_errors(repo_name: str, error_output: str, language: str = N
         # Use passed language parameter, fallback to repository config
         if language is None:
             language = repo_config.language
-        logger.info(f"Repository language: {language} (from parameter: {language is not None})")
+        logger.info(
+            f"Repository language: {language} (from parameter: {language is not None})"
+        )
 
         errors = []
         lines = error_output.strip().split("\n")

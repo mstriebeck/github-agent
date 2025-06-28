@@ -72,9 +72,7 @@ class GitHubMCPWorker:
     ):
         # Initialize logger first
         self.logger = logging.getLogger(f"worker-{repo_name}")
-        self.logger.info(
-            f"Starting initialization for {repo_name} ({language})"
-        )
+        self.logger.info(f"Starting initialization for {repo_name} ({language})")
 
         # Load environment variables from .env file first
         dotenv_path = Path.home() / ".local" / "share" / "github-agent" / ".env"
@@ -577,7 +575,9 @@ class GitHubMCPWorker:
 
                     elif tool_name == "github_get_lint_errors":
                         build_id = tool_args.get("build_id")
-                        self.logger.info(f"Calling lint errors with language: {self.language}")
+                        self.logger.info(
+                            f"Calling lint errors with language: {self.language}"
+                        )
                         result = await execute_read_swiftlint_logs(
                             self.repo_name, build_id, language=self.language
                         )
@@ -737,7 +737,7 @@ def main() -> None:
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[logging.StreamHandler()],
     )
-    
+
     logger = logging.getLogger(__name__)
     logger.info("Starting worker process...")
 
