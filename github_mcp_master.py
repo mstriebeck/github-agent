@@ -96,6 +96,7 @@ class WorkerProcess:
     port: int
     path: str
     description: str
+    language: str = "swift"  # Default to swift for backward compatibility
     process: subprocess.Popen[bytes] | None = None
     start_time: float | None = None
     restart_count: int = 0
@@ -208,6 +209,7 @@ class GitHubMCPMaster:
                     port=repo_config["port"],
                     path=repo_config["path"],
                     description=repo_config.get("description", repo_name),
+                    language=repo_config.get("language", "swift"),
                 )
                 self.workers[repo_name] = worker
 
@@ -271,6 +273,8 @@ class GitHubMCPMaster:
                 str(worker.port),
                 "--description",
                 worker.description,
+                "--language",
+                worker.language,
             ]
 
             # Set up environment

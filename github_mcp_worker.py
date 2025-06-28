@@ -51,11 +51,21 @@ from system_utils import MicrosecondFormatter, log_system_state
 
 class GitHubMCPWorker:
     """Worker process for handling a single repository"""
+    
+    # Class member type annotations
+    repo_name: str
+    repo_path: str
+    port: int
+    description: str
+    language: str
+    logger: logging.Logger
+    app: FastAPI
+    shutdown_manager: ShutdownManager
 
-    def __init__(self, repo_name: str, repo_path: str, port: int, description: str):
+    def __init__(self, repo_name: str, repo_path: str, port: int, description: str, language: str = "swift"):
         print(
-            f"[WORKER INIT] Starting initialization for {repo_name}"
-        )  # Use print for immediate output
+            f"[WORKER INIT] Starting initialization for {repo_name} ({language})"
+        )  # Use print for immediate output during startup
 
         # Load environment variables from .env file first
         dotenv_path = Path.home() / ".local" / "share" / "github-agent" / ".env"
@@ -79,6 +89,7 @@ class GitHubMCPWorker:
         self.repo_path = repo_path
         self.port = port
         self.description = description
+        self.language = language
 
         # Set up enhanced logging for this worker (use system-appropriate location)
         log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
@@ -115,9 +126,11 @@ class GitHubMCPWorker:
         file_handler.setLevel(logging.DEBUG)
         self.logger.addHandler(file_handler)
 
-        self.logger.info(f"Worker initializing for {repo_name} on port {port}")
+        self.logger.info(f"Worker initializing for {repo_name} ({language}) on port {port}")
         self.logger.info(f"Repository path: {repo_path}")
         self.logger.info(f"Log directory: {log_dir}")
+        
+        # From this point forward, use self.logger instead of print statements
 
         # Initialize shutdown coordination
         self.shutdown_manager = ShutdownManager(self.logger, mode="worker")
@@ -722,11 +735,12 @@ def main() -> None:
     parser.add_argument("--repo-path", required=True, help="Repository filesystem path")
     parser.add_argument("--port", type=int, required=True, help="Port to listen on")
     parser.add_argument("--description", default="", help="Repository description")
+    parser.add_argument("--language", default="swift", choices=["python", "swift"], help="Repository language")
 
     print("[WORKER MAIN] Parsing arguments...")
     args = parser.parse_args()
     print(
-        f"[WORKER MAIN] Arguments: repo_name={args.repo_name}, repo_path={args.repo_path}, port={args.port}"
+        f"[WORKER MAIN] Arguments: repo_name={args.repo_name}, repo_path={args.repo_path}, port={args.port}, language={args.language}"
     )
 
     # Validate arguments
@@ -746,6 +760,7 @@ def main() -> None:
             repo_path=args.repo_path,
             port=args.port,
             description=args.description,
+            language=args.language,
         )
         worker.logger.info("Worker instance created successfully")
     except Exception as e:

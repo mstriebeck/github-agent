@@ -206,7 +206,7 @@ jobs:
   code-checks:
     name: Code Checks (Ruff, mypy, Bandit)
     needs: [setup, ruff-autofix]
-    if: needs.ruff-autofix.outputs.commit_needed != 'true'
+    # Always run code checks, even if auto-fix made changes - we need the lint reports
     runs-on: [self-hosted, multi-lang-ci]
     steps:
       - name: Pre-checkout cleanup

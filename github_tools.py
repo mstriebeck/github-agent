@@ -509,16 +509,42 @@ async def get_artifact_id(
     url = f"https://api.github.com/repos/{repo_name}/actions/runs/{run_id}/artifacts"
     headers = {"Authorization": f"Bearer {token}"}
     response = requests.get(url, headers=headers)
+    logging.info(f"{response=}")
     response.raise_for_status()
 
     artifacts_data = response.json()
     artifacts = artifacts_data.get("artifacts", [])
 
+    # Debug: Log all available artifacts in a readable format
+    logger.info(f"=== ARTIFACTS DEBUG FOR RUN {run_id} ===")
+    logger.info(f"Total artifacts found: {len(artifacts)}")
+    if artifacts:
+        logger.info("Available artifacts:")
+        for i, artifact in enumerate(artifacts, 1):
+            logger.info(f"  {i}. Name: '{artifact['name']}'")
+            logger.info(f"     ID: {artifact['id']}")
+            logger.info(f"     Size: {artifact.get('size_in_bytes', 'unknown')} bytes")
+            logger.info(f"     Created: {artifact.get('created_at', 'unknown')}")
+            logger.info(f"     Expired: {artifact.get('expired', 'unknown')}")
+    else:
+        logger.warning(f"No artifacts found in workflow run {run_id}")
+    logger.info("=== END ARTIFACTS DEBUG ===")
+
+    # Look for the requested artifact
     for artifact in artifacts:
         if artifact["name"] == name:
+            logger.info(f"✓ Found matching artifact '{name}' with id: {artifact['id']}")
             return artifact["id"]
 
-    raise RuntimeError(f"No artifact named '{name}' found")
+    # If not found, provide helpful error message
+    available_names = [a["name"] for a in artifacts]
+    error_msg = f"✗ No artifact named '{name}' found"
+    if available_names:
+        error_msg += f". Available artifacts: {', '.join(available_names)}"
+    else:
+        error_msg += ". No artifacts available in this workflow run."
+    
+    raise RuntimeError(error_msg)
 
 
 async def read_lint_output_file(output_dir: str) -> str:
@@ -709,18 +735,22 @@ async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None) -> s
         language = repo_config.language
 
         # Try generic "lint-reports" first, fall back to language-specific names for backward compatibility
+        logger.info(f"Looking for linter artifacts for {language} repository...")
         try:
-            artifact_id = await get_artifact_id(
-                context.repo_name, build_id, token, "lint-reports"
-            )
-        except RuntimeError:
+            logger.info("Step 1: Trying generic 'lint-reports' artifact...")
+            artifact_id = await get_artifact_id(context.repo_name, build_id, token, "lint-reports")
+            logger.info("✓ Found 'lint-reports' artifact")
+        except RuntimeError as e:
             # Fall back to legacy artifact names for backward compatibility
-            fallback_name = (
-                "swiftlint-reports" if language == "swift" else "code-check-reports"
-            )
-            artifact_id = await get_artifact_id(
-                context.repo_name, build_id, token, fallback_name
-            )
+            fallback_name = "swiftlint-reports" if language == "swift" else "code-check-reports"
+            logger.warning(f"✗ 'lint-reports' not found: {e}")
+            logger.info(f"Step 2: Trying fallback '{fallback_name}' artifact...")
+            try:
+                artifact_id = await get_artifact_id(context.repo_name, build_id, token, fallback_name)
+                logger.info(f"✓ Found '{fallback_name}' artifact")
+            except RuntimeError as e2:
+                logger.error(f"✗ '{fallback_name}' also not found: {e2}")
+                raise e2
         output_dir = await download_and_extract_artifact(
             context.repo_name, artifact_id, token
         )
