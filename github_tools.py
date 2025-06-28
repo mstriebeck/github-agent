@@ -754,7 +754,7 @@ async def find_workflow_run(
 
 
 # Build/Lint helper functions (simplified - removed legacy single-repo functions)
-async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None) -> str:
+async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None, language: str = None) -> str:
     """Read linter violation logs from GitHub Actions artifacts (supports both SwiftLint and Python linters)"""
     logger.info(
         f"Reading linter logs for repository '{repo_name}' (build_id: {build_id})"
@@ -781,7 +781,10 @@ async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None) -> s
             return json.dumps({"error": f"Repository {repo_name} not found"})
 
         repo_config = repo_manager.repositories[repo_name]
-        language = repo_config.language
+        # Use passed language parameter, fallback to repository config
+        if language is None:
+            language = repo_config.language
+        logger.info(f"Using language: {language} (from parameter: {language is not None})")
 
         # Try generic "lint-reports" first, fall back to language-specific names for backward compatibility
         logger.info(f"Looking for linter artifacts for {language} repository...")
@@ -856,7 +859,7 @@ async def execute_read_swiftlint_logs(repo_name: str, build_id: str = None) -> s
                 logger.warning("⚠️ Lint output is empty!")
 
             logger.info("Step 2: Parsing lint errors...")
-            parsed_result = await get_linter_errors(repo_name, lint_output)
+            parsed_result = await get_linter_errors(repo_name, lint_output, language)
             logger.info(f"✓ Parser returned: {len(parsed_result)} characters")
 
             logger.info("Step 3: Parsing JSON result...")
@@ -1056,7 +1059,7 @@ def extract_rule_from_violation(violation_line: str) -> str:
     return match.group(1) if match else ""
 
 
-async def get_linter_errors(repo_name: str, error_output: str) -> str:
+async def get_linter_errors(repo_name: str, error_output: str, language: str = None) -> str:
     """Parse linter errors based on repository language configuration"""
     logger.info(f"=== PARSING LINTER ERRORS FOR '{repo_name}' ===")
     logger.info(f"Input length: {len(error_output)} characters")
@@ -1067,8 +1070,10 @@ async def get_linter_errors(repo_name: str, error_output: str) -> str:
             return json.dumps({"error": f"Repository {repo_name} not found"})
 
         repo_config = repo_manager.repositories[repo_name]
-        language = repo_config.language
-        logger.info(f"Repository language: {language}")
+        # Use passed language parameter, fallback to repository config
+        if language is None:
+            language = repo_config.language
+        logger.info(f"Repository language: {language} (from parameter: {language is not None})")
 
         errors = []
         lines = error_output.strip().split("\n")

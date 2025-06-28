@@ -70,26 +70,28 @@ class GitHubMCPWorker:
         description: str,
         language: str = "swift",
     ):
-        print(
-            f"[WORKER INIT] Starting initialization for {repo_name} ({language})"
-        )  # Use print for immediate output during startup
+        # Initialize logger first
+        self.logger = logging.getLogger(f"worker-{repo_name}")
+        self.logger.info(
+            f"Starting initialization for {repo_name} ({language})"
+        )
 
         # Load environment variables from .env file first
         dotenv_path = Path.home() / ".local" / "share" / "github-agent" / ".env"
         if dotenv_path.exists():
-            print(f"[WORKER INIT] Loading .env from {dotenv_path}")
+            self.logger.info(f"Loading .env from {dotenv_path}")
             load_dotenv(dotenv_path)
-            print(
-                f"[WORKER INIT] GITHUB_TOKEN loaded: {'Yes' if os.getenv('GITHUB_TOKEN') else 'No'}"
+            self.logger.info(
+                f"GITHUB_TOKEN loaded: {'Yes' if os.getenv('GITHUB_TOKEN') else 'No'}"
             )
         else:
-            print(f"[WORKER INIT] No .env file found at {dotenv_path}")
+            self.logger.info(f"No .env file found at {dotenv_path}")
             # Try current directory as fallback
             if os.path.exists(".env"):
-                print("[WORKER INIT] Loading .env from current directory")
+                self.logger.info("Loading .env from current directory")
                 load_dotenv()
-                print(
-                    f"[WORKER INIT] GITHUB_TOKEN loaded: {'Yes' if os.getenv('GITHUB_TOKEN') else 'No'}"
+                self.logger.info(
+                    f"GITHUB_TOKEN loaded: {'Yes' if os.getenv('GITHUB_TOKEN') else 'No'}"
                 )
 
         self.repo_name = repo_name
@@ -102,8 +104,7 @@ class GitHubMCPWorker:
         log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
 
-        # Setup enhanced logging with microsecond precision
-        self.logger = logging.getLogger(f"worker-{repo_name}")
+        # Setup enhanced logging with microsecond precision (logger already initialized)
         # Logging level should be set by master, default to INFO if not specified
         self.logger.setLevel(logging.INFO)
 
@@ -138,8 +139,6 @@ class GitHubMCPWorker:
         )
         self.logger.info(f"Repository path: {repo_path}")
         self.logger.info(f"Log directory: {log_dir}")
-
-        # From this point forward, use self.logger instead of print statements
 
         # Initialize shutdown coordination
         self.shutdown_manager = ShutdownManager(self.logger, mode="worker")
@@ -578,8 +577,9 @@ class GitHubMCPWorker:
 
                     elif tool_name == "github_get_lint_errors":
                         build_id = tool_args.get("build_id")
+                        self.logger.info(f"Calling lint errors with language: {self.language}")
                         result = await execute_read_swiftlint_logs(
-                            self.repo_name, build_id
+                            self.repo_name, build_id, language=self.language
                         )
 
                     elif tool_name == "github_get_build_and_test_errors":
@@ -730,14 +730,15 @@ class GitHubMCPWorker:
 
 def main() -> None:
     """Main entry point for worker process"""
-    print("[WORKER MAIN] Starting worker process...")
-
     # Set up basic logging immediately
     logging.basicConfig(
         level=logging.DEBUG,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[logging.StreamHandler()],
     )
+    
+    logger = logging.getLogger(__name__)
+    logger.info("Starting worker process...")
 
     parser = argparse.ArgumentParser(description="GitHub MCP Worker Process")
     parser.add_argument("--repo-name", required=True, help="Repository name")
@@ -751,23 +752,21 @@ def main() -> None:
         help="Repository language",
     )
 
-    print("[WORKER MAIN] Parsing arguments...")
+    logger.info("Parsing arguments...")
     args = parser.parse_args()
-    print(
-        f"[WORKER MAIN] Arguments: repo_name={args.repo_name}, repo_path={args.repo_path}, port={args.port}, language={args.language}"
+    logger.info(
+        f"Arguments: repo_name={args.repo_name}, repo_path={args.repo_path}, port={args.port}, language={args.language}"
     )
 
     # Validate arguments
-    print(f"[WORKER MAIN] Validating repository path: {args.repo_path}")
+    logger.info(f"Validating repository path: {args.repo_path}")
     if not os.path.exists(args.repo_path):
-        print(
-            f"Error: Repository path {args.repo_path} does not exist", file=sys.stderr
-        )
+        logger.error(f"Repository path {args.repo_path} does not exist")
         sys.exit(1)
-    print("[WORKER MAIN] Repository path validation passed")
+    logger.info("Repository path validation passed")
 
     # Create and start worker
-    print("[WORKER MAIN] Creating worker instance...")
+    logger.info("Creating worker instance...")
     try:
         worker = GitHubMCPWorker(
             repo_name=args.repo_name,
@@ -778,8 +777,7 @@ def main() -> None:
         )
         worker.logger.info("Worker instance created successfully")
     except Exception as e:
-        # Use print for critical startup errors before logger is available
-        print(f"[WORKER MAIN] Failed to create worker: {e}")
+        logger.error(f"Failed to create worker: {e}")
         traceback.print_exc()
         sys.exit(1)
 
