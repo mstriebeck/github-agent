@@ -4,8 +4,6 @@ black
 coverage
 fastapi>=0.104.0
 GitPython
-httpx
-mcp
 mypy
 pydantic>=2.0.0
 PyGithub
@@ -13,11 +11,8 @@ pytest
 pytest-asyncio>=0.23.0
 pytest-cov
 python-dotenv
-python-multipart>=0.0.6
-pytest-xdist
 psutil>=5.8.0
 requests
 ruff==0.1.13
-sqlmodel
 types-requests
 uvicorn[standard]>=0.24.0
