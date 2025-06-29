@@ -1339,7 +1339,9 @@ async def parse_build_output(
         # Python runtime errors: TypeError: is_server_healthy() got an unexpected keyword argument
         python_runtime_error_pattern = re.compile(r"^E\s+(\w+Error): (.+)$")
         # Python file/line pattern: tests/test_utilities.py:274: AssertionError
-        python_file_line_pattern = re.compile(r"^([^:]+\.py):(\d+): (\w+(?:Error|Warning|Exception))$")
+        python_file_line_pattern = re.compile(
+            r"^([^:]+\.py):(\d+): (\w+(?:Error|Warning|Exception))$"
+        )
     else:
         # Default to Swift patterns for unknown languages
         compiler_error_pattern = re.compile(r"^(/.*\.swift):(\d+):(\d+): error: (.+)$")
@@ -1419,7 +1421,7 @@ async def parse_build_output(
             # Check for Python runtime errors
             elif match := python_runtime_error_pattern.match(line):
                 error_type, message = match.groups()
-                
+
                 # Look ahead for file/line info
                 file_path = None
                 line_number = None
@@ -1428,7 +1430,7 @@ async def parse_build_output(
                     if file_match := python_file_line_pattern.match(next_line):
                         file_path, line_number, _ = file_match.groups()
                         break
-                
+
                 issue_data = {
                     "type": "python_runtime_error",
                     "raw_line": line,
@@ -1436,13 +1438,15 @@ async def parse_build_output(
                     "message": message,
                     "severity": "error",
                 }
-                
+
                 if file_path and line_number:
-                    issue_data.update({
-                        "file": file_path,
-                        "line_number": int(line_number),
-                    })
-                
+                    issue_data.update(
+                        {
+                            "file": file_path,
+                            "line_number": int(line_number),
+                        }
+                    )
+
                 issues.append(issue_data)
 
             # Check for Python test failures (assertion lines)
@@ -1471,13 +1475,15 @@ async def parse_build_output(
                     "error": error_line,
                     "severity": "error",
                 }
-                
+
                 if file_path and line_number:
-                    issue_data.update({
-                        "file": file_path,
-                        "line_number": int(line_number),
-                    })
-                
+                    issue_data.update(
+                        {
+                            "file": file_path,
+                            "line_number": int(line_number),
+                        }
+                    )
+
                 issues.append(issue_data)
 
     return issues
@@ -1590,8 +1596,8 @@ async def execute_github_check_ci_build_and_test_errors_not_local(
             "next_steps": [
                 "1. Fix all errors and warnings found above",
                 "2. Run local tests, autoformat, and lint (see CLAUDE.md or AGENT.md for commands)",
-                "3. Stage and commit all changes with descriptive commit message", 
-                "4. DO NOT push - leave for manual review"
+                "3. Stage and commit all changes with descriptive commit message",
+                "4. DO NOT push - leave for manual review",
             ],
             "workflow_instructions": "After fixing CI errors: (1) Fix all issues listed above, (2) Check CLAUDE.md or AGENT.md for local test/lint commands, (3) Run all tests + autoformat + lint locally, (4) Stage and commit changes with summary message, (5) DO NOT push - manual review required",
         }
