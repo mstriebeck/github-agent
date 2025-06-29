@@ -738,10 +738,10 @@ async def find_workflow_run(
 
 
 # Build/Lint helper functions (simplified - removed legacy single-repo functions)
-async def execute_read_swiftlint_logs(
+async def execute_github_check_ci_lint_errors_not_local(
     repo_name: str, language: str, build_id: str | None = None
 ) -> str:
-    """Read linter violation logs from GitHub Actions artifacts (supports both SwiftLint and Python linters)"""
+    """Check CI lint errors and provide actionable fix instructions"""
     logger.info(
         f"Reading linter logs for repository '{repo_name}' (build_id: {build_id})"
     )
@@ -875,18 +875,50 @@ async def execute_read_swiftlint_logs(
                 logger.error(f"Raw result: {parsed_result}")
                 lint_results = []
 
-        return json.dumps(
-            {
-                "success": True,
-                "repo": context.repo_name,
-                "repo_config": repo_name,
-                "language": language,
-                "run_id": build_id,
-                "artifact_id": artifact_id,
-                "violations": lint_results,
-                "total_violations": len(lint_results),
-            }
-        )
+        result = {
+            "success": True,
+            "repo": context.repo_name,
+            "repo_config": repo_name,
+            "language": language,
+            "run_id": build_id,
+            "artifact_id": artifact_id,
+            "violations": lint_results,
+            "total_violations": len(lint_results),
+            "next_steps": [
+                "1. Fix all lint violations found above",
+                "2. Run local autoformat and lint checks (see CLAUDE.md or AGENT.md for commands)",
+                "3. Stage and commit all changes with descriptive commit message",
+                "4. DO NOT push - leave for manual review",
+            ],
+            "workflow_instructions": "After fixing CI lint errors: (1) Fix all violations listed above, (2) Check CLAUDE.md or AGENT.md for local lint commands, (3) Run all autoformat + lint locally, (4) Stage and commit changes with summary message, (5) DO NOT push - manual review required",
+        }
+        
+        if len(lint_results) > 0:
+            result.update(
+                {
+                    "action_required": True,
+                    "user_intent_fulfilled": "User asked about lint status - status is FAILED, now fixing automatically",
+                    "immediate_actions": [
+                        f"✅ Lint Status checked: FAILED ({len(lint_results)} violation(s) found)",
+                        "🔧 NOW FIXING: all violations listed below",
+                        "⚡ NEXT: Run local autoformat/lint per CLAUDE.md/AGENT.md",
+                        "📝 THEN: Commit all fixes (no push)",
+                    ],
+                }
+            )
+        else:
+            result.update(
+                {
+                    "action_required": False,
+                    "user_intent_fulfilled": "User asked about lint status - status is PASSED",
+                    "immediate_actions": [
+                        "✅ Lint Status checked: PASSED (no violations found)",
+                        "🎉 All lint checks are passing in CI",
+                    ],
+                }
+            )
+
+        return json.dumps(result)
 
     except Exception as e:
         logger.error(
