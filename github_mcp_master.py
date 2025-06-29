@@ -212,7 +212,7 @@ class GitHubMCPMaster:
                     language=repo_config.get("language", "swift"),
                 )
                 self.workers[repo_name] = worker
-                
+
                 # Register worker with shutdown manager for coordinated shutdown
                 self.shutdown_manager.add_worker(
                     repo_name=repo_name,
@@ -562,9 +562,7 @@ class GitHubMCPMaster:
             logger.error(f"Critical error stopping health monitoring: {e}")
 
         # Step 2: Stop all workers using shutdown manager's comprehensive logic
-        logger.info(
-            "Step 2: Stopping all worker processes using shutdown manager..."
-        )
+        logger.info("Step 2: Stopping all worker processes using shutdown manager...")
         return await self.shutdown_manager._shutdown_all_workers(
             grace_period=3.0, force_timeout=5.0
         )
