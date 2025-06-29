@@ -45,7 +45,7 @@ from github_tools import (
 
 # Import shared functionality
 from repository_manager import RepositoryConfig, RepositoryManager
-from shutdown_manager import ShutdownManager
+from shutdown_simple import SimpleShutdownCoordinator
 from system_utils import MicrosecondFormatter, log_system_state
 
 
@@ -60,7 +60,7 @@ class GitHubMCPWorker:
     language: str
     logger: logging.Logger
     app: FastAPI
-    shutdown_manager: ShutdownManager
+    shutdown_coordinator: SimpleShutdownCoordinator
 
     def __init__(
         self,
@@ -138,11 +138,8 @@ class GitHubMCPWorker:
         self.logger.info(f"Repository path: {repo_path}")
         self.logger.info(f"Log directory: {log_dir}")
 
-        # Initialize shutdown coordination
-        self.shutdown_manager = ShutdownManager(self.logger, mode="worker")
-
-        # Start health monitoring
-        self.shutdown_manager._health_monitor.start_monitoring()
+        # Initialize simple shutdown coordination
+        self.shutdown_coordinator = SimpleShutdownCoordinator(self.logger)
 
         # Validate repository path early
         if not os.path.exists(repo_path):
@@ -287,6 +284,18 @@ class GitHubMCPWorker:
                 "github_configured": github_configured,
                 "repo_path_exists": os.path.exists(self.repo_path),
             }
+
+        # Graceful shutdown endpoint
+        @app.post("/shutdown")
+        async def graceful_shutdown() -> dict[str, Any]:
+            """Handle graceful shutdown request from master"""
+            self.logger.info(
+                "Received shutdown request, beginning graceful shutdown..."
+            )
+
+            # Trigger shutdown sequence
+            self.shutdown_event.set()
+            return {"status": "shutdown_initiated"}
 
         # MCP SSE endpoint (simplified - no repository routing)
         @app.get("/mcp/")
@@ -645,14 +654,14 @@ class GitHubMCPWorker:
         return app
 
     def signal_handler(self, signum: int, frame: Any) -> None:
-        """Handle shutdown signals using shutdown manager"""
+        """Handle shutdown signals"""
         signal_name = signal.Signals(signum).name
         self.logger.info(
             f"Received signal {signum} ({signal_name}), initiating graceful shutdown..."
         )
 
-        # Use shutdown manager for proper coordinated shutdown
-        self.shutdown_manager.initiate_shutdown(f"signal_{signal_name}")
+        # Use simple shutdown coordinator
+        self.shutdown_coordinator.initiate_shutdown(f"signal_{signal_name}")
 
         if self.server:
             self.logger.info("Stopping uvicorn server...")
@@ -689,9 +698,6 @@ class GitHubMCPWorker:
             self.logger.debug("Uvicorn config created successfully")
         except Exception as e:
             self.logger.error(f"Failed to create uvicorn config: {e}")
-            self.shutdown_manager._exit_code_manager.report_system_error(
-                "uvicorn_config", e
-            )
             raise
 
         self.logger.debug("Creating uvicorn server...")
@@ -700,9 +706,6 @@ class GitHubMCPWorker:
             self.logger.debug("Uvicorn server created successfully")
         except Exception as e:
             self.logger.error(f"Failed to create uvicorn server: {e}")
-            self.shutdown_manager._exit_code_manager.report_system_error(
-                "uvicorn_server", e
-            )
             raise
 
         # Set up signal handlers
@@ -714,24 +717,69 @@ class GitHubMCPWorker:
         self.logger.info(f"Starting uvicorn server on port {self.port}...")
         try:
             if self.server is not None:
-                await self.server.serve()
+                # Run server in background and wait for shutdown event
+                self.logger.info("Creating server and shutdown tasks...")
+                server_task = asyncio.create_task(self.server.serve())
+                shutdown_task = asyncio.create_task(self.shutdown_event.wait())
+                self.logger.debug("Server and shutdown tasks created successfully")
+
+                # Wait for either server to complete or shutdown event
+                done, pending = await asyncio.wait(
+                    [server_task, shutdown_task], return_when=asyncio.FIRST_COMPLETED
+                )
+
+                # Cancel pending tasks
+                for task in pending:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+
+                # If shutdown was triggered, execute graceful shutdown
+                if shutdown_task in done:
+                    await self.shutdown_sequence()
+
             else:
                 self.logger.error("Server is None, cannot serve")
                 raise RuntimeError("Server is None")
 
-            # If we get here, server stopped normally
-            self.logger.info("Uvicorn server stopped normally")
-
         except Exception as e:
             self.logger.error(f"Failed to start uvicorn server: {e}")
-            self.shutdown_manager._exit_code_manager.report_system_error(
-                "uvicorn_serve", e
-            )
             raise
         finally:
             # Ensure cleanup happens
             self.logger.info("Performing final cleanup...")
-            self.shutdown_manager.initiate_shutdown("server_stopped")
+            self.shutdown_coordinator.initiate_shutdown("server_stopped")
+
+    async def shutdown_sequence(self):
+        """Worker's graceful shutdown process"""
+        self.logger.info("Beginning graceful shutdown...")
+
+        try:
+            # 1. Stop accepting new connections
+            if self.server:
+                self.server.should_exit = True
+                self.logger.info("Server marked for shutdown")
+
+            # 2. Wait briefly for ongoing requests
+            await asyncio.sleep(2)
+
+            # 3. Force close server
+            if self.server:
+                # Uvicorn doesn't have a clean shutdown method, so we exit
+                self.logger.info("Closing server...")
+
+            # 4. Clean up any resources
+            # (Add any cleanup code here)
+
+            self.logger.info("✓ Graceful shutdown complete")
+
+        except Exception as e:
+            self.logger.error(f"Error during shutdown: {e}")
+        finally:
+            # Always exit cleanly
+            sys.exit(0)
 
 
 def main() -> None:
@@ -791,17 +839,15 @@ def main() -> None:
     try:
         asyncio.run(worker.start())
 
-        # Get final exit code from shutdown manager
-        exit_code = worker.shutdown_manager.get_exit_code()
-        worker.logger.info(
-            f"Worker shutting down with exit code: {exit_code} ({exit_code.name})"
-        )
-        sys.exit(exit_code.value)
+        # Get final exit code from shutdown coordinator
+        exit_code = worker.shutdown_coordinator.get_exit_code()
+        worker.logger.info(f"Worker shutting down with exit code: {exit_code}")
+        sys.exit(exit_code)
 
     except KeyboardInterrupt:
         worker.logger.info("Worker stopped by user")
-        exit_code = worker.shutdown_manager.get_exit_code()
-        sys.exit(exit_code.value)
+        exit_code = worker.shutdown_coordinator.get_exit_code()
+        sys.exit(exit_code)
     except Exception as e:
         worker.logger.error(f"Worker failed: {e}")
         traceback.print_exc()

@@ -242,10 +242,9 @@ deploy_file "repositories.json"
 deploy_file "requirements.txt"
 
 # Deploy shutdown system files
-deploy_file "shutdown_manager.py"
+deploy_file "shutdown_simple.py"
 deploy_file "exit_codes.py"
 deploy_file "health_monitor.py"
-deploy_file "shutdown_core.py"
 deploy_file "system_utils.py"
 
 # Update dependencies if requirements changed

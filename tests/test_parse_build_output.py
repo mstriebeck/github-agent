@@ -10,6 +10,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from github_tools import parse_build_output
 
 # Add the current directory to Python path to import github_tools
@@ -89,6 +91,7 @@ Build FAILED.
 """
 
 
+@pytest.mark.asyncio
 async def test_parse_build_output_python():
     """Test parsing Python build output"""
     print("Testing Python build output parsing...")
@@ -126,6 +129,7 @@ async def test_parse_build_output_python():
         print("✓ Python build output parsing test passed!")
 
 
+@pytest.mark.asyncio
 async def test_parse_build_output_swift():
     """Test parsing Swift build output"""
     print("Testing Swift build output parsing...")
@@ -156,6 +160,7 @@ async def test_parse_build_output_swift():
         print("✓ Swift build output parsing test passed!")
 
 
+@pytest.mark.asyncio
 async def test_filename_detection():
     """Test that the function correctly detects filenames based on language"""
     print("Testing filename detection...")
@@ -180,6 +185,7 @@ async def test_filename_detection():
         print("✓ Successfully found build_and_test_all.txt for language='swift'")
 
 
+@pytest.mark.asyncio
 async def test_fallback_alternatives():
     """Test that the function tries alternative filenames"""
     print("Testing fallback alternatives...")

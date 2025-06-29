@@ -38,10 +38,12 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
                 "project-a": {
                     "path": str(self.repo1_path),
                     "description": "Project A repository",
+                    "language": "python",
                 },
                 "project-b": {
                     "path": str(self.repo2_path),
                     "description": "Project B repository",
+                    "language": "swift",
                 },
             }
         }

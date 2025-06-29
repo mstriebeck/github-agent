@@ -166,10 +166,12 @@ class TestRepositoryManager(unittest.TestCase):
                 "repo1": {
                     "path": str(self.repo1_path),
                     "description": "Test repository 1",
+                    "language": "python",
                 },
                 "repo2": {
                     "path": str(self.repo2_path),
                     "description": "Test repository 2",
+                    "language": "swift",
                 },
             }
         }
@@ -261,7 +263,11 @@ class TestRepositoryManager(unittest.TestCase):
 
     def test_invalid_configuration_missing_path(self):
         """Test handling of repository config missing required 'path' field"""
-        invalid_config = {"repositories": {"repo1": {"description": "Missing path"}}}
+        invalid_config = {
+            "repositories": {
+                "repo1": {"description": "Missing path", "language": "python"}
+            }
+        }
         self._write_config_file(invalid_config)
 
         with patch.dict(os.environ, {}, clear=True):
@@ -277,6 +283,7 @@ class TestRepositoryManager(unittest.TestCase):
                 "repo1": {
                     "path": "/nonexistent/path",
                     "description": "Non-existent repo",
+                    "language": "python",
                 }
             }
         }
@@ -295,7 +302,11 @@ class TestRepositoryManager(unittest.TestCase):
 
         invalid_config = {
             "repositories": {
-                "not_git": {"path": str(non_git_path), "description": "Not a git repo"}
+                "not_git": {
+                    "path": str(non_git_path),
+                    "description": "Not a git repo",
+                    "language": "python",
+                }
             }
         }
         self._write_config_file(invalid_config)

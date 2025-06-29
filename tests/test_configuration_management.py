@@ -129,8 +129,16 @@ class TestRepositoryCLI(unittest.TestCase):
         # Create test configuration
         config = {
             "repositories": {
-                "repo1": {"path": str(self.repo1_path), "description": "Repository 1"},
-                "repo2": {"path": str(self.repo2_path), "description": "Repository 2"},
+                "repo1": {
+                    "path": str(self.repo1_path),
+                    "description": "Repository 1",
+                    "language": "python",
+                },
+                "repo2": {
+                    "path": str(self.repo2_path),
+                    "description": "Repository 2",
+                    "language": "swift",
+                },
             }
         }
 
@@ -151,8 +159,16 @@ class TestRepositoryCLI(unittest.TestCase):
         # Create test configuration
         config = {
             "repositories": {
-                "repo1": {"path": str(self.repo1_path), "description": "Repository 1"},
-                "repo2": {"path": str(self.repo2_path), "description": "Repository 2"},
+                "repo1": {
+                    "path": str(self.repo1_path),
+                    "description": "Repository 1",
+                    "language": "python",
+                },
+                "repo2": {
+                    "path": str(self.repo2_path),
+                    "description": "Repository 2",
+                    "language": "swift",
+                },
             }
         }
 
@@ -177,7 +193,11 @@ class TestRepositoryCLI(unittest.TestCase):
         # Create valid configuration
         config = {
             "repositories": {
-                "repo1": {"path": str(self.repo1_path), "description": "Repository 1"}
+                "repo1": {
+                    "path": str(self.repo1_path),
+                    "description": "Repository 1",
+                    "language": "python",
+                }
             }
         }
 
@@ -225,6 +245,7 @@ class TestConfigurationHotReload(unittest.TestCase):
                 "initial-repo": {
                     "path": str(self.repo_path),
                     "description": "Initial repository",
+                    "language": "python",
                 }
             }
         }
@@ -268,10 +289,12 @@ class TestConfigurationHotReload(unittest.TestCase):
                 "initial-repo": {
                     "path": str(self.repo_path),
                     "description": "Initial repository",
+                    "language": "python",
                 },
                 "new-repo": {
                     "path": str(self.repo_path),
                     "description": "New repository",
+                    "language": "swift",
                 },
             }
         }
@@ -318,6 +341,7 @@ class TestConfigurationHotReload(unittest.TestCase):
                 "different-repo": {
                     "path": str(self.repo_path),
                     "description": "Different repository",
+                    "language": "python",
                 }
             }
         }
@@ -372,6 +396,7 @@ class TestConfigurationHotReload(unittest.TestCase):
                 "watched-repo": {
                     "path": str(self.repo_path),
                     "description": "Watched repository",
+                    "language": "python",
                 }
             }
         }
