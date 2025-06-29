@@ -645,8 +645,9 @@ class GitHubMCPMaster:
 
         # Phase 4: SIGKILL (last resort)
         logger.error(f"Force killing worker {worker.repo_name}")
-        worker.process.kill()
-        await self._wait_for_process_exit(worker.process)
+        if worker.process:
+            worker.process.kill()
+            await self._wait_for_process_exit(worker.process)
         worker.process = None
         return True
 

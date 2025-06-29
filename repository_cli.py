@@ -153,6 +153,7 @@ def cmd_add(args):
     config_data["repositories"][args.name] = {
         "path": str(repo_path),
         "description": args.description or "",
+        "language": args.language,
     }
 
     save_config(config_path, config_data)
@@ -466,6 +467,7 @@ Examples:
     parser_add.add_argument("name", help="Repository name (used in URLs)")
     parser_add.add_argument("path", help="Path to the git repository")
     parser_add.add_argument("--description", help="Description of the repository")
+    parser_add.add_argument("--language", choices=["python", "swift"], default="python", help="Programming language of the repository (default: python)")
     parser_add.set_defaults(func=cmd_add)
 
     # Remove command

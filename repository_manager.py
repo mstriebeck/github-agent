@@ -307,6 +307,7 @@ class RepositoryManager:
             config_data["repositories"][name] = {
                 "path": repo_info["path"],
                 "description": repo_info.get("description", ""),
+                "language": repo_info.get("language", "python"),  # Default to python
             }
 
         # Ensure directory exists
