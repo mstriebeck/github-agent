@@ -197,7 +197,7 @@ Each repository provides these MCP tools:
 - **`github_post_pr_reply`** - Reply to a PR comment
 - **`github_get_build_status`** - Get CI/CD build status for commits
 - **`github_get_lint_errors`** - Extract linting errors from CI logs
-- **`github_get_build_and_test_errors`** - Extract build errors, warnings, and test failures
+- **`github_check_ci_build_and_test_errors_not_local`** - Extract build errors, warnings, and test failures
 
 ---
 

@@ -1336,9 +1336,12 @@ async def parse_build_output(
         python_warning_pattern = re.compile(r"^(/.*\.py):(\d+): (\w+Warning): (.+)$")
         # Python test failures: assert result is True -> E assert False is True
         python_test_failure_pattern = re.compile(r"^>?\s*(assert .+)$")
-
         # Python runtime errors: TypeError: is_server_healthy() got an unexpected keyword argument
         python_runtime_error_pattern = re.compile(r"^E\s+(\w+Error): (.+)$")
+        # Python file/line pattern: tests/test_utilities.py:274: AssertionError
+        python_file_line_pattern = re.compile(
+            r"^([^:]+\.py):(\d+): (\w+(?:Error|Warning|Exception))$"
+        )
     else:
         # Default to Swift patterns for unknown languages
         compiler_error_pattern = re.compile(r"^(/.*\.swift):(\d+):(\d+): error: (.+)$")
@@ -1418,15 +1421,33 @@ async def parse_build_output(
             # Check for Python runtime errors
             elif match := python_runtime_error_pattern.match(line):
                 error_type, message = match.groups()
-                issues.append(
-                    {
-                        "type": "python_runtime_error",
-                        "raw_line": line,
-                        "error_type": error_type,
-                        "message": message,
-                        "severity": "error",
-                    }
-                )
+
+                # Look ahead for file/line info
+                file_path = None
+                line_number = None
+                for i in range(line_num, min(line_num + 5, len(lines))):
+                    next_line = lines[i].strip()
+                    if file_match := python_file_line_pattern.match(next_line):
+                        file_path, line_number, _ = file_match.groups()
+                        break
+
+                issue_data = {
+                    "type": "python_runtime_error",
+                    "raw_line": line,
+                    "error_type": error_type,
+                    "message": message,
+                    "severity": "error",
+                }
+
+                if file_path and line_number:
+                    issue_data.update(
+                        {
+                            "file": file_path,
+                            "line_number": int(line_number),
+                        }
+                    )
+
+                issues.append(issue_data)
 
             # Check for Python test failures (assertion lines)
             elif match := python_test_failure_pattern.match(line):
@@ -1438,20 +1459,37 @@ async def parse_build_output(
                     if next_line.startswith("E "):
                         error_line = next_line[2:]  # Remove "E " prefix
 
-                issues.append(
-                    {
-                        "type": "python_test_failure",
-                        "raw_line": line,
-                        "assertion": assertion,
-                        "error": error_line,
-                        "severity": "error",
-                    }
-                )
+                # Look ahead for file/line info
+                file_path = None
+                line_number = None
+                for i in range(line_num, min(line_num + 5, len(lines))):
+                    next_line = lines[i].strip()
+                    if file_match := python_file_line_pattern.match(next_line):
+                        file_path, line_number, _ = file_match.groups()
+                        break
+
+                issue_data = {
+                    "type": "python_test_failure",
+                    "raw_line": line,
+                    "assertion": assertion,
+                    "error": error_line,
+                    "severity": "error",
+                }
+
+                if file_path and line_number:
+                    issue_data.update(
+                        {
+                            "file": file_path,
+                            "line_number": int(line_number),
+                        }
+                    )
+
+                issues.append(issue_data)
 
     return issues
 
 
-async def execute_read_build_logs(
+async def execute_github_check_ci_build_and_test_errors_not_local(
     repo_name: str, language: str, build_id: str | None = None
 ) -> str:
     """Read build logs and extract compiler errors, warnings, and test failures for Swift and Python"""
@@ -1555,7 +1593,27 @@ async def execute_read_build_logs(
             "run_id": build_id,
             "artifact_id": artifact_id,
             "total_issues": len(build_issues),
+            "next_steps": [
+                "1. Fix all errors and warnings found above",
+                "2. Run local tests, autoformat, and lint (see CLAUDE.md or AGENT.md for commands)",
+                "3. Stage and commit all changes with descriptive commit message",
+                "4. DO NOT push - leave for manual review",
+            ],
+            "workflow_instructions": "After fixing CI errors: (1) Fix all issues listed above, (2) Check CLAUDE.md or AGENT.md for local test/lint commands, (3) Run all tests + autoformat + lint locally, (4) Stage and commit changes with summary message, (5) DO NOT push - manual review required",
         }
+        if len(build_issues) > 0:
+            result.update(
+                {
+                    "action_required": True,
+                    "user_intent_fulfilled": "User asked about CI status - status is FAILED, now fixing automatically",
+                    "immediate_actions": [
+                        f"✅ CI Status checked: FAILED ({len(build_issues)} error(s) found)",
+                        "🔧 NOW FIXING: all errors listed below",
+                        "⚡ NEXT: Run local tests/lint per CLAUDE.md/AGENT.md",
+                        "📝 THEN: Commit all fixes (no push)",
+                    ],
+                }
+            )
 
         if language == "swift":
             result.update(

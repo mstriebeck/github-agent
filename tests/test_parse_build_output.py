@@ -80,6 +80,30 @@ FAILED tests/test_health_monitor.py::test_assertion_failure - AssertionError: as
 ================ 2 failed, 13 passed in 2.45s ================
 """
 
+# Sample output with file/line patterns from user's snippets
+PYTHON_TEST_OUTPUT_WITH_FILE_LINES = """
+self = <tests.test_utilities.TestSwiftLintViolationPattern testMethod=test_whitespace_handling>
+
+    def test_whitespace_handling(self):
+        \"\"\"Test that pattern handles whitespace correctly\"\"\"
+        line_with_spaces = "  /path/to/file.swift:25:1: warning: message (rule)  "
+        self.assertTrue(is_swiftlint_violation_line(line_with_spaces))
+>       self.assertFalse(is_swiftlint_violation_line(line_with_spaces))
+E       AssertionError: True is not false
+
+tests/test_utilities.py:274: AssertionError
+
+self = <tests.test_exit_codes.TestShutdownExitCode object at 0x105273390>
+
+    def test_success_codes(self):
+        \"\"\"Test that success codes are in expected range.\"\"\"
+>       assert 0 <= ShutdownExitCode.SUCCESS_CLEAN_SHUTDOWN_ <= 9
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: type object 'ShutdownExitCode' has no attribute 'SUCCESS_CLEAN_SHUTDOWN_'. Did you mean: 'SUCCESS_CLEAN_SHUTDOWN'?
+
+tests/test_exit_codes.py:18: AttributeError
+"""
+
 # Sample Swift build output
 SWIFT_BUILD_OUTPUT = """
 Building for production...
@@ -201,6 +225,73 @@ async def test_fallback_alternatives():
         print("✓ Successfully found alternative file 'output.txt' for Python")
 
 
+@pytest.mark.asyncio
+async def test_python_file_line_extraction():
+    """Test that Python errors extract file names and line numbers correctly"""
+    print("Testing Python file/line extraction...")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Write Python test output with file/line patterns to file
+        output_file = os.path.join(temp_dir, "python_test_output.txt")
+        with open(output_file, "w") as f:
+            f.write(PYTHON_TEST_OUTPUT_WITH_FILE_LINES)
+
+        # Parse the output
+        issues = await parse_build_output(temp_dir, language="python")
+
+        print(f"Found {len(issues)} issues")
+        for i, issue in enumerate(issues, 1):
+            print(f"  {i}. Type: {issue['type']}, Severity: {issue['severity']}")
+            if "file" in issue:
+                print(f"      File: {issue['file']}, Line: {issue['line_number']}")
+            if "error_type" in issue:
+                print(f"      Error: {issue['error_type']} - {issue['message']}")
+            if "assertion" in issue:
+                print(f"      Assertion: {issue['assertion']}")
+                if "error" in issue:
+                    print(f"      Error: {issue['error']}")
+
+        # Find the specific issues we expect
+        assertion_error = None
+        attribute_error = None
+
+        for issue in issues:
+            if issue.get("error_type") == "AssertionError" and "file" in issue:
+                assertion_error = issue
+            elif issue.get("error_type") == "AttributeError" and "file" in issue:
+                attribute_error = issue
+
+        # Verify AssertionError has correct file/line
+        assert (
+            assertion_error is not None
+        ), "Should find AssertionError with file/line info"
+        assert (
+            assertion_error["file"] == "tests/test_utilities.py"
+        ), f"Expected 'tests/test_utilities.py', got '{assertion_error['file']}'"
+        assert (
+            assertion_error["line_number"] == 274
+        ), f"Expected line 274, got {assertion_error['line_number']}"
+        print(
+            f"✓ AssertionError correctly parsed: {assertion_error['file']}:{assertion_error['line_number']}"
+        )
+
+        # Verify AttributeError has correct file/line
+        assert (
+            attribute_error is not None
+        ), "Should find AttributeError with file/line info"
+        assert (
+            attribute_error["file"] == "tests/test_exit_codes.py"
+        ), f"Expected 'tests/test_exit_codes.py', got '{attribute_error['file']}'"
+        assert (
+            attribute_error["line_number"] == 18
+        ), f"Expected line 18, got {attribute_error['line_number']}"
+        print(
+            f"✓ AttributeError correctly parsed: {attribute_error['file']}:{attribute_error['line_number']}"
+        )
+
+        print("✓ Python file/line extraction test passed!")
+
+
 async def main():
     """Run all tests"""
     print("=" * 60)
@@ -215,6 +306,8 @@ async def main():
         await test_parse_build_output_python()
         print()
         await test_parse_build_output_swift()
+        print()
+        await test_python_file_line_extraction()
         print()
         print("=" * 60)
         print("ALL TESTS PASSED! ✓")
