@@ -581,7 +581,9 @@ class GitHubMCPMaster:
         success_count = sum(1 for result in results if result is True)
         total_count = len(self.workers)
 
-        logger.info(f"Worker shutdown complete: {success_count}/{total_count} successful")
+        logger.info(
+            f"Worker shutdown complete: {success_count}/{total_count} successful"
+        )
         return success_count == total_count
 
     async def shutdown_worker(self, worker: WorkerProcess) -> bool:
@@ -597,14 +599,18 @@ class GitHubMCPMaster:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     f"http://localhost:{worker.port}/shutdown",
-                    timeout=aiohttp.ClientTimeout(total=5)
+                    timeout=aiohttp.ClientTimeout(total=5),
                 ) as response:
                     if response.status == 200:
                         logger.info(f"Sent shutdown request to {worker.repo_name}")
                     else:
-                        logger.warning(f"Shutdown request failed for {worker.repo_name}: {response.status}")
+                        logger.warning(
+                            f"Shutdown request failed for {worker.repo_name}: {response.status}"
+                        )
         except Exception as e:
-            logger.warning(f"Failed to send shutdown request to {worker.repo_name}: {e}")
+            logger.warning(
+                f"Failed to send shutdown request to {worker.repo_name}: {e}"
+            )
 
         # Phase 2: Wait for graceful exit (2 minutes)
         logger.info(f"Waiting for {worker.repo_name} to shut down gracefully...")
@@ -622,13 +628,14 @@ class GitHubMCPMaster:
             await asyncio.sleep(1)
 
         # Phase 3: SIGTERM escalation (only after timeout)
-        logger.warning(f"Worker {worker.repo_name} didn't shutdown in {timeout}s, sending SIGTERM")
+        logger.warning(
+            f"Worker {worker.repo_name} didn't shutdown in {timeout}s, sending SIGTERM"
+        )
         worker.process.terminate()
 
         try:
             await asyncio.wait_for(
-                self._wait_for_process_exit(worker.process),
-                timeout=30
+                self._wait_for_process_exit(worker.process), timeout=30
             )
             logger.info(f"✓ Worker {worker.repo_name} terminated after SIGTERM")
             worker.process = None

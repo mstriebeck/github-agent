@@ -289,7 +289,9 @@ class GitHubMCPWorker:
         @app.post("/shutdown")
         async def graceful_shutdown() -> dict[str, Any]:
             """Handle graceful shutdown request from master"""
-            self.logger.info("Received shutdown request, beginning graceful shutdown...")
+            self.logger.info(
+                "Received shutdown request, beginning graceful shutdown..."
+            )
 
             # Trigger shutdown sequence
             self.shutdown_event.set()
@@ -721,8 +723,7 @@ class GitHubMCPWorker:
 
                 # Wait for either server to complete or shutdown event
                 done, pending = await asyncio.wait(
-                    [server_task, shutdown_task],
-                    return_when=asyncio.FIRST_COMPLETED
+                    [server_task, shutdown_task], return_when=asyncio.FIRST_COMPLETED
                 )
 
                 # Cancel pending tasks
@@ -838,9 +839,7 @@ def main() -> None:
 
         # Get final exit code from shutdown coordinator
         exit_code = worker.shutdown_coordinator.get_exit_code()
-        worker.logger.info(
-            f"Worker shutting down with exit code: {exit_code}"
-        )
+        worker.logger.info(f"Worker shutting down with exit code: {exit_code}")
         sys.exit(exit_code)
 
     except KeyboardInterrupt:

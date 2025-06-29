@@ -30,7 +30,9 @@ class SimpleShutdownCoordinator:
     def initiate_shutdown(self, reason: str = "manual") -> None:
         """Initiate shutdown sequence"""
         if self._shutdown_initiated:
-            self.logger.warning(f"Shutdown already initiated, ignoring new request: {reason}")
+            self.logger.warning(
+                f"Shutdown already initiated, ignoring new request: {reason}"
+            )
             return
 
         self._shutdown_initiated = True
@@ -59,12 +61,16 @@ class SimpleShutdownCoordinator:
         return self._exit_code
 
 
-def setup_simple_signal_handlers(shutdown_coordinator: SimpleShutdownCoordinator) -> None:
+def setup_simple_signal_handlers(
+    shutdown_coordinator: SimpleShutdownCoordinator,
+) -> None:
     """Set up simple signal handlers"""
 
     def signal_handler(signum: int, frame: Any) -> None:
         if shutdown_coordinator._shutdown_initiated:
-            shutdown_coordinator.logger.warning(f"Already shutting down, ignoring signal {signum}")
+            shutdown_coordinator.logger.warning(
+                f"Already shutting down, ignoring signal {signum}"
+            )
             return
 
         signal_name = signal.Signals(signum).name
@@ -73,7 +79,9 @@ def setup_simple_signal_handlers(shutdown_coordinator: SimpleShutdownCoordinator
 
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
-    shutdown_coordinator.logger.info("Signal handlers registered for SIGTERM and SIGINT")
+    shutdown_coordinator.logger.info(
+        "Signal handlers registered for SIGTERM and SIGINT"
+    )
 
 
 class SimpleHealthMonitor:
