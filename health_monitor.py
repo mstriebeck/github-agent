@@ -443,7 +443,7 @@ def read_health_status(
         return {"error": f"Failed to read health file: {e}"}
 
 
-def is_server_healthy(
+def isServerHealthy(
     health_file_path: str = "/tmp/mcp_server_health.json", max_age_seconds: float = 10.0
 ) -> bool:
     """Check if server is healthy based on health file."""
