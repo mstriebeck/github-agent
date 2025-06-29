@@ -25,7 +25,10 @@ class TestRepositoryConfig(unittest.TestCase):
     def test_valid_config(self):
         """Test creating valid repository configuration"""
         config = RepositoryConfig(
-            name="test-repo", path="/path/to/repo", description="Test repository"
+            name="test-repo",
+            path="/path/to/repo",
+            description="Test repository",
+            language="swift",
         )
 
         self.assertEqual(config.name, "test-repo")
@@ -35,21 +38,26 @@ class TestRepositoryConfig(unittest.TestCase):
     def test_empty_name_raises_error(self):
         """Test that empty name raises ValueError"""
         with self.assertRaises(ValueError) as context:
-            RepositoryConfig(name="", path="/path/to/repo", description="Test")
+            RepositoryConfig(
+                name="", path="/path/to/repo", description="Test", language="swift"
+            )
 
         self.assertIn("Repository name cannot be empty", str(context.exception))
 
     def test_empty_path_raises_error(self):
         """Test that empty path raises ValueError"""
         with self.assertRaises(ValueError) as context:
-            RepositoryConfig(name="test", path="", description="Test")
+            RepositoryConfig(name="test", path="", description="Test", language="swift")
 
         self.assertIn("Repository path cannot be empty", str(context.exception))
 
     def test_path_normalization(self):
         """Test that absolute paths are normalized and expanded"""
         config = RepositoryConfig(
-            name="test", path="/home/user/test-repo", description="Test"
+            name="test",
+            path="/home/user/test-repo",
+            description="Test",
+            language="swift",
         )
 
         expected_path = os.path.abspath("/home/user/test-repo")
@@ -58,7 +66,9 @@ class TestRepositoryConfig(unittest.TestCase):
     def test_relative_path_raises_error(self):
         """Test that relative paths raise ValueError"""
         with self.assertRaises(ValueError) as context:
-            RepositoryConfig(name="test", path="relative/path", description="Test")
+            RepositoryConfig(
+                name="test", path="relative/path", description="Test", language="swift"
+            )
 
         self.assertIn("Repository path must be absolute", str(context.exception))
 
@@ -85,7 +95,10 @@ class TestRepositoryConfig(unittest.TestCase):
     def test_default_language_is_swift(self):
         """Test that default language is 'swift' for backward compatibility"""
         config = RepositoryConfig(
-            name="test-repo", path="/path/to/repo", description="Test repository"
+            name="test-repo",
+            path="/path/to/repo",
+            description="Test repository",
+            language="swift",
         )
         self.assertEqual(config.language, "swift")
 

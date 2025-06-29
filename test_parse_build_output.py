@@ -118,9 +118,9 @@ async def test_parse_build_output_python():
         # Verify we found the expected types of issues
         issue_types = [issue["type"] for issue in issues]
         assert "python_warning" in issue_types, "Should find Python warnings"
-        assert (
-            "python_runtime_error" in issue_types
-        ), "Should find Python runtime errors"
+        assert "python_runtime_error" in issue_types, (
+            "Should find Python runtime errors"
+        )
         assert "python_test_failure" in issue_types, "Should find Python test failures"
 
         print("✓ Python build output parsing test passed!")

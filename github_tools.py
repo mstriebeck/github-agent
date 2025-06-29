@@ -867,7 +867,7 @@ async def execute_read_swiftlint_logs(
                 if lint_results:
                     logger.info("First few errors:")
                     for i, error in enumerate(lint_results[:3]):
-                        logger.info(f"  Error {i+1}: {error}")
+                        logger.info(f"  Error {i + 1}: {error}")
                 else:
                     logger.warning("⚠️ No errors found in parser result")
             except json.JSONDecodeError as e:

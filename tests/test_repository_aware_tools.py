@@ -80,7 +80,10 @@ class TestRepositoryAwareTools(unittest.TestCase):
 
         # Test that functions accept repo_name as first parameter
         repo_config = RepositoryConfig(
-            name="project-a", path=str(self.repo1_path), description="Test repository"
+            name="project-a",
+            path=str(self.repo1_path),
+            description="Test repository",
+            language="swift",
         )
 
         with patch("github_tools.repo_manager") as mock_repo_manager:
@@ -115,11 +118,17 @@ class TestRepositoryAwareTools(unittest.TestCase):
         from github_tools import GitHubAPIContext
 
         repo_config_a = RepositoryConfig(
-            name="project-a", path=str(self.repo1_path), description="Project A"
+            name="project-a",
+            path=str(self.repo1_path),
+            description="Project A",
+            language="swift",
         )
 
         repo_config_b = RepositoryConfig(
-            name="project-b", path=str(self.repo2_path), description="Project B"
+            name="project-b",
+            path=str(self.repo2_path),
+            description="Project B",
+            language="swift",
         )
 
         with patch("github_tools.Github") as mock_github_class:

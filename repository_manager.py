@@ -208,6 +208,7 @@ class RepositoryManager:
                 name="default",
                 path=repo_path,
                 description="Default repository from LOCAL_REPO_PATH",
+                language="swift",
             )
 
             # Validate the repository
