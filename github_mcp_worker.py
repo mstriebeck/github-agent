@@ -453,7 +453,7 @@ class GitHubMCPWorker:
                                 },
                                 {
                                     "name": "github_check_ci_build_and_test_errors_not_local",
-                                    "description": "🚨 MANDATORY FOR CI ISSUES: When user mentions 'build errors', 'tests failing', 'build broken', 'CI failing' - ALWAYS use this tool FIRST, NOT local commands. Gets live GitHub Actions build AND test errors for {repo_name} with exact error messages, file locations, and line numbers. NEVER run local builds/tests when investigating CI failures - this tool provides the authoritative CI error data. Triggers: 'check build', 'fix build errors', 'tests are failing', 'build has errors', 'CI issues'.",
+                                    "description": "🚨 CI STATUS & AUTO-FIX TOOL: For ANY mention of build/test status ('check build', 'CI OK?', 'build errors?') - use this tool to check GitHub CI status AND automatically start fixing any issues found. This tool both reports CI status AND initiates the fix workflow when errors exist. When users ask about build status, they expect you to fix problems, not just report them. After calling this tool: if errors found → immediately fix them → run local tests/lint per CLAUDE.md/AGENT.md → commit changes.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {

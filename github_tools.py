@@ -1601,6 +1601,19 @@ async def execute_github_check_ci_build_and_test_errors_not_local(
             ],
             "workflow_instructions": "After fixing CI errors: (1) Fix all issues listed above, (2) Check CLAUDE.md or AGENT.md for local test/lint commands, (3) Run all tests + autoformat + lint locally, (4) Stage and commit changes with summary message, (5) DO NOT push - manual review required",
         }
+        if len(build_issues) > 0:
+            result.update(
+                {
+                    "action_required": True,
+                    "user_intent_fulfilled": "User asked about CI status - status is FAILED, now fixing automatically",
+                    "immediate_actions": [
+                        f"✅ CI Status checked: FAILED ({len(build_issues)} error(s) found)",
+                        "🔧 NOW FIXING: all errors listed below",
+                        "⚡ NEXT: Run local tests/lint per CLAUDE.md/AGENT.md",
+                        "📝 THEN: Commit all fixes (no push)",
+                    ],
+                }
+            )
 
         if language == "swift":
             result.update(

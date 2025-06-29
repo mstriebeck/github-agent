@@ -271,7 +271,6 @@ class TestSwiftLintViolationPattern(unittest.TestCase):
         """Test that pattern handles whitespace correctly"""
         line_with_spaces = "  /path/to/file.swift:25:1: warning: message (rule)  "
         self.assertTrue(is_swiftlint_violation_line(line_with_spaces))
-        self.assertFalse(is_swiftlint_violation_line(line_with_spaces))
 
 
 if __name__ == "__main__":
