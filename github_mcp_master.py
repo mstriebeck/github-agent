@@ -212,6 +212,15 @@ class GitHubMCPMaster:
                     language=repo_config.get("language", "swift"),
                 )
                 self.workers[repo_name] = worker
+                
+                # Register worker with shutdown manager for coordinated shutdown
+                self.shutdown_manager.add_worker(
+                    repo_name=repo_name,
+                    port=repo_config["port"],
+                    path=repo_config["path"],
+                    description=repo_config.get("description", repo_name),
+                    language=repo_config.get("language", "swift"),
+                )
 
             logger.info(f"Loaded configuration for {len(self.workers)} repositories")
 
@@ -301,6 +310,11 @@ class GitHubMCPMaster:
             logger.info(
                 f"Started worker for {worker.repo_name} on port {worker.port} (PID: {worker.process.pid})"
             )
+
+            # Update shutdown_manager's worker process reference
+            shutdown_worker = self.shutdown_manager.get_worker(worker.repo_name)
+            if shutdown_worker:
+                shutdown_worker.process = worker.process
 
             return True
 
@@ -548,13 +562,15 @@ class GitHubMCPMaster:
         except Exception as e:
             logger.error(f"Critical error stopping health monitoring: {e}")
 
-        # Step 2: Stop all workers with our existing logic but enhanced with shutdown manager tracking
+        # Step 2: Stop all workers using shutdown manager's comprehensive logic
         logger.info(
-            "Step 2: Stopping all worker processes with enhanced shutdown tracking..."
+            "Step 2: Stopping all worker processes using shutdown manager..."
         )
-        return await self._shutdown_workers_enhanced()
+        return await self.shutdown_manager._shutdown_all_workers(
+            grace_period=3.0, force_timeout=5.0
+        )
 
-    async def _shutdown_workers_enhanced(self) -> bool:
+    async def _shutdown_workers_enhanced_REMOVED(self) -> bool:
         """Enhanced shutdown using shutdown manager for tracking and exit codes"""
         try:
             # Register ports with shutdown manager for verification

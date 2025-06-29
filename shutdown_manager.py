@@ -1200,10 +1200,12 @@ class ShutdownManager:
 
         return False
 
-    async def _wait_for_process_exit(self, process: subprocess.Popen) -> None:
-        """Wait for a process to exit asynchronously"""
-        while process.poll() is None:
-            await asyncio.sleep(0.1)
+    async def _wait_for_process_exit(self, process: subprocess.Popen) -> int:
+        """Async wrapper for process.wait() with polling"""
+        while True:
+            if process.poll() is not None:
+                return process.returncode
+            await asyncio.sleep(0.1)  # Poll every 100ms
 
     async def _verify_clean_shutdown(self) -> bool:
         """Verify that shutdown was clean with no remaining resources"""
