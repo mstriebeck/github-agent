@@ -68,7 +68,7 @@ class GitHubMCPWorker:
         repo_path: str,
         port: int,
         description: str,
-        language: str = "swift",
+        language: str,
     ):
         # Initialize logger first
         self.logger = logging.getLogger(f"worker-{repo_name}")
@@ -153,10 +153,10 @@ class GitHubMCPWorker:
         try:
             # Create repository configuration
             self.logger.debug(
-                f"RepositoryConfig args: name={repo_name}, path={repo_path}, description={description}"
+                f"RepositoryConfig args: name={repo_name}, path={repo_path}, description={description}, language={language}"
             )
             self.repo_config = RepositoryConfig(
-                name=repo_name, path=repo_path, description=description
+                name=repo_name, path=repo_path, description=description, language=language
             )
             self.logger.debug("Repository configuration created successfully")
         except Exception as e:
@@ -579,12 +579,12 @@ class GitHubMCPWorker:
                             f"Calling lint errors with language: {self.language}"
                         )
                         result = await execute_read_swiftlint_logs(
-                            self.repo_name, build_id, language=self.language
+                            self.repo_name, self.language, build_id
                         )
 
                     elif tool_name == "github_get_build_and_test_errors":
                         build_id = tool_args.get("build_id")
-                        result = await execute_read_build_logs(self.repo_name, build_id)
+                        result = await execute_read_build_logs(self.repo_name, self.language, build_id)
 
                     elif tool_name == "github_get_build_status":
                         commit_sha = tool_args.get("commit_sha")
@@ -748,7 +748,7 @@ def main() -> None:
     parser.add_argument("--description", default="", help="Repository description")
     parser.add_argument(
         "--language",
-        default="swift",
+        required=True,
         choices=["python", "swift"],
         help="Repository language",
     )

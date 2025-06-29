@@ -27,8 +27,8 @@ class RepositoryConfig:
     name: str
     path: str
     description: str
+    language: str
     port: int | None = None
-    language: str = "swift"  # Default to swift for backward compatibility
 
     def __post_init__(self):
         """Validate configuration after initialization"""

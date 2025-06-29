@@ -739,7 +739,7 @@ async def find_workflow_run(
 
 # Build/Lint helper functions (simplified - removed legacy single-repo functions)
 async def execute_read_swiftlint_logs(
-    repo_name: str, build_id: str | None = None, language: str | None = None
+    repo_name: str, language: str, build_id: str | None = None
 ) -> str:
     """Read linter violation logs from GitHub Actions artifacts (supports both SwiftLint and Python linters)"""
     logger.info(
@@ -1010,7 +1010,7 @@ def extract_error_code_from_mypy_error(error_line: str) -> str:
 
 
 async def get_linter_errors(
-    repo_name: str, error_output: str, language: str | None = None
+    repo_name: str, error_output: str, language: str
 ) -> str:
     """Parse linter errors based on repository language configuration"""
     logger.info(f"=== PARSING LINTER ERRORS FOR '{repo_name}' ===")
@@ -1282,8 +1282,8 @@ async def execute_get_build_status(
 
 async def parse_build_output(
     output_dir: str,
+    language: str,
     expected_filename: str | None = None,
-    language: str = "swift",
 ) -> list:
     """Parse build output to extract compiler errors, warnings, and test failures"""
     issues = []
@@ -1454,7 +1454,7 @@ async def parse_build_output(
 
 
 async def execute_read_build_logs(
-    repo_name: str, build_id: str | None = None, language: str | None = None
+    repo_name: str, language: str, build_id: str | None = None
 ) -> str:
     """Read build logs and extract compiler errors, warnings, and test failures for Swift and Python"""
     logger.info(
