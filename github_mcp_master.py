@@ -96,7 +96,7 @@ class WorkerProcess:
     port: int
     path: str
     description: str
-    language: str = "swift"  # Default to swift for backward compatibility
+    language: str
     process: subprocess.Popen[bytes] | None = None
     start_time: float | None = None
     restart_count: int = 0

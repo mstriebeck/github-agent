@@ -54,7 +54,7 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
 
         result_json = asyncio.run(
-            get_linter_errors("python-repo", self.python_ruff_output)
+            get_linter_errors("python-repo", self.python_ruff_output, "python")
         )
         result = json.loads(result_json)
 
@@ -86,7 +86,7 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
 
         result_json = asyncio.run(
-            get_linter_errors("python-repo", self.python_mypy_output)
+            get_linter_errors("python-repo", self.python_mypy_output, "python")
         )
         result = json.loads(result_json)
 
@@ -116,7 +116,7 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
 
         result_json = asyncio.run(
-            get_linter_errors("python-repo", self.mixed_python_output)
+            get_linter_errors("python-repo", self.mixed_python_output, "python")
         )
         result = json.loads(result_json)
 
@@ -134,7 +134,9 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         """Test parsing of Swift errors for Swift repository"""
         mock_repo_manager.repositories = {"swift-repo": self.swift_repo_config}
 
-        result_json = asyncio.run(get_linter_errors("swift-repo", self.swift_output))
+        result_json = asyncio.run(
+            get_linter_errors("swift-repo", self.swift_output, "swift")
+        )
         result = json.loads(result_json)
 
         self.assertEqual(result["repository"], "swift-repo")
@@ -166,7 +168,7 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         """Test handling of empty error output"""
         mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
 
-        result_json = asyncio.run(get_linter_errors("python-repo", ""))
+        result_json = asyncio.run(get_linter_errors("python-repo", "", "python"))
         result = json.loads(result_json)
 
         self.assertEqual(result["repository"], "python-repo")
@@ -179,7 +181,9 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         """Test handling of whitespace-only output"""
         mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
 
-        result_json = asyncio.run(get_linter_errors("python-repo", "   \n  \n   "))
+        result_json = asyncio.run(
+            get_linter_errors("python-repo", "   \n  \n   ", "python")
+        )
         result = json.loads(result_json)
 
         self.assertEqual(result["total_errors"], 0)
@@ -191,7 +195,7 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         mock_repo_manager.repositories = {}
 
         result_json = asyncio.run(
-            get_linter_errors("nonexistent-repo", self.python_ruff_output)
+            get_linter_errors("nonexistent-repo", self.python_ruff_output, "python")
         )
         result = json.loads(result_json)
 
@@ -202,7 +206,7 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
     def test_no_repo_manager(self):
         """Test handling when repo_manager is None"""
         result_json = asyncio.run(
-            get_linter_errors("any-repo", self.python_ruff_output)
+            get_linter_errors("any-repo", self.python_ruff_output, "python")
         )
         result = json.loads(result_json)
 
@@ -218,7 +222,7 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         mock_repo_manager.repositories = {"invalid-repo": invalid_config}
 
         result_json = asyncio.run(
-            get_linter_errors("invalid-repo", self.python_ruff_output)
+            get_linter_errors("invalid-repo", self.python_ruff_output, "javascript")
         )
         result = json.loads(result_json)
 
@@ -235,7 +239,9 @@ This is not a valid error line
 Another invalid line
 ::error title=Ruff (E501),file=/another/valid/file.py,line=42,col=80,endLine=42,endColumn=120::another valid error"""
 
-        result_json = asyncio.run(get_linter_errors("python-repo", malformed_output))
+        result_json = asyncio.run(
+            get_linter_errors("python-repo", malformed_output, "python")
+        )
         result = json.loads(result_json)
 
         # Should only parse the two valid lines
@@ -256,7 +262,7 @@ Another invalid line
         )
 
         result_json = asyncio.run(
-            get_linter_errors("python-repo", self.python_ruff_output)
+            get_linter_errors("python-repo", self.python_ruff_output, "python")
         )
         result = json.loads(result_json)
 
