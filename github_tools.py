@@ -892,7 +892,7 @@ async def execute_github_check_ci_lint_errors_not_local(
             ],
             "workflow_instructions": "After fixing CI lint errors: (1) Fix all violations listed above, (2) Check CLAUDE.md or AGENT.md for local lint commands, (3) Run all autoformat + lint locally, (4) Stage and commit changes with summary message, (5) DO NOT push - manual review required",
         }
-        
+
         if len(lint_results) > 0:
             result.update(
                 {

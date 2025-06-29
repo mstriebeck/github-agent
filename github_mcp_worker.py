@@ -39,8 +39,8 @@ from github_tools import (
     execute_get_current_commit,
     execute_get_pr_comments,
     execute_github_check_ci_build_and_test_errors_not_local,
-    execute_post_pr_reply,
     execute_github_check_ci_lint_errors_not_local,
+    execute_post_pr_reply,
 )
 
 # Import shared functionality
