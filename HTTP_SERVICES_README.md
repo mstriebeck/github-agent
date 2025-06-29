@@ -171,7 +171,7 @@ All original MCP tools work via HTTP:
 - `ack_reply` - Mark a comment as handled
 - `github_get_build_status` - Get CI/CD build status
 - `github_get_lint_errors` - Extract linting errors from CI logs
-- `github_get_build_and_test_errors` - Extract build errors, warnings, and test failures
+- `github_check_ci_build_and_test_errors_not_local` - Extract build errors, warnings, and test failures
 - `process_comment_batch` - Process multiple replies in batch
 
 ## Queue System
@@ -321,7 +321,7 @@ Once connected, Amp will have access to these PR management tools:
 - `list_unhandled_comments` - List unhandled PR comments
 - `github_get_build_status` - Get CI/CD build status for commits
 - `github_get_lint_errors` - Extract linting errors from CI logs
-- `github_get_build_and_test_errors` - Extract build errors, warnings, and test failures
+- `github_check_ci_build_and_test_errors_not_local` - Extract build errors, warnings, and test failures
 
 ### Usage in Amp
 
