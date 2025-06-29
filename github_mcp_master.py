@@ -219,7 +219,6 @@ class GitHubMCPMaster:
                     port=repo_config["port"],
                     path=repo_config["path"],
                     description=repo_config.get("description", repo_name),
-                    language=repo_config.get("language", "swift"),
                 )
 
             logger.info(f"Loaded configuration for {len(self.workers)} repositories")
