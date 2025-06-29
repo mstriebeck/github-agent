@@ -1009,9 +1009,7 @@ def extract_error_code_from_mypy_error(error_line: str) -> str:
     return match.group(1) if match else ""
 
 
-async def get_linter_errors(
-    repo_name: str, error_output: str, language: str
-) -> str:
+async def get_linter_errors(repo_name: str, error_output: str, language: str) -> str:
     """Parse linter errors based on repository language configuration"""
     logger.info(f"=== PARSING LINTER ERRORS FOR '{repo_name}' ===")
     logger.info(f"Input length: {len(error_output)} characters")
