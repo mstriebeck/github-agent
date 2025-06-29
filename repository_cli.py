@@ -467,7 +467,12 @@ Examples:
     parser_add.add_argument("name", help="Repository name (used in URLs)")
     parser_add.add_argument("path", help="Path to the git repository")
     parser_add.add_argument("--description", help="Description of the repository")
-    parser_add.add_argument("--language", choices=["python", "swift"], default="python", help="Programming language of the repository (default: python)")
+    parser_add.add_argument(
+        "--language",
+        choices=["python", "swift"],
+        default="python",
+        help="Programming language of the repository (default: python)",
+    )
     parser_add.set_defaults(func=cmd_add)
 
     # Remove command

@@ -129,8 +129,16 @@ class TestRepositoryCLI(unittest.TestCase):
         # Create test configuration
         config = {
             "repositories": {
-                "repo1": {"path": str(self.repo1_path), "description": "Repository 1", "language": "python"},
-                "repo2": {"path": str(self.repo2_path), "description": "Repository 2", "language": "swift"},
+                "repo1": {
+                    "path": str(self.repo1_path),
+                    "description": "Repository 1",
+                    "language": "python",
+                },
+                "repo2": {
+                    "path": str(self.repo2_path),
+                    "description": "Repository 2",
+                    "language": "swift",
+                },
             }
         }
 
@@ -151,8 +159,16 @@ class TestRepositoryCLI(unittest.TestCase):
         # Create test configuration
         config = {
             "repositories": {
-                "repo1": {"path": str(self.repo1_path), "description": "Repository 1", "language": "python"},
-                "repo2": {"path": str(self.repo2_path), "description": "Repository 2", "language": "swift"},
+                "repo1": {
+                    "path": str(self.repo1_path),
+                    "description": "Repository 1",
+                    "language": "python",
+                },
+                "repo2": {
+                    "path": str(self.repo2_path),
+                    "description": "Repository 2",
+                    "language": "swift",
+                },
             }
         }
 
@@ -177,7 +193,11 @@ class TestRepositoryCLI(unittest.TestCase):
         # Create valid configuration
         config = {
             "repositories": {
-                "repo1": {"path": str(self.repo1_path), "description": "Repository 1", "language": "python"}
+                "repo1": {
+                    "path": str(self.repo1_path),
+                    "description": "Repository 1",
+                    "language": "python",
+                }
             }
         }
 

@@ -263,7 +263,11 @@ class TestRepositoryManager(unittest.TestCase):
 
     def test_invalid_configuration_missing_path(self):
         """Test handling of repository config missing required 'path' field"""
-        invalid_config = {"repositories": {"repo1": {"description": "Missing path", "language": "python"}}}
+        invalid_config = {
+            "repositories": {
+                "repo1": {"description": "Missing path", "language": "python"}
+            }
+        }
         self._write_config_file(invalid_config)
 
         with patch.dict(os.environ, {}, clear=True):
@@ -298,7 +302,11 @@ class TestRepositoryManager(unittest.TestCase):
 
         invalid_config = {
             "repositories": {
-                "not_git": {"path": str(non_git_path), "description": "Not a git repo", "language": "python"}
+                "not_git": {
+                    "path": str(non_git_path),
+                    "description": "Not a git repo",
+                    "language": "python",
+                }
             }
         }
         self._write_config_file(invalid_config)
