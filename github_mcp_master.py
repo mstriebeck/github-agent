@@ -25,8 +25,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import aiohttp
+
 # Import shutdown coordination components
-from shutdown_manager import ShutdownManager
+from shutdown_simple import (
+    SimpleHealthMonitor,
+    SimpleShutdownCoordinator,
+)
 from system_utils import MicrosecondFormatter, log_system_state
 
 # Configure logging with enhanced microsecond precision
@@ -159,11 +164,12 @@ class GitHubMCPMaster:
         self.workers: dict[str, WorkerProcess] = {}
         self.running = False
 
-        # Initialize shutdown coordination with our logger
-        self.shutdown_manager = ShutdownManager(logger, mode="master")
+        # Initialize simple shutdown coordination
+        self.shutdown_coordinator = SimpleShutdownCoordinator(logger)
 
-        # Start health monitoring
-        self.shutdown_manager._health_monitor.start_monitoring()
+        # Start simple health monitoring
+        self.health_monitor = SimpleHealthMonitor(logger)
+        self.health_monitor.start_monitoring()
 
         # Use system-appropriate log location
         self.log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
@@ -213,13 +219,8 @@ class GitHubMCPMaster:
                 )
                 self.workers[repo_name] = worker
 
-                # Register worker with shutdown manager for coordinated shutdown
-                self.shutdown_manager.add_worker(
-                    repo_name=repo_name,
-                    port=repo_config["port"],
-                    path=repo_config["path"],
-                    description=repo_config.get("description", repo_name),
-                )
+                # Worker is now registered in self.workers dict
+                # No complex tracking needed with worker-controlled shutdown
 
             logger.info(f"Loaded configuration for {len(self.workers)} repositories")
 
@@ -310,10 +311,8 @@ class GitHubMCPMaster:
                 f"Started worker for {worker.repo_name} on port {worker.port} (PID: {worker.process.pid})"
             )
 
-            # Update shutdown_manager's worker process reference
-            shutdown_worker = self.shutdown_manager.get_worker(worker.repo_name)
-            if shutdown_worker:
-                shutdown_worker.process = worker.process
+            # Worker process is already stored in self.workers dict
+            # No duplicate tracking needed with simplified architecture
 
             return True
 
@@ -461,7 +460,7 @@ class GitHubMCPMaster:
             logger.debug("Worker monitoring task ending")
 
     def signal_handler(self, signum: int, frame: Any) -> None:
-        """Handle shutdown signals using the shutdown manager"""
+        """Handle shutdown signals"""
         signal_name = signal.Signals(signum).name
         logger.info(
             f"🚨 Received signal {signum} ({signal_name}), initiating graceful shutdown..."
@@ -469,7 +468,7 @@ class GitHubMCPMaster:
 
         # Set running to False and initiate shutdown
         self.running = False
-        self.shutdown_manager.initiate_shutdown(f"signal_{signal_name}")
+        self.shutdown_coordinator.initiate_shutdown(f"signal_{signal_name}")
 
         # Wake up the main loop if it's waiting
         if hasattr(self, "loop") and self.loop.is_running():
@@ -532,14 +531,14 @@ class GitHubMCPMaster:
             logger.debug("Waiting for shutdown signal...")
 
             # Wait for shutdown signal
-            while self.running and not self.shutdown_manager._shutdown_initiated:
+            while self.running and not self.shutdown_coordinator.is_shutting_down():
                 await asyncio.sleep(0.1)
 
             logger.info(
                 "🛑 Shutdown signal received, beginning coordinated shutdown..."
             )
             logger.debug(
-                f"Shutdown reason: {getattr(self.shutdown_manager, '_shutdown_reason', 'unknown')}"
+                f"Shutdown reason: {self.shutdown_coordinator.get_shutdown_reason()}"
             )
         except Exception as e:
             logger.error(f"Exception waiting for shutdown: {e}")
@@ -561,214 +560,88 @@ class GitHubMCPMaster:
         except Exception as e:
             logger.error(f"Critical error stopping health monitoring: {e}")
 
-        # Step 2: Stop all workers using shutdown manager's comprehensive logic
-        logger.info("Step 2: Stopping all worker processes using shutdown manager...")
-        return await self.shutdown_manager._shutdown_all_workers(
-            grace_period=3.0, force_timeout=5.0
+        # Step 2: Stop all workers using new worker-controlled approach
+        logger.info(
+            "Step 2: Stopping all worker processes using worker-controlled shutdown..."
         )
+        return await self.shutdown_all_workers()
 
-    async def _shutdown_workers_enhanced_REMOVED(self) -> bool:
-        """Enhanced shutdown using shutdown manager for tracking and exit codes"""
+    async def shutdown_all_workers(self) -> bool:
+        """Shutdown all workers using new worker-controlled approach"""
+        logger.info("Starting worker-controlled shutdown for all workers")
+
+        if not self.workers:
+            logger.info("No workers to shut down")
+            return True
+
+        # Shutdown all workers concurrently
+        tasks = [self.shutdown_worker(worker) for worker in self.workers.values()]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        success_count = sum(1 for result in results if result is True)
+        total_count = len(self.workers)
+
+        logger.info(f"Worker shutdown complete: {success_count}/{total_count} successful")
+        return success_count == total_count
+
+    async def shutdown_worker(self, worker: WorkerProcess) -> bool:
+        """Shutdown single worker using worker-controlled approach"""
+        logger.info(f"Starting worker-controlled shutdown for {worker.repo_name}")
+
+        if not worker.process or worker.process.poll() is not None:
+            logger.info(f"Worker {worker.repo_name} already stopped")
+            return True
+
+        # Phase 1: Request graceful shutdown via HTTP
         try:
-            # Register ports with shutdown manager for verification
-            ports_to_verify = []
-            for worker in self.workers.values():
-                if worker.process and self.is_worker_healthy(worker):
-                    ports_to_verify.append(worker.port)
-
-            async def stop_worker_gracefully(
-                repo_name: str, worker: WorkerProcess
-            ) -> bool:
-                """Stop a single worker with shutdown manager tracking"""
-                logger.info(f"Stopping worker {repo_name} with enhanced tracking")
-                try:
-                    if not worker.process or worker.process.poll() is not None:
-                        logger.info(f"Worker {repo_name} already stopped")
-                        return True
-
-                    pid = worker.process.pid
-                    logger.info(
-                        f"Stopping worker {repo_name} (PID: {pid}) on port {worker.port}"
-                    )
-
-                    # Send SIGTERM for graceful shutdown
-                    logger.info(f"Sending SIGTERM to worker {repo_name} (PID: {pid})")
-                    worker.process.terminate()
-
-                    # Wait for worker to shutdown gracefully
-                    logger.info(
-                        f"Waiting up to 3s for worker {repo_name} to stop gracefully..."
-                    )
-                    try:
-                        await asyncio.wait_for(
-                            self._wait_for_process_exit(worker.process), timeout=3
-                        )
-                        logger.info(f"Worker {repo_name} process exited gracefully")
-
-                        # Wait for port to be actually free before considering worker stopped
-                        logger.info(
-                            f"Worker {repo_name} stopped gracefully, waiting for port {worker.port} to be released..."
-                        )
-                        port_free = await wait_for_port_free(worker.port, timeout=30)
-                        if port_free:
-                            logger.info(
-                                f"Worker {repo_name} stopped gracefully - port {worker.port} is now available"
-                            )
-                        else:
-                            logger.warning(
-                                f"Worker {repo_name} stopped gracefully but port {worker.port} still not available after 30s"
-                            )
-
-                        worker.process = None
-                        return True
-                    except TimeoutError:
-                        logger.warning(
-                            f"Worker {repo_name} didn't stop gracefully within 3s, force killing"
-                        )
-                        self.shutdown_manager._exit_code_manager.report_timeout(
-                            "worker_shutdown", 3.0
-                        )
-
-                        # Force kill
-                        try:
-                            logger.info(
-                                f"Sending SIGKILL to worker {repo_name} (PID: {pid})"
-                            )
-                            if worker.process is not None:
-                                worker.process.kill()
-                                await asyncio.wait_for(
-                                    self._wait_for_process_exit(worker.process),
-                                    timeout=5,  # Increased timeout for SIGKILL
-                                )
-                            logger.info(f"Worker {repo_name} process terminated")
-
-                            # Wait for port to be actually free before considering worker stopped
-                            logger.info(
-                                f"Worker {repo_name} force killed, waiting for port {worker.port} to be released..."
-                            )
-                            port_free = await wait_for_port_free(
-                                worker.port, timeout=60
-                            )
-                            if port_free:
-                                logger.info(
-                                    f"Worker {repo_name} force killed successfully - port {worker.port} is now available"
-                                )
-                            else:
-                                logger.warning(
-                                    f"Worker {repo_name} force killed but port {worker.port} still not available after 60s"
-                                )
-
-                            self.shutdown_manager._exit_code_manager.report_force_action(
-                                "kill", f"worker {repo_name}"
-                            )
-                            worker.process = None
-                            return True
-                        except TimeoutError:
-                            logger.error(
-                                f"Worker {repo_name} couldn't be killed even with SIGKILL"
-                            )
-                            self.shutdown_manager._exit_code_manager.report_verification_failure(
-                                "zombie_check",
-                                f"Worker {repo_name} (PID: {pid}) may be zombie",
-                            )
-                            worker.process = None
-                            return False
-                        except Exception as e:
-                            logger.error(f"Error force killing worker {repo_name}: {e}")
-                            self.shutdown_manager._exit_code_manager.report_system_error(
-                                "worker_manager", e
-                            )
-                            worker.process = None
-                            return False
-
-                except Exception as e:
-                    logger.error(f"Exception stopping worker {repo_name}: {e}")
-                    self.shutdown_manager._exit_code_manager.report_system_error(
-                        "worker_manager", e
-                    )
-                    if worker.process:
-                        try:
-                            worker.process.kill()
-                            worker.process = None
-                        except Exception:
-                            pass
-                    return False
-
-            # Stop all workers concurrently
-            if not self.workers:
-                logger.info("No workers to stop")
-            else:
-                logger.info(f"Stopping {len(self.workers)} workers concurrently...")
-                stop_tasks = [
-                    stop_worker_gracefully(repo_name, worker)
-                    for repo_name, worker in self.workers.items()
-                ]
-
-                try:
-                    results = await asyncio.wait_for(
-                        asyncio.gather(*stop_tasks, return_exceptions=True),
-                        timeout=150,  # Increased to allow for port cleanup (60s per worker + buffer)
-                    )
-
-                    successful_stops = sum(1 for r in results if r is True)
-                    failed_stops = len(self.workers) - successful_stops
-                    logger.info(
-                        f"Worker stop results: {successful_stops} successful, {failed_stops} failed"
-                    )
-
-                except TimeoutError:
-                    logger.error("Overall worker shutdown timeout after 150s")
-                    self.shutdown_manager._exit_code_manager.report_timeout(
-                        "worker_shutdown", 150.0
-                    )
-
-                    # Emergency cleanup
-                    for _repo_name, worker in self.workers.items():
-                        if worker.process:
-                            try:
-                                worker.process.kill()
-                                worker.process = None
-                            except Exception as e:
-                                logger.warning(
-                                    f"Failed to kill worker process for {worker.repo_name}: {e}"
-                                )
-
-            # Ports will be verified by deployment script if needed
-            logger.info("Workers shutdown process completed")
-
-            # Get final exit code and determine success
-            exit_code = self.shutdown_manager._exit_code_manager.determine_exit_code(
-                "graceful"
-            )
-            logger.info(f"Final shutdown exit code: {exit_code} ({exit_code.name})")
-
-            # Success if exit code indicates clean shutdown
-            from exit_codes import ShutdownExitCode
-
-            success = exit_code in [
-                ShutdownExitCode.SUCCESS_CLEAN_SHUTDOWN,
-                ShutdownExitCode.SUCCESS_SIGNAL_SHUTDOWN,
-            ]
-
-            if success:
-                logger.info("Enhanced worker shutdown completed successfully")
-            else:
-                logger.warning(
-                    f"Enhanced worker shutdown completed with issues: {exit_code.name}"
-                )
-
-            # Stop health monitoring
-            self.shutdown_manager._health_monitor.stop_monitoring()
-            self.shutdown_manager._health_monitor.cleanup_health_file()
-
-            return success
-
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"http://localhost:{worker.port}/shutdown",
+                    timeout=aiohttp.ClientTimeout(total=5)
+                ) as response:
+                    if response.status == 200:
+                        logger.info(f"Sent shutdown request to {worker.repo_name}")
+                    else:
+                        logger.warning(f"Shutdown request failed for {worker.repo_name}: {response.status}")
         except Exception as e:
-            logger.error(f"Critical error in enhanced worker shutdown: {e}")
-            self.shutdown_manager._exit_code_manager.report_system_error(
-                "shutdown_coordinator", e
+            logger.warning(f"Failed to send shutdown request to {worker.repo_name}: {e}")
+
+        # Phase 2: Wait for graceful exit (2 minutes)
+        logger.info(f"Waiting for {worker.repo_name} to shut down gracefully...")
+        start_time = time.time()
+        timeout = 120  # 2 minutes
+
+        while time.time() - start_time < timeout:
+            # Check if process has exited
+            if worker.process.poll() is not None:
+                # Verify port is released
+                if is_port_free(worker.port):
+                    logger.info(f"✓ Worker {worker.repo_name} shut down gracefully")
+                    worker.process = None
+                    return True
+            await asyncio.sleep(1)
+
+        # Phase 3: SIGTERM escalation (only after timeout)
+        logger.warning(f"Worker {worker.repo_name} didn't shutdown in {timeout}s, sending SIGTERM")
+        worker.process.terminate()
+
+        try:
+            await asyncio.wait_for(
+                self._wait_for_process_exit(worker.process),
+                timeout=30
             )
-            return False
+            logger.info(f"✓ Worker {worker.repo_name} terminated after SIGTERM")
+            worker.process = None
+            return True
+        except TimeoutError:
+            pass
+
+        # Phase 4: SIGKILL (last resort)
+        logger.error(f"Force killing worker {worker.repo_name}")
+        worker.process.kill()
+        await self._wait_for_process_exit(worker.process)
+        worker.process = None
+        return True
 
     async def _wait_for_process_exit(self, process: subprocess.Popen[bytes]) -> int:
         """Async wrapper for process.wait() with polling"""
@@ -836,28 +709,17 @@ async def main() -> None:
     try:
         await master.start()
 
-        # Get final exit code from shutdown manager
-        exit_code = master.shutdown_manager._exit_code_manager.determine_exit_code(
-            "main"
-        )
-        logger.info(f"Master process exiting with code: {exit_code} ({exit_code.name})")
-        sys.exit(exit_code.value)
+        # Get final exit code from simplified shutdown coordinator
+        exit_code = master.shutdown_coordinator.get_exit_code()
+        logger.info(f"Master process exiting with code: {exit_code}")
+        sys.exit(exit_code)
 
     except KeyboardInterrupt:
         logger.info("Interrupted by user")
-        exit_code = master.shutdown_manager._exit_code_manager.determine_exit_code(
-            "SIGINT"
-        )
-        sys.exit(exit_code.value)
+        sys.exit(0)  # Clean shutdown via signal
     except Exception as e:
         logger.error(f"Master process failed: {e}")
-        master.shutdown_manager._exit_code_manager.report_system_error(
-            "master_process", e
-        )
-        exit_code = master.shutdown_manager._exit_code_manager.determine_exit_code(
-            "error"
-        )
-        sys.exit(exit_code.value)
+        sys.exit(1)  # Error exit code
 
 
 if __name__ == "__main__":

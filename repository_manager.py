@@ -141,7 +141,7 @@ class RepositoryManager:
                     f"Repository '{name}' configuration must be a dictionary"
                 )
 
-            required_fields = ["path"]
+            required_fields = ["path", "language"]
             for field in required_fields:
                 if field not in repo_data:
                     raise ValueError(
@@ -153,7 +153,7 @@ class RepositoryManager:
                 path=repo_data["path"],
                 description=repo_data.get("description", ""),
                 port=repo_data.get("port"),
-                language=repo_data.get("language", "swift"),
+                language=repo_data["language"],
             )
 
             self.repositories[name] = repo_config
