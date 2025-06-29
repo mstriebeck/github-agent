@@ -1451,7 +1451,7 @@ async def parse_build_output(
     return issues
 
 
-async def execute_read_build_logs(
+async def execute_github_check_ci_build_and_test_errors_not_local(
     repo_name: str, language: str, build_id: str | None = None
 ) -> str:
     """Read build logs and extract compiler errors, warnings, and test failures for Swift and Python"""

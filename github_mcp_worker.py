@@ -39,7 +39,7 @@ from github_tools import (
     execute_get_current_commit,
     execute_get_pr_comments,
     execute_post_pr_reply,
-    execute_read_build_logs,
+    execute_github_check_ci_build_and_test_errors_not_local,
     execute_read_swiftlint_logs,
 )
 
@@ -452,18 +452,18 @@ class GitHubMCPWorker:
                                     },
                                 },
                                 {
-                                    "name": "github_get_build_and_test_errors",
-                                    "description": f"🔧 BUILD ERROR RESOLVER: Use this tool when builds fail, tests fail, or when asked to 'fix build errors'. Extracts detailed compilation errors, build warnings, and test failures from GitHub Actions CI logs for {self.repo_name}. Essential for: debugging failed CI builds, fixing compilation errors, resolving test failures, understanding build warnings. Gets exact error messages, file locations, and line numbers from CI logs. Use this INSTEAD of running local builds when investigating CI build failures.",
+                                    "name": "github_check_ci_build_and_test_errors_not_local", 
+                                    "description": "🚨 MANDATORY FOR CI ISSUES: When user mentions 'build errors', 'tests failing', 'build broken', 'CI failing' - ALWAYS use this tool FIRST, NOT local commands. Gets live GitHub Actions build AND test errors for {repo_name} with exact error messages, file locations, and line numbers. NEVER run local builds/tests when investigating CI failures - this tool provides the authoritative CI error data. Triggers: 'check build', 'fix build errors', 'tests are failing', 'build has errors', 'CI issues'.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {
                                             "build_id": {
-                                                "type": "string",
-                                                "description": "Specific GitHub Actions run ID (optional - if not provided, uses the latest run for the current commit)",
+                                                "type": "string", 
+                                                "description": "GitHub Actions run ID (optional - defaults to latest CI run)"
                                             }
                                         },
-                                        "required": [],
-                                    },
+                                        "required": []
+                                    }
                                 },
                                 {
                                     "name": "github_get_lint_errors",
@@ -594,9 +594,9 @@ class GitHubMCPWorker:
                             self.repo_name, self.language, build_id
                         )
 
-                    elif tool_name == "github_get_build_and_test_errors":
+                    elif tool_name == "github_check_ci_build_and_test_errors_not_local":
                         build_id = tool_args.get("build_id")
-                        result = await execute_read_build_logs(
+                        result = await execute_github_check_ci_build_and_test_errors_not_local(
                             self.repo_name, self.language, build_id
                         )
 
