@@ -718,8 +718,10 @@ class GitHubMCPWorker:
         try:
             if self.server is not None:
                 # Run server in background and wait for shutdown event
+                self.logger.info("Creating server and shutdown tasks...")
                 server_task = asyncio.create_task(self.server.serve())
                 shutdown_task = asyncio.create_task(self.shutdown_event.wait())
+                self.logger.debug("Server and shutdown tasks created successfully")
 
                 # Wait for either server to complete or shutdown event
                 done, pending = await asyncio.wait(
