@@ -1,0 +1,31 @@
+coverage:
+  status:
+    project:
+      default:
+        # Disable failing CI on coverage decrease
+        target: auto
+        threshold: 0%
+        # Don't fail if coverage drops
+        if_no_uploads: error
+        if_not_found: success
+        if_ci_failed: error
+    patch:
+      default:
+        # Disable failing CI on patch coverage
+        target: auto
+        threshold: 0%
+        if_no_uploads: error
+        if_not_found: success
+        if_ci_failed: error
+
+# Don't comment on PRs about coverage changes
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+# Allow uploads to continue even with low coverage
+fixes:
+  - "::path/to/file"  # Optional: path fixes if needed

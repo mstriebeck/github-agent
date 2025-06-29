@@ -6,6 +6,7 @@ Tests for get_linter_errors function in github_tools.py
 Tests parsing of linter errors based on repository language configuration.
 """
 
+import asyncio
 import json
 import unittest
 from unittest.mock import Mock, patch
@@ -48,11 +49,13 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         )
 
     @patch("github_tools.repo_manager")
-    async def test_python_ruff_errors_parsing(self, mock_repo_manager):
+    def test_python_ruff_errors_parsing(self, mock_repo_manager):
         """Test parsing of ruff errors for Python repository"""
         mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
 
-        result_json = await get_linter_errors("python-repo", self.python_ruff_output)
+        result_json = asyncio.run(
+            get_linter_errors("python-repo", self.python_ruff_output)
+        )
         result = json.loads(result_json)
 
         self.assertEqual(result["repository"], "python-repo")
@@ -78,11 +81,13 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         self.assertEqual(error2["rule"], "E501")
 
     @patch("github_tools.repo_manager")
-    async def test_python_mypy_errors_parsing(self, mock_repo_manager):
+    def test_python_mypy_errors_parsing(self, mock_repo_manager):
         """Test parsing of mypy errors for Python repository"""
         mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
 
-        result_json = await get_linter_errors("python-repo", self.python_mypy_output)
+        result_json = asyncio.run(
+            get_linter_errors("python-repo", self.python_mypy_output)
+        )
         result = json.loads(result_json)
 
         self.assertEqual(result["repository"], "python-repo")
@@ -106,11 +111,13 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         self.assertEqual(error2["error_code"], "assignment")
 
     @patch("github_tools.repo_manager")
-    async def test_mixed_python_errors_parsing(self, mock_repo_manager):
+    def test_mixed_python_errors_parsing(self, mock_repo_manager):
         """Test parsing of mixed ruff and mypy errors for Python repository"""
         mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
 
-        result_json = await get_linter_errors("python-repo", self.mixed_python_output)
+        result_json = asyncio.run(
+            get_linter_errors("python-repo", self.mixed_python_output)
+        )
         result = json.loads(result_json)
 
         self.assertEqual(result["repository"], "python-repo")
@@ -123,11 +130,11 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         self.assertIn("mypy", error_types)
 
     @patch("github_tools.repo_manager")
-    async def test_swift_errors_parsing(self, mock_repo_manager):
+    def test_swift_errors_parsing(self, mock_repo_manager):
         """Test parsing of Swift errors for Swift repository"""
         mock_repo_manager.repositories = {"swift-repo": self.swift_repo_config}
 
-        result_json = await get_linter_errors("swift-repo", self.swift_output)
+        result_json = asyncio.run(get_linter_errors("swift-repo", self.swift_output))
         result = json.loads(result_json)
 
         self.assertEqual(result["repository"], "swift-repo")
@@ -155,11 +162,11 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         self.assertEqual(error2["rule"], "identifier_name")
 
     @patch("github_tools.repo_manager")
-    async def test_empty_error_output(self, mock_repo_manager):
+    def test_empty_error_output(self, mock_repo_manager):
         """Test handling of empty error output"""
         mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
 
-        result_json = await get_linter_errors("python-repo", "")
+        result_json = asyncio.run(get_linter_errors("python-repo", ""))
         result = json.loads(result_json)
 
         self.assertEqual(result["repository"], "python-repo")
@@ -168,23 +175,23 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         self.assertEqual(result["errors"], [])
 
     @patch("github_tools.repo_manager")
-    async def test_whitespace_only_output(self, mock_repo_manager):
+    def test_whitespace_only_output(self, mock_repo_manager):
         """Test handling of whitespace-only output"""
         mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
 
-        result_json = await get_linter_errors("python-repo", "   \n  \n   ")
+        result_json = asyncio.run(get_linter_errors("python-repo", "   \n  \n   "))
         result = json.loads(result_json)
 
         self.assertEqual(result["total_errors"], 0)
         self.assertEqual(result["errors"], [])
 
     @patch("github_tools.repo_manager")
-    async def test_repository_not_found(self, mock_repo_manager):
+    def test_repository_not_found(self, mock_repo_manager):
         """Test handling of non-existent repository"""
         mock_repo_manager.repositories = {}
 
-        result_json = await get_linter_errors(
-            "nonexistent-repo", self.python_ruff_output
+        result_json = asyncio.run(
+            get_linter_errors("nonexistent-repo", self.python_ruff_output)
         )
         result = json.loads(result_json)
 
@@ -192,30 +199,34 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         self.assertIn("Repository nonexistent-repo not found", result["error"])
 
     @patch("github_tools.repo_manager", None)
-    async def test_no_repo_manager(self):
+    def test_no_repo_manager(self):
         """Test handling when repo_manager is None"""
-        result_json = await get_linter_errors("any-repo", self.python_ruff_output)
+        result_json = asyncio.run(
+            get_linter_errors("any-repo", self.python_ruff_output)
+        )
         result = json.loads(result_json)
 
         self.assertIn("error", result)
         self.assertIn("Repository any-repo not found", result["error"])
 
     @patch("github_tools.repo_manager")
-    async def test_unsupported_language_error(self, mock_repo_manager):
+    def test_unsupported_language_error(self, mock_repo_manager):
         """Test handling of unsupported language (should not happen due to validation, but test anyway)"""
         # Create a mock config with an invalid language (bypassing validation)
         invalid_config = Mock()
         invalid_config.language = "javascript"
         mock_repo_manager.repositories = {"invalid-repo": invalid_config}
 
-        result_json = await get_linter_errors("invalid-repo", self.python_ruff_output)
+        result_json = asyncio.run(
+            get_linter_errors("invalid-repo", self.python_ruff_output)
+        )
         result = json.loads(result_json)
 
         self.assertIn("error", result)
         self.assertIn("Unsupported language: javascript", result["error"])
 
     @patch("github_tools.repo_manager")
-    async def test_malformed_error_lines_ignored(self, mock_repo_manager):
+    def test_malformed_error_lines_ignored(self, mock_repo_manager):
         """Test that malformed error lines are ignored gracefully"""
         mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
 
@@ -224,7 +235,7 @@ This is not a valid error line
 Another invalid line
 ::error title=Ruff (E501),file=/another/valid/file.py,line=42,col=80,endLine=42,endColumn=120::another valid error"""
 
-        result_json = await get_linter_errors("python-repo", malformed_output)
+        result_json = asyncio.run(get_linter_errors("python-repo", malformed_output))
         result = json.loads(result_json)
 
         # Should only parse the two valid lines
@@ -236,15 +247,17 @@ Another invalid line
         self.assertEqual(result["errors"][1]["file"], "/another/valid/file.py")
 
     @patch("github_tools.repo_manager")
-    async def test_exception_handling(self, mock_repo_manager):
+    def test_exception_handling(self, mock_repo_manager):
         """Test that exceptions are handled gracefully"""
-        # Mock repo_manager to raise an exception
-        mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
-        mock_repo_manager.repositories.__getitem__.side_effect = Exception(
-            "Test exception"
+        # Mock repo_manager to raise an exception when accessing repositories
+        mock_repo_manager.repositories = Mock()
+        mock_repo_manager.repositories.__getitem__ = Mock(
+            side_effect=Exception("Test exception")
         )
 
-        result_json = await get_linter_errors("python-repo", self.python_ruff_output)
+        result_json = asyncio.run(
+            get_linter_errors("python-repo", self.python_ruff_output)
+        )
         result = json.loads(result_json)
 
         self.assertIn("error", result)
@@ -252,27 +265,4 @@ Another invalid line
 
 
 if __name__ == "__main__":
-    # Run async tests
-    import asyncio
-
-    async def run_async_tests():
-        """Run all async tests"""
-        test_suite = unittest.TestLoader().loadTestsFromTestCase(TestGetLinterErrors)
-
-        for test_case in test_suite:
-            if hasattr(test_case, "_testMethodName"):
-                test_method = getattr(test_case, test_case._testMethodName)
-                if asyncio.iscoroutinefunction(test_method):
-                    try:
-                        await test_method()
-                        print(f"✓ {test_case._testMethodName}")
-                    except Exception as e:
-                        print(f"✗ {test_case._testMethodName}: {e}")
-                else:
-                    try:
-                        test_method()
-                        print(f"✓ {test_case._testMethodName}")
-                    except Exception as e:
-                        print(f"✗ {test_case._testMethodName}: {e}")
-
-    asyncio.run(run_async_tests())
+    unittest.main()
