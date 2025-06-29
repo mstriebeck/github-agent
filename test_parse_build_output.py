@@ -10,10 +10,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+from github_tools import parse_build_output
+
 # Add the current directory to Python path to import github_tools
 sys.path.insert(0, str(Path(__file__).parent))
-
-from github_tools import parse_build_output
 
 # Sample Python test output (realistic pytest output with failures and warnings)
 PYTHON_TEST_OUTPUT = """
@@ -101,7 +101,7 @@ async def test_parse_build_output_python():
 
         # Test with language="python" and expected_filename=None (should auto-detect)
         issues = await parse_build_output(
-            temp_dir, expected_filename=None, language="python"
+            temp_dir, language="python"
         )
 
         print(f"Found {len(issues)} issues")
@@ -140,7 +140,7 @@ async def test_parse_build_output_swift():
 
         # Test with language="swift" and expected_filename=None (should auto-detect)
         issues = await parse_build_output(
-            temp_dir, expected_filename=None, language="swift"
+            temp_dir, language="swift"
         )
 
         print(f"Found {len(issues)} issues")
@@ -171,8 +171,8 @@ async def test_filename_detection():
             f.write("# Python test output\nTest completed successfully")
 
         # Test Python language detection
-        issues = await parse_build_output(
-            temp_dir, expected_filename=None, language="python"
+        _ = await parse_build_output(
+            temp_dir, language="python"
         )
         print("✓ Successfully found python_test_output.txt for language='python'")
 
@@ -182,8 +182,8 @@ async def test_filename_detection():
             f.write("// Swift build output\nBuild completed successfully")
 
         # Test Swift language detection
-        issues = await parse_build_output(
-            temp_dir, expected_filename=None, language="swift"
+        _ = await parse_build_output(
+            temp_dir, language="swift"
         )
         print("✓ Successfully found build_and_test_all.txt for language='swift'")
 
@@ -199,8 +199,8 @@ async def test_fallback_alternatives():
             f.write("Alternative output file")
 
         # Should find output.txt as fallback for Python
-        issues = await parse_build_output(
-            temp_dir, expected_filename=None, language="python"
+        _ = await parse_build_output(
+            temp_dir, language="python"
         )
         print("✓ Successfully found alternative file 'output.txt' for Python")
 

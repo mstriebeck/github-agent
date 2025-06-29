@@ -12,9 +12,11 @@ import os
 import re
 import subprocess
 import zipfile
+from typing import cast
 
 import requests
 from github import Github
+from github.Repository import Repository
 
 from repository_manager import RepositoryConfig, RepositoryManager
 
@@ -27,96 +29,82 @@ repo_manager: RepositoryManager | None = None
 class GitHubAPIContext:
     """Context for GitHub API operations with repository information"""
 
+    repo_name: str
+    repo: Repository
+    github_token: str
+    github: Github
+
     def __init__(self, repo_config: RepositoryConfig):
         logger.debug(
             f"GitHubAPIContext.__init__: Starting initialization for path: {repo_config.path}"
         )
         self.repo_config = repo_config
 
-        # Check for GitHub token
-        self.github_token = os.getenv("GITHUB_TOKEN")
-        if not self.github_token:
-            logger.error(
-                "GitHubAPIContext.__init__: GITHUB_TOKEN environment variable not set"
-            )
-        else:
-            logger.debug(
-                f"GitHubAPIContext.__init__: GITHUB_TOKEN found (length: {len(self.github_token)})"
-            )
+        # Check for GitHub token - required
+        github_token = os.getenv("GITHUB_TOKEN")
+        if not github_token:
+            raise RuntimeError("GITHUB_TOKEN environment variable not set")
 
-        self.github = Github(self.github_token) if self.github_token else None
-        if not self.github:
-            logger.error("GitHubAPIContext.__init__: Failed to create GitHub client")
-        else:
-            logger.debug(
-                "GitHubAPIContext.__init__: GitHub client created successfully"
-            )
+        self.github_token = github_token
+        logger.debug(
+            f"GitHubAPIContext.__init__: GITHUB_TOKEN found (length: {len(self.github_token)})"
+        )
 
-        # Get repo name from git config
-        self.repo_name = None
-        self.repo = None
+        self.github = Github(self.github_token)
+        logger.debug(
+            "GitHubAPIContext.__init__: GitHub client created successfully"
+        )
 
-        if not self.github:
-            logger.error(
-                "GitHubAPIContext.__init__: Cannot proceed without GitHub client"
-            )
-            return
-
+        # Get repo name from git config - must succeed or initialization fails
         if not self.repo_config.path:
-            logger.error("GitHubAPIContext.__init__: No repository path provided")
-            return
+            raise RuntimeError("No repository path provided")
 
         logger.debug(
             f"GitHubAPIContext.__init__: Getting git remote from path: {self.repo_config.path}"
         )
-        try:
-            # Get repo name from git remote
-            cmd = ["git", "config", "--get", "remote.origin.url"]
-            logger.debug(
-                f"GitHubAPIContext.__init__: Running command: {' '.join(cmd)} in {self.repo_config.path}"
-            )
 
+        # Get repo name from git remote
+        cmd = ["git", "config", "--get", "remote.origin.url"]
+        logger.debug(
+            f"GitHubAPIContext.__init__: Running command: {' '.join(cmd)} in {self.repo_config.path}"
+        )
+
+        try:
             output = (
                 subprocess.check_output(cmd, cwd=self.repo_config.path).decode().strip()
             )
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Failed to get git remote URL: {e}") from e
 
-            logger.debug(f"GitHubAPIContext.__init__: Git remote URL: {output}")
+        logger.debug(f"GitHubAPIContext.__init__: Git remote URL: {output}")
 
-            if output.startswith("git@"):
-                _, path = output.split(":", 1)
-                logger.debug(f"GitHubAPIContext.__init__: Parsed SSH URL, path: {path}")
-            elif output.startswith("https://"):
-                path = output.split("github.com/", 1)[-1]
-                logger.debug(
-                    f"GitHubAPIContext.__init__: Parsed HTTPS URL, path: {path}"
-                )
-            else:
-                raise ValueError(f"Unrecognized GitHub remote URL: {output}")
-
-            self.repo_name = path.replace(".git", "")
-            logger.info(
-                f"GitHubAPIContext.__init__: Extracted repo name: {self.repo_name}"
-            )
-
-            # Try to get the repository object
+        if output.startswith("git@"):
+            _, path = output.split(":", 1)
+            logger.debug(f"GitHubAPIContext.__init__: Parsed SSH URL, path: {path}")
+        elif output.startswith("https://"):
+            path = output.split("github.com/", 1)[-1]
             logger.debug(
-                f"GitHubAPIContext.__init__: Getting GitHub repo object for {self.repo_name}"
+                f"GitHubAPIContext.__init__: Parsed HTTPS URL, path: {path}"
             )
+        else:
+            raise ValueError(f"Unrecognized GitHub remote URL: {output}")
+
+        self.repo_name = path.replace(".git", "")
+        logger.info(
+            f"GitHubAPIContext.__init__: Extracted repo name: {self.repo_name}"
+        )
+
+        # Try to get the repository object
+        logger.debug(
+            f"GitHubAPIContext.__init__: Getting GitHub repo object for {self.repo_name}"
+        )
+        try:
             self.repo = self.github.get_repo(self.repo_name)
             logger.info(
                 f"GitHubAPIContext.__init__: Successfully initialized GitHub context for {self.repo_name}"
             )
-
-        except subprocess.CalledProcessError as e:
-            logger.error(f"GitHubAPIContext.__init__: Git command failed: {e}")
-            logger.error(
-                f"GitHubAPIContext.__init__: Command output: {e.output if hasattr(e, 'output') else 'No output'}"
-            )
         except Exception as e:
-            logger.error(
-                f"GitHubAPIContext.__init__: Failed to initialize GitHub context: {e}",
-                exc_info=True,
-            )
+            raise RuntimeError(f"Failed to access GitHub repository {self.repo_name}: {e}") from e
 
     def get_current_branch(self) -> str:
         """Get current branch name"""
@@ -1298,7 +1286,7 @@ async def execute_get_build_status(
 
 async def parse_build_output(
     output_dir: str,
-    expected_filename: str = None,
+    expected_filename: str | None = None,
     language: str = "swift",
 ) -> list:
     """Parse build output to extract compiler errors, warnings, and test failures"""
@@ -1354,7 +1342,7 @@ async def parse_build_output(
         python_warning_pattern = re.compile(r"^(/.*\.py):(\d+): (\w+Warning): (.+)$")
         # Python test failures: assert result is True -> E assert False is True
         python_test_failure_pattern = re.compile(r"^>?\s*(assert .+)$")
-        python_test_error_pattern = re.compile(r"^E\s+(.+)$")
+
         # Python runtime errors: TypeError: is_server_healthy() got an unexpected keyword argument
         python_runtime_error_pattern = re.compile(r"^E\s+(\w+Error): (.+)$")
     else:
@@ -1470,7 +1458,7 @@ async def parse_build_output(
 
 
 async def execute_read_build_logs(
-    repo_name: str, build_id: str = None, language: str = None
+    repo_name: str, build_id: str | None = None, language: str | None = None
 ) -> str:
     """Read build logs and extract compiler errors, warnings, and test failures for Swift and Python"""
     logger.info(
@@ -1485,6 +1473,7 @@ async def execute_read_build_logs(
             )
 
         # Use passed language parameter, fallback to repository config
+        repo_config = None
         if language is None:
             if not repo_manager or repo_name not in repo_manager.repositories:
                 logger.error(f"Repository {repo_name} not found in configuration")
@@ -1494,7 +1483,7 @@ async def execute_read_build_logs(
 
         logger.info(f"Using language: {language}")
         logger.info(
-            f"Repository config language: {repo_config.language if 'repo_config' in locals() else 'N/A'}"
+            f"Repository config language: {repo_config.language if repo_config else 'N/A'}"
         )
 
         # TEMPORARY DEBUG: Force Python language for github-agent
@@ -1513,14 +1502,19 @@ async def execute_read_build_logs(
             build_id = await find_workflow_run(context, commit_sha, token)
             logger.info(f"Using workflow run {build_id} for commit {commit_sha}")
 
+        if build_id is None:
+            return json.dumps({"error": "Could not determine build ID"})
+
+        # At this point, build_id is guaranteed to be not None
+        run_id = cast(str, build_id)
         artifact_id = await get_artifact_id(
-            context.repo_name, build_id, token, name="build-output"
+            context.repo_name, run_id, token, name="build-output"
         )
         output_dir = await download_and_extract_artifact(
             context.repo_name, artifact_id, token, "/tmp/build_output"
         )
         build_issues = await parse_build_output(
-            output_dir, expected_filename=None, language=language
+            output_dir, language=language
         )
 
         # Filter and limit results to prevent huge responses based on language
