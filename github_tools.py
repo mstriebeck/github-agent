@@ -51,9 +51,7 @@ class GitHubAPIContext:
         )
 
         self.github = Github(self.github_token)
-        logger.debug(
-            "GitHubAPIContext.__init__: GitHub client created successfully"
-        )
+        logger.debug("GitHubAPIContext.__init__: GitHub client created successfully")
 
         # Get repo name from git config - must succeed or initialization fails
         if not self.repo_config.path:
@@ -83,16 +81,12 @@ class GitHubAPIContext:
             logger.debug(f"GitHubAPIContext.__init__: Parsed SSH URL, path: {path}")
         elif output.startswith("https://"):
             path = output.split("github.com/", 1)[-1]
-            logger.debug(
-                f"GitHubAPIContext.__init__: Parsed HTTPS URL, path: {path}"
-            )
+            logger.debug(f"GitHubAPIContext.__init__: Parsed HTTPS URL, path: {path}")
         else:
             raise ValueError(f"Unrecognized GitHub remote URL: {output}")
 
         self.repo_name = path.replace(".git", "")
-        logger.info(
-            f"GitHubAPIContext.__init__: Extracted repo name: {self.repo_name}"
-        )
+        logger.info(f"GitHubAPIContext.__init__: Extracted repo name: {self.repo_name}")
 
         # Try to get the repository object
         logger.debug(
@@ -104,7 +98,9 @@ class GitHubAPIContext:
                 f"GitHubAPIContext.__init__: Successfully initialized GitHub context for {self.repo_name}"
             )
         except Exception as e:
-            raise RuntimeError(f"Failed to access GitHub repository {self.repo_name}: {e}") from e
+            raise RuntimeError(
+                f"Failed to access GitHub repository {self.repo_name}: {e}"
+            ) from e
 
     def get_current_branch(self) -> str:
         """Get current branch name"""
@@ -1513,9 +1509,7 @@ async def execute_read_build_logs(
         output_dir = await download_and_extract_artifact(
             context.repo_name, artifact_id, token, "/tmp/build_output"
         )
-        build_issues = await parse_build_output(
-            output_dir, language=language
-        )
+        build_issues = await parse_build_output(output_dir, language=language)
 
         # Filter and limit results to prevent huge responses based on language
         if language == "swift":
