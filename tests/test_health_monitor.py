@@ -16,7 +16,7 @@ from health_monitor import (
     HealthReport,
     ServerStatus,
     ShutdownPhase,
-    isServerHealthy,
+    is_server_healthy,
     read_health_status,
 )
 
@@ -491,7 +491,7 @@ class TestHealthStatusFunctions:
 
         assert result == {"error": "Invalid health file format"}
 
-    def test_isServerHealthy_true(self, tmp_path):
+    def test_is_server_healthy_true(self, tmp_path):
         """Test server healthy check returning true."""
         health_file = tmp_path / "health.json"
         test_data = {
@@ -502,11 +502,11 @@ class TestHealthStatusFunctions:
         with open(health_file, "w") as f:
             json.dump(test_data, f)
 
-        result = isServerHealthy(str(health_file))
+        result = is_server_healthy(str(health_file))
 
         assert result is True
 
-    def test_isServerHealthy_false_old(self, tmp_path):
+    def test_is_server_healthy_false_old(self, tmp_path):
         """Test server healthy check returning false for old timestamp."""
         health_file = tmp_path / "health.json"
         old_time = datetime.now() - timedelta(seconds=20)
@@ -515,11 +515,11 @@ class TestHealthStatusFunctions:
         with open(health_file, "w") as f:
             json.dump(test_data, f)
 
-        result = isServerHealthy(str(health_file), max_age_seconds=10)
+        result = is_server_healthy(str(health_file), max_age_seconds=10)
 
         assert result is False
 
-    def test_isServerHealthy_false_status(self, tmp_path):
+    def test_is_server_healthy_false_status(self, tmp_path):
         """Test server healthy check returning false for bad status."""
         health_file = tmp_path / "health.json"
         test_data = {"server_status": "error", "timestamp": datetime.now().isoformat()}
@@ -527,14 +527,14 @@ class TestHealthStatusFunctions:
         with open(health_file, "w") as f:
             json.dump(test_data, f)
 
-        result = isServerHealthy(str(health_file))
+        result = is_server_healthy(str(health_file))
 
         assert result is False
 
-    def test_isServerHealthy_no_file(self, tmp_path):
+    def test_is_server_healthy_no_file(self, tmp_path):
         """Test server healthy check with no file."""
         health_file = tmp_path / "nonexistent.json"
 
-        result = isServerHealthy(str(health_file))
+        result = is_server_healthy(str(health_file))
 
         assert result is False
