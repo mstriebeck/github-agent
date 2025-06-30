@@ -738,73 +738,106 @@ async def find_workflow_run(
 
 
 # Build/Lint helper functions (simplified - removed legacy single-repo functions)
-async def execute_read_swiftlint_logs(
+async def execute_github_check_ci_lint_errors_not_local(
     repo_name: str, language: str, build_id: str | None = None
 ) -> str:
-    """Read linter violation logs from GitHub Actions artifacts (supports both SwiftLint and Python linters)"""
+    """Check CI lint errors and provide actionable fix instructions"""
     logger.info(
-        f"Reading linter logs for repository '{repo_name}' (build_id: {build_id})"
+        f"🚀 STARTING execute_github_check_ci_lint_errors_not_local for repository '{repo_name}' (build_id: {build_id}, language: {language})"
     )
 
     try:
+        logger.info(f"📋 Step 1: Getting GitHub context for repository '{repo_name}'")
         context = get_github_context(repo_name)
         if not context.repo or not context.repo_name:
+            logger.error(f"❌ GitHub repository not configured for {repo_name}")
             return json.dumps(
                 {"error": f"GitHub repository not configured for {repo_name}"}
             )
+        logger.info(
+            f"✅ Step 1 Complete: GitHub context obtained for '{context.repo_name}'"
+        )
 
+        logger.info("📋 Step 2: Checking GitHub token availability")
         token = context.github_token
         if not token:
+            logger.error("❌ GITHUB_TOKEN is not set")
             return json.dumps({"error": "GITHUB_TOKEN is not set"})
+        logger.info(
+            f"✅ Step 2 Complete: GitHub token available (length: {len(token)})"
+        )
 
         if build_id is None:
+            logger.info("📋 Step 3: Finding workflow run for current commit")
             commit_sha = context.get_current_commit()
+            logger.info(f"🔍 Current commit SHA: {commit_sha}")
             build_id = await find_workflow_run(context, commit_sha, token)
-            logger.info(f"Using workflow run {build_id} for commit {commit_sha}")
+            logger.info(
+                f"✅ Step 3 Complete: Using workflow run {build_id} for commit {commit_sha}"
+            )
+        else:
+            logger.info(f"📋 Step 3: Using provided build_id: {build_id}")
 
         # At this point build_id is guaranteed to be a string
         assert build_id is not None
+        logger.info(f"📋 Step 4: Confirmed build_id is available: {build_id}")
 
         # Get artifact name based on repository language
+        logger.info("📋 Step 5: Determining repository language configuration")
         if not repo_manager or repo_name not in repo_manager.repositories:
+            logger.error(f"❌ Repository {repo_name} not found in repo_manager")
             return json.dumps({"error": f"Repository {repo_name} not found"})
 
         repo_config = repo_manager.repositories[repo_name]
+        logger.info(f"🔍 Repository config found for {repo_name}")
+
         # Use passed language parameter, fallback to repository config
+        original_language = language
         if language is None:
             language = repo_config.language
+            logger.info(
+                f"🔄 Language fallback: using repo config language '{language}'"
+            )
+        else:
+            logger.info(f"🎯 Language specified: using parameter language '{language}'")
+
         logger.info(
-            f"Using language: {language} (from parameter: {language is not None})"
+            f"✅ Step 5 Complete: Using language: {language} (from parameter: {original_language is not None})"
         )
 
         # Try generic "lint-reports" first, fall back to language-specific names for backward compatibility
-        logger.info(f"Looking for linter artifacts for {language} repository...")
+        logger.info(
+            f"📋 Step 6: Looking for linter artifacts for {language} repository..."
+        )
         try:
-            logger.info("Step 1: Trying generic 'lint-reports' artifact...")
+            logger.info("🔍 Step 6a: Trying generic 'lint-reports' artifact...")
             artifact_id = await get_artifact_id(
                 context.repo_name, build_id, token, "lint-reports"
             )
-            logger.info("✓ Found 'lint-reports' artifact")
+            logger.info("✅ Step 6a Complete: Found 'lint-reports' artifact")
         except RuntimeError as e:
             # Fall back to legacy artifact names for backward compatibility
             fallback_name = (
                 "swiftlint-reports" if language == "swift" else "code-check-reports"
             )
-            logger.warning(f"✗ 'lint-reports' not found: {e}")
-            logger.info(f"Step 2: Trying fallback '{fallback_name}' artifact...")
+            logger.warning(f"⚠️ Step 6a Failed: 'lint-reports' not found: {e}")
+            logger.info(f"🔍 Step 6b: Trying fallback '{fallback_name}' artifact...")
             try:
                 artifact_id = await get_artifact_id(
                     context.repo_name, build_id, token, fallback_name
                 )
-                logger.info(f"✓ Found '{fallback_name}' artifact")
+                logger.info(f"✅ Step 6b Complete: Found '{fallback_name}' artifact")
             except RuntimeError as e2:
-                logger.error(f"✗ '{fallback_name}' also not found: {e2}")
+                logger.error(
+                    f"❌ Step 6b Failed: '{fallback_name}' also not found: {e2}"
+                )
                 raise e2
-        logger.info(f"Downloading and extracting artifact {artifact_id}...")
+
+        logger.info(f"📋 Step 7: Downloading and extracting artifact {artifact_id}...")
         output_dir = await download_and_extract_artifact(
             context.repo_name, artifact_id, token
         )
-        logger.info(f"✓ Artifact extracted to: {output_dir}")
+        logger.info(f"✅ Step 7 Complete: Artifact extracted to: {output_dir}")
 
         # Debug: List contents of extracted directory
         import os
@@ -828,69 +861,189 @@ async def execute_read_swiftlint_logs(
             logger.error(f"✗ Output directory does not exist: {output_dir}")
 
         # Parse output based on language
-        logger.info(f"Parsing linter output for {language} repository...")
+        logger.info(f"📋 Step 8: Parsing linter output for {language} repository...")
         if language == "swift":
-            logger.info("Using Swift/SwiftLint parser...")
+            logger.info("🔍 Step 8a: Using Swift/SwiftLint parser...")
             lint_results = await parse_swiftlint_output(output_dir)
-            logger.info(f"✓ SwiftLint parser found {len(lint_results)} violations")
+            logger.info(
+                f"✅ Step 8a Complete: SwiftLint parser found {len(lint_results)} violations"
+            )
         else:
-            logger.info("Using Python linter parser...")
+            logger.info("🔍 Step 8a: Using Python linter parser...")
             # For Python, read the raw output and parse with get_linter_errors
-            logger.info("Step 1: Reading lint output file...")
+            logger.info("📄 Step 8b: Reading lint output file...")
             lint_output = await read_lint_output_file(output_dir)
-            logger.info(f"✓ Read {len(lint_output)} characters from lint output")
+            logger.info(
+                f"✅ Step 8b Complete: Read {len(lint_output)} characters from lint output"
+            )
 
             # Debug: Show first part of lint output
             if lint_output:
                 preview = (
                     lint_output[:500] + "..." if len(lint_output) > 500 else lint_output
                 )
-                logger.info(f"Lint output preview: {preview}")
+                logger.info(f"📝 Lint output preview: {preview}")
             else:
                 logger.warning("⚠️ Lint output is empty!")
 
-            logger.info("Step 2: Parsing lint errors...")
+            logger.info("🔧 Step 8c: Parsing lint errors...")
             parsed_result = await get_linter_errors(repo_name, lint_output, language)
-            logger.info(f"✓ Parser returned: {len(parsed_result)} characters")
+            logger.info(
+                f"✅ Step 8c Partial: Parser returned: {len(parsed_result)} characters"
+            )
 
-            logger.info("Step 3: Parsing JSON result...")
+            logger.info("🔍 Step 8d: Parsing JSON result...")
             try:
                 parsed_data = json.loads(parsed_result)
-                logger.info("✓ JSON parsed successfully")
-                logger.info(f"Parser result keys: {list(parsed_data.keys())}")
+                logger.info("✅ Step 8d Complete: JSON parsed successfully")
+                logger.info(f"📊 Parser result keys: {list(parsed_data.keys())}")
                 lint_results = parsed_data.get("errors", [])
                 logger.info(
-                    f"✓ Extracted {len(lint_results)} errors from parser result"
+                    f"✅ Extracted {len(lint_results)} errors from parser result"
                 )
 
                 # Debug: Show first few errors
                 if lint_results:
-                    logger.info("First few errors:")
+                    logger.info("📋 First few errors:")
                     for i, error in enumerate(lint_results[:3]):
                         logger.info(f"  Error {i + 1}: {error}")
                 else:
                     logger.warning("⚠️ No errors found in parser result")
             except json.JSONDecodeError as e:
-                logger.error(f"✗ Failed to parse JSON result: {e}")
+                logger.error(f"❌ Step 8d Failed: Failed to parse JSON result: {e}")
                 logger.error(f"Raw result: {parsed_result}")
                 lint_results = []
 
-        return json.dumps(
-            {
-                "success": True,
-                "repo": context.repo_name,
-                "repo_config": repo_name,
-                "language": language,
-                "run_id": build_id,
-                "artifact_id": artifact_id,
-                "violations": lint_results,
-                "total_violations": len(lint_results),
-            }
+        # Categorize violations by severity/type - limit to 10 per category to prevent huge responses
+        logger.info(
+            f"📋 Step 9: Categorizing {len(lint_results)} violations by severity..."
         )
+        lint_errors = [
+            v
+            for v in lint_results
+            if v.get("severity") == "error" or "error" in str(v).lower()
+        ][:10]
+        lint_warnings = [
+            v
+            for v in lint_results
+            if v.get("severity") == "warning" or "warning" in str(v).lower()
+        ][:10]
+        logger.info(
+            f"✅ Step 9 Complete: Found {len(lint_errors)} errors and {len(lint_warnings)} warnings"
+        )
+
+        # Build response based on language
+        logger.info("📋 Step 10: Building response structure...")
+        result = {
+            "success": True,
+            "language": language,
+            "repo": context.repo_name,
+            "repo_config": repo_name,
+            "run_id": build_id,
+            "artifact_id": artifact_id,
+            "total_violations": len(lint_results),
+            "next_steps": [
+                "1. Fix all lint violations found above",
+                "2. Run local autoformat and lint checks (see CLAUDE.md or AGENT.md for commands)",
+                "3. Stage and commit all changes with descriptive commit message",
+                "4. DO NOT push - leave for manual review",
+            ],
+            "workflow_instructions": "After fixing CI lint errors: (1) Fix all violations listed above, (2) Check CLAUDE.md or AGENT.md for local lint commands, (3) Run all autoformat + lint locally, (4) Stage and commit changes with summary message, (5) DO NOT push - manual review required",
+        }
+
+        if len(lint_results) > 0:
+            result.update(
+                {
+                    "action_required": True,
+                    "user_intent_fulfilled": "User asked about lint status - status is FAILED, now fixing automatically",
+                    "immediate_actions": [
+                        f"✅ Lint Status checked: FAILED ({len(lint_results)} violation(s) found)",
+                        "🔧 NOW FIXING: all violations listed below",
+                        "⚡ NEXT: Run local autoformat/lint per CLAUDE.md/AGENT.md",
+                        "📝 THEN: Commit all fixes (no push)",
+                    ],
+                }
+            )
+
+        # Add language-specific categorized results
+        if language == "swift":
+            result.update(
+                {
+                    "lint_errors": lint_errors,
+                    "lint_warnings": lint_warnings,
+                    "total_errors": len(
+                        [
+                            v
+                            for v in lint_results
+                            if v.get("severity") == "error" or "error" in str(v).lower()
+                        ]
+                    ),
+                    "total_warnings": len(
+                        [
+                            v
+                            for v in lint_results
+                            if v.get("severity") == "warning"
+                            or "warning" in str(v).lower()
+                        ]
+                    ),
+                }
+            )
+        elif language == "python":
+            result.update(
+                {
+                    "lint_errors": lint_errors,
+                    "lint_warnings": lint_warnings,
+                    "total_errors": len(
+                        [
+                            v
+                            for v in lint_results
+                            if v.get("severity") == "error" or "error" in str(v).lower()
+                        ]
+                    ),
+                    "total_warnings": len(
+                        [
+                            v
+                            for v in lint_results
+                            if v.get("severity") == "warning"
+                            or "warning" in str(v).lower()
+                        ]
+                    ),
+                }
+            )
+        else:
+            # Default to same format for unknown languages
+            result.update(
+                {
+                    "lint_errors": lint_errors,
+                    "lint_warnings": lint_warnings,
+                    "total_errors": len(
+                        [
+                            v
+                            for v in lint_results
+                            if v.get("severity") == "error" or "error" in str(v).lower()
+                        ]
+                    ),
+                    "total_warnings": len(
+                        [
+                            v
+                            for v in lint_results
+                            if v.get("severity") == "warning"
+                            or "warning" in str(v).lower()
+                        ]
+                    ),
+                }
+            )
+
+        logger.info("✅ Step 10 Complete: Response structure built successfully")
+        logger.info(
+            "🎉 SUCCESSFULLY COMPLETED execute_github_check_ci_lint_errors_not_local"
+        )
+        return json.dumps(result)
 
     except Exception as e:
         logger.error(
-            f"Failed to read linter logs for {repo_name}: {e!s}", exc_info=True
+            f"💥 FAILED execute_github_check_ci_lint_errors_not_local for {repo_name}: {e!s}",
+            exc_info=True,
         )
         return json.dumps(
             {"error": f"Failed to read linter logs for {repo_name}: {e!s}"}

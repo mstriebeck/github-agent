@@ -39,8 +39,8 @@ from github_tools import (
     execute_get_current_commit,
     execute_get_pr_comments,
     execute_github_check_ci_build_and_test_errors_not_local,
+    execute_github_check_ci_lint_errors_not_local,
     execute_post_pr_reply,
-    execute_read_swiftlint_logs,
 )
 
 # Import shared functionality
@@ -466,8 +466,8 @@ class GitHubMCPWorker:
                                     },
                                 },
                                 {
-                                    "name": "github_get_lint_errors",
-                                    "description": f"🔍 LINT ERROR RESOLVER: Use this tool when the build has lint errors, CI fails due to linting issues, or when asked to 'fix lint errors'. Extracts detailed linting violations from GitHub Actions CI logs for {self.repo_name}, including SwiftLint, ESLint, Pylint errors. Essential for: fixing build failures caused by lint issues, identifying specific code style violations that need to be corrected, getting exact file locations and line numbers for lint problems. Use this INSTEAD of running local linting tools when lint errors come from CI/CD builds.",
+                                    "name": "github_check_ci_lint_errors_not_local",
+                                    "description": f"🚨 MANDATORY FOR LINT ISSUES: When user mentions 'lint errors', 'lint failures', 'fix lint errors', 'linting issues' - ALWAYS use this tool FIRST, NOT local commands. Gets live GitHub Actions lint errors for {self.repo_name} with exact error messages, file locations, and line numbers. NEVER run local lint when investigating CI lint failures - this tool provides the authoritative CI lint error data. Triggers: 'check lint', 'fix lint errors', 'linting is failing', 'lint has errors', 'CI lint issues'.",
                                     "inputSchema": {
                                         "type": "object",
                                         "properties": {
@@ -585,12 +585,12 @@ class GitHubMCPWorker:
                     elif tool_name == "git_get_current_commit":
                         result = await execute_get_current_commit(self.repo_name)
 
-                    elif tool_name == "github_get_lint_errors":
+                    elif tool_name == "github_check_ci_lint_errors_not_local":
                         build_id = tool_args.get("build_id")
                         self.logger.info(
                             f"Calling lint errors with language: {self.language}"
                         )
-                        result = await execute_read_swiftlint_logs(
+                        result = await execute_github_check_ci_lint_errors_not_local(
                             self.repo_name, self.language, build_id
                         )
 
