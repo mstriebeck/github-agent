@@ -758,17 +758,17 @@ async def execute_github_check_ci_lint_errors_not_local(
             f"✅ Step 1 Complete: GitHub context obtained for '{context.repo_name}'"
         )
 
-        logger.info(f"📋 Step 2: Checking GitHub token availability")
+        logger.info("📋 Step 2: Checking GitHub token availability")
         token = context.github_token
         if not token:
-            logger.error(f"❌ GITHUB_TOKEN is not set")
+            logger.error("❌ GITHUB_TOKEN is not set")
             return json.dumps({"error": "GITHUB_TOKEN is not set"})
         logger.info(
             f"✅ Step 2 Complete: GitHub token available (length: {len(token)})"
         )
 
         if build_id is None:
-            logger.info(f"📋 Step 3: Finding workflow run for current commit")
+            logger.info("📋 Step 3: Finding workflow run for current commit")
             commit_sha = context.get_current_commit()
             logger.info(f"🔍 Current commit SHA: {commit_sha}")
             build_id = await find_workflow_run(context, commit_sha, token)
@@ -783,7 +783,7 @@ async def execute_github_check_ci_lint_errors_not_local(
         logger.info(f"📋 Step 4: Confirmed build_id is available: {build_id}")
 
         # Get artifact name based on repository language
-        logger.info(f"📋 Step 5: Determining repository language configuration")
+        logger.info("📋 Step 5: Determining repository language configuration")
         if not repo_manager or repo_name not in repo_manager.repositories:
             logger.error(f"❌ Repository {repo_name} not found in repo_manager")
             return json.dumps({"error": f"Repository {repo_name} not found"})
@@ -933,7 +933,7 @@ async def execute_github_check_ci_lint_errors_not_local(
         )
 
         # Build response based on language
-        logger.info(f"📋 Step 10: Building response structure...")
+        logger.info("📋 Step 10: Building response structure...")
         result = {
             "success": True,
             "language": language,
@@ -1034,9 +1034,9 @@ async def execute_github_check_ci_lint_errors_not_local(
                 }
             )
 
-        logger.info(f"✅ Step 10 Complete: Response structure built successfully")
+        logger.info("✅ Step 10 Complete: Response structure built successfully")
         logger.info(
-            f"🎉 SUCCESSFULLY COMPLETED execute_github_check_ci_lint_errors_not_local"
+            "🎉 SUCCESSFULLY COMPLETED execute_github_check_ci_lint_errors_not_local"
         )
         return json.dumps(result)
 
