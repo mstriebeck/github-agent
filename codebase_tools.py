@@ -171,14 +171,14 @@ async def execute_codebase_health_check(repo_name: str) -> str:
                         ] = False
                 else:
                     if (repo_path / pattern).exists():
-                        health_status["checks"][f"has_{pattern.replace('.', '_')}"] = (
-                            True
-                        )
+                        health_status["checks"][
+                            f"has_{pattern.replace('.', '_')}"
+                        ] = True
                         swift_found = True
                     else:
-                        health_status["checks"][f"has_{pattern.replace('.', '_')}"] = (
-                            False
-                        )
+                        health_status["checks"][
+                            f"has_{pattern.replace('.', '_')}"
+                        ] = False
 
             if not swift_found:
                 health_status["warnings"].append("No Swift project files found")
