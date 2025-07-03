@@ -18,6 +18,21 @@ from repository_manager import RepositoryConfig
 class TestGetLinterErrors(unittest.TestCase):
     """Test get_linter_errors function"""
 
+    def _create_test_config(self, **kwargs):
+        """Helper method to create RepositoryConfig with defaults"""
+        defaults = {
+            "name": "test-repo",
+            "path": "/path/to/repo",
+            "description": "Test repository",
+            "language": "python",
+            "port": 8081,
+            "python_path": "/usr/bin/python3",
+            "github_owner": "test-owner",
+            "github_repo": "test-repo"
+        }
+        defaults.update(kwargs)
+        return RepositoryConfig(**defaults)
+
     def setUp(self):
         """Set up test fixtures"""
         # Sample error outputs for testing
@@ -34,18 +49,22 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
 /Users/dev/MyProject/Sources/MyApp/Models/User.swift:15:23: error: Variable name should start with a lowercase character (identifier_name)"""
 
         # Mock repository configurations
-        self.python_repo_config = RepositoryConfig(
+        self.python_repo_config = self._create_test_config(
             name="python-repo",
             path="/path/to/python/repo",
             description="Python repository",
             language="python",
+            port=8081,
+            github_repo="python-repo",
         )
 
-        self.swift_repo_config = RepositoryConfig(
+        self.swift_repo_config = self._create_test_config(
             name="swift-repo",
             path="/path/to/swift/repo",
             description="Swift repository",
             language="swift",
+            port=8082,
+            github_repo="swift-repo",
         )
 
     @patch("github_tools.repo_manager")

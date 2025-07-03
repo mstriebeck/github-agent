@@ -234,7 +234,7 @@ echo "Copying service files..."
 cd "$PROJECT_ROOT"
 
 # Deploy core service files
-deploy_file "github_mcp_master.py"
+deploy_file "mcp_master.py"
 deploy_file "github_mcp_worker.py"
 deploy_file "github_tools.py"
 deploy_file "repository_manager.py"

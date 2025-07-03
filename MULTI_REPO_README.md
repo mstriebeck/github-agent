@@ -67,7 +67,7 @@ export GITHUB_AGENT_DEV_MODE=true
 python3 repository_cli.py --help
 
 # Test master process
-python3 github_mcp_master.py status
+python3 mcp_master.py status
 ```
 
 ---
@@ -161,7 +161,7 @@ Configured repositories (3):
 
 ```bash
 # Start master process (spawns all workers)
-python3 github_mcp_master.py
+python3 mcp_master.py
 ```
 
 The master process will:
@@ -192,15 +192,15 @@ To run the server in the background:
 
 ```bash
 # Using nohup
-nohup python3 github_mcp_master.py > /dev/null 2>&1 &
+nohup python3 mcp_master.py > /dev/null 2>&1 &
 
 # Using screen
 screen -S github-mcp
-python3 github_mcp_master.py
+python3 mcp_master.py
 # Press Ctrl+A, then D to detach
 
 # Using tmux
-tmux new-session -d -s github-mcp 'python3 github_mcp_master.py'
+tmux new-session -d -s github-mcp 'python3 mcp_master.py'
 ```
 
 ---
@@ -361,7 +361,7 @@ python3 github_mcp_worker.py \
   --description "GitHub Agent repository"
 
 # Test master without workers
-python3 github_mcp_master.py status
+python3 mcp_master.py status
 ```
 
 ---
@@ -382,11 +382,11 @@ python3 repository_cli.py assign-ports --start-port=10100 # Production
 ```bash
 # Development environment
 export GITHUB_AGENT_REPO_CONFIG=./config/dev-repositories.json
-python3 github_mcp_master.py
+python3 mcp_master.py
 
 # Production environment  
 export GITHUB_AGENT_REPO_CONFIG=/etc/github-agent/repositories.json
-python3 github_mcp_master.py
+python3 mcp_master.py
 ```
 
 ### Process Management
@@ -421,10 +421,10 @@ For high-availability setups, you can run multiple instances:
 
 ```bash
 # Instance 1 (ports 8081-8090)
-GITHUB_AGENT_REPO_CONFIG=config/instance1.json python3 github_mcp_master.py
+GITHUB_AGENT_REPO_CONFIG=config/instance1.json python3 mcp_master.py
 
 # Instance 2 (ports 8091-8100)  
-GITHUB_AGENT_REPO_CONFIG=config/instance2.json python3 github_mcp_master.py
+GITHUB_AGENT_REPO_CONFIG=config/instance2.json python3 mcp_master.py
 ```
 
 ---
@@ -458,7 +458,7 @@ GITHUB_AGENT_REPO_CONFIG=config/instance2.json python3 github_mcp_master.py
 
 5. **Start new architecture**:
    ```bash
-   python3 github_mcp_master.py
+   python3 mcp_master.py
    ```
 
 6. **Verify functionality** with your MCP clients

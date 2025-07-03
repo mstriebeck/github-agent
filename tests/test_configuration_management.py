@@ -63,6 +63,7 @@ class TestRepositoryCLI(unittest.TestCase):
         except Exception as e:
             return 1, "", str(e)
 
+    @unittest.skip("CLI removed in US001-2")
     def test_cli_init_example(self):
         """Test CLI init with example configuration"""
         returncode, stdout, stderr = self._run_cli_command(["init", "--example"])
@@ -78,6 +79,7 @@ class TestRepositoryCLI(unittest.TestCase):
         self.assertIn("repositories", config)
         self.assertIsInstance(config["repositories"], dict)
 
+    @unittest.skip("CLI removed in US001-2")
     def test_cli_add_repository(self):
         """Test CLI add repository command"""
         # Initialize empty config first
@@ -124,6 +126,7 @@ class TestRepositoryCLI(unittest.TestCase):
             config["repositories"]["test-repo"]["description"], "Test repository"
         )
 
+    @unittest.skip("CLI removed in US001-2")
     def test_cli_list_repositories(self):
         """Test CLI list repositories command"""
         # Create test configuration
@@ -133,11 +136,19 @@ class TestRepositoryCLI(unittest.TestCase):
                     "path": str(self.repo1_path),
                     "description": "Repository 1",
                     "language": "python",
+                    "port": 8081,
+                    "python_path": "/usr/bin/python3",
+                    "github_owner": "test-owner",
+                    "github_repo": "repo1",
                 },
                 "repo2": {
                     "path": str(self.repo2_path),
                     "description": "Repository 2",
                     "language": "swift",
+                    "port": 8082,
+                    "python_path": "/usr/bin/python3",
+                    "github_owner": "test-owner",
+                    "github_repo": "repo2",
                 },
             }
         }
@@ -156,6 +167,7 @@ class TestRepositoryCLI(unittest.TestCase):
         self.assertIn("URL: http://localhost:", stdout)
         self.assertIn("/mcp/", stdout)
 
+    @unittest.skip("CLI removed in US001-2")
     def test_cli_remove_repository(self):
         """Test CLI remove repository command"""
         # Create test configuration
@@ -165,11 +177,19 @@ class TestRepositoryCLI(unittest.TestCase):
                     "path": str(self.repo1_path),
                     "description": "Repository 1",
                     "language": "python",
+                    "port": 8081,
+                    "python_path": "/usr/bin/python3",
+                    "github_owner": "test-owner",
+                    "github_repo": "repo1",
                 },
                 "repo2": {
                     "path": str(self.repo2_path),
                     "description": "Repository 2",
                     "language": "swift",
+                    "port": 8082,
+                    "python_path": "/usr/bin/python3",
+                    "github_owner": "test-owner",
+                    "github_repo": "repo2",
                 },
             }
         }
@@ -190,6 +210,7 @@ class TestRepositoryCLI(unittest.TestCase):
         self.assertNotIn("repo1", config["repositories"])
         self.assertIn("repo2", config["repositories"])
 
+    @unittest.skip("CLI removed in US001-2")
     def test_cli_validate_configuration(self):
         """Test CLI validate configuration command"""
         # Create valid configuration
@@ -199,6 +220,10 @@ class TestRepositoryCLI(unittest.TestCase):
                     "path": str(self.repo1_path),
                     "description": "Repository 1",
                     "language": "python",
+                    "port": 8086,
+                    "python_path": "/usr/bin/python3",
+                    "github_owner": "test-owner",
+                    "github_repo": "repo1",
                 }
             }
         }
@@ -213,6 +238,7 @@ class TestRepositoryCLI(unittest.TestCase):
         self.assertIn("Configuration loaded successfully", stdout)
         self.assertIn("All repositories are valid", stdout)
 
+    @unittest.skip("CLI removed in US001-2")
     def test_cli_error_handling(self):
         """Test CLI error handling for invalid operations"""
         # Test adding repository with invalid name
@@ -248,6 +274,10 @@ class TestConfigurationHotReload(unittest.TestCase):
                     "path": str(self.repo_path),
                     "description": "Initial repository",
                     "language": "python",
+                    "port": 8081,
+                    "python_path": "/usr/bin/python3",
+                    "github_owner": "test-owner",
+                    "github_repo": "initial-repo",
                 }
             }
         }
@@ -292,11 +322,19 @@ class TestConfigurationHotReload(unittest.TestCase):
                     "path": str(self.repo_path),
                     "description": "Initial repository",
                     "language": "python",
+                    "port": 8083,
+                    "python_path": "/usr/bin/python3",
+                    "github_owner": "test-owner",
+                    "github_repo": "initial-repo",
                 },
                 "new-repo": {
                     "path": str(self.repo_path),
                     "description": "New repository",
                     "language": "swift",
+                    "port": 8084,
+                    "python_path": "/usr/bin/python3",
+                    "github_owner": "test-owner",
+                    "github_repo": "new-repo",
                 },
             }
         }
@@ -344,6 +382,10 @@ class TestConfigurationHotReload(unittest.TestCase):
                     "path": str(self.repo_path),
                     "description": "Different repository",
                     "language": "python",
+                    "port": 8085,
+                    "python_path": "/usr/bin/python3",
+                    "github_owner": "test-owner",
+                    "github_repo": "different-repo",
                 }
             }
         }
@@ -399,6 +441,10 @@ class TestConfigurationHotReload(unittest.TestCase):
                     "path": str(self.repo_path),
                     "description": "Watched repository",
                     "language": "python",
+                    "port": 8087,
+                    "python_path": "/usr/bin/python3",
+                    "github_owner": "test-owner",
+                    "github_repo": "watched-repo",
                 }
             }
         }
@@ -446,6 +492,7 @@ class TestSetupScript(unittest.TestCase):
             os.access(setup_script, os.X_OK), "Setup script should be executable"
         )
 
+    @unittest.skip("CLI removed in US001-2")
     def test_repository_cli_exists_and_executable(self):
         """Test that repository CLI exists and is executable"""
         cli_script = Path(__file__).parent.parent / "repository_cli.py"

@@ -3,14 +3,12 @@
     "github-agent": {
       "path": "/Volumes/Code/github-agent",
       "port": 8081,
-      "description": "GitHub Agent repository",
-      "language": "python"
+      "description": "GitHub Agent repository"
     },
     "news-reader": {
       "path": "/Volumes/Code/news_reader",
       "port": 8082,
-      "description": "News Reader repository",
-      "language": "swift"
+      "description": "News Reader repository"
     }
   }
 }

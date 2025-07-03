@@ -39,11 +39,19 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
                     "path": str(self.repo1_path),
                     "description": "Project A repository",
                     "language": "python",
+                    "port": 8081,
+                    "python_path": "/usr/bin/python3",
+                    "github_owner": "test-owner",
+                    "github_repo": "project-a",
                 },
                 "project-b": {
                     "path": str(self.repo2_path),
                     "description": "Project B repository",
                     "language": "swift",
+                    "port": 8082,
+                    "python_path": "/usr/bin/python3",
+                    "github_owner": "test-owner",
+                    "github_repo": "project-b",
                 },
             }
         }
@@ -113,6 +121,7 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
         self.assertTrue(info_a["exists"], "Repository should exist")
         self.assertEqual(info_a["name"], "project-a")
 
+    @unittest.skip("Fallback mode removed in US001-2")
     def test_single_repo_fallback_workflow(self):
         """Test fallback to single repository mode"""
         with patch.dict(os.environ, {"LOCAL_REPO_PATH": str(self.repo1_path)}):
@@ -166,11 +175,21 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
                 "name": "repo1",
                 "path": str(self.repo1_path),
                 "description": "Repository 1",
+                "language": "python",
+                "port": 8081,
+                "python_path": "/usr/bin/python3",
+                "github_owner": "test-owner",
+                "github_repo": "repo1",
             },
             {
                 "name": "repo2",
                 "path": str(self.repo2_path),
                 "description": "Repository 2",
+                "language": "swift",
+                "port": 8082,
+                "python_path": "/usr/bin/python3",
+                "github_owner": "test-owner",
+                "github_repo": "repo2",
             },
         ]
 

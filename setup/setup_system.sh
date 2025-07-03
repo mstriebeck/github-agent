@@ -55,19 +55,9 @@ check_python_version() {
     PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
     PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
     
-    # Get minimum Python version from constants
-    REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-    MIN_PYTHON_VERSION=""
-    if [ -f "$REPO_ROOT/constants.py" ]; then
-        MIN_PYTHON_VERSION=$(grep "MINIMUM_PYTHON_VERSION" "$REPO_ROOT/constants.py" | cut -d'"' -f2)
-    fi
-    if [ -z "$MIN_PYTHON_VERSION" ]; then
-        MIN_PYTHON_VERSION="3.8"  # Fallback
-    fi
-    
     if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 8 ]); then
-        log_error "Python ${MIN_PYTHON_VERSION}+ required. Found: $PYTHON_VERSION"
-        log_info "Please install Python ${MIN_PYTHON_VERSION}+ using:"
+        log_error "Python 3.8+ required. Found: $PYTHON_VERSION"
+        log_info "Please install Python 3.8+ using:"
         log_info "  - pyenv: pyenv install 3.11.0 && pyenv global 3.11.0"
         log_info "  - conda: conda install python=3.11"
         log_info "  - system package manager"
@@ -544,7 +534,7 @@ main() {
     else
         echo "1. Set your GitHub token: export GITHUB_TOKEN=your_token_here"
         echo "2. Change to repository directory: cd $REPO_ROOT"
-        echo "3. Start the master process: python3 github_mcp_master.py"
+        echo "3. Start the master process: python3 mcp_master.py"
         echo "4. Check status: python3 repository_cli.py status"
     fi
     echo
