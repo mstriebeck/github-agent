@@ -57,13 +57,16 @@ class TestMCPWorker:
     def test_worker_initialization(self, temp_repo, mock_github_token, mock_subprocess):
         """Test that the worker initializes correctly"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            worker = MCPWorker(
-                repo_name="test-repo",
-                repo_path=temp_repo,
-                port=8080,
+            from repository_manager import RepositoryConfig
+            repo_config = RepositoryConfig.create_repository_config(
+                name="test-repo",
+                path=temp_repo,
                 description="Test repository",
                 language="python",
+                port=8080,
+                python_path="/usr/bin/python3",
             )
+            worker = MCPWorker(repo_config)
 
             assert worker.repo_name == "test-repo"
             assert worker.repo_path == temp_repo
@@ -74,24 +77,30 @@ class TestMCPWorker:
     def test_worker_invalid_path(self, mock_github_token):
         """Test that worker fails with invalid repository path"""
         with pytest.raises(ValueError, match="Repository path .* does not exist"):
-            MCPWorker(
-                repo_name="test-repo",
-                repo_path="/nonexistent/path",
-                port=8080,
+            from repository_manager import RepositoryConfig
+            repo_config = RepositoryConfig.create_repository_config(
+                name="test-repo",
+                path="/nonexistent/path",
                 description="Test repository",
                 language="python",
+                port=8080,
+                python_path="/usr/bin/python3",
             )
+            MCPWorker(repo_config)
 
     def test_fastapi_app_creation(self, temp_repo, mock_github_token, mock_subprocess):
         """Test that the FastAPI app is created correctly"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            worker = MCPWorker(
-                repo_name="test-repo",
-                repo_path=temp_repo,
-                port=8080,
+            from repository_manager import RepositoryConfig
+            repo_config = RepositoryConfig.create_repository_config(
+                name="test-repo",
+                path=temp_repo,
                 description="Test repository",
                 language="python",
+                port=8080,
+                python_path="/usr/bin/python3",
             )
+            worker = MCPWorker(repo_config)
 
             assert worker.app is not None
             assert worker.app.title == "MCP Worker - test-repo"
@@ -99,13 +108,16 @@ class TestMCPWorker:
     def test_app_endpoints(self, temp_repo, mock_github_token, mock_subprocess):
         """Test that the app has the correct endpoints"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            worker = MCPWorker(
-                repo_name="test-repo",
-                repo_path=temp_repo,
-                port=8080,
+            from repository_manager import RepositoryConfig
+            repo_config = RepositoryConfig.create_repository_config(
+                name="test-repo",
+                path=temp_repo,
                 description="Test repository",
                 language="python",
+                port=8080,
+                python_path="/usr/bin/python3",
             )
+            worker = MCPWorker(repo_config)
 
             client = TestClient(worker.app)
 
@@ -122,13 +134,16 @@ class TestMCPWorker:
     def test_health_endpoint(self, temp_repo, mock_github_token, mock_subprocess):
         """Test the health check endpoint"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            worker = MCPWorker(
-                repo_name="test-repo",
-                repo_path=temp_repo,
-                port=8080,
+            from repository_manager import RepositoryConfig
+            repo_config = RepositoryConfig.create_repository_config(
+                name="test-repo",
+                path=temp_repo,
                 description="Test repository",
                 language="python",
+                port=8080,
+                python_path="/usr/bin/python3",
             )
+            worker = MCPWorker(repo_config)
 
             client = TestClient(worker.app)
 
@@ -145,13 +160,16 @@ class TestMCPWorker:
     def test_mcp_initialize(self, temp_repo, mock_github_token, mock_subprocess):
         """Test MCP initialize method"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            worker = MCPWorker(
-                repo_name="test-repo",
-                repo_path=temp_repo,
-                port=8080,
+            from repository_manager import RepositoryConfig
+            repo_config = RepositoryConfig.create_repository_config(
+                name="test-repo",
+                path=temp_repo,
                 description="Test repository",
                 language="python",
+                port=8080,
+                python_path="/usr/bin/python3",
             )
+            worker = MCPWorker(repo_config)
 
             client = TestClient(worker.app)
 
@@ -177,13 +195,16 @@ class TestMCPWorker:
     def test_mcp_tools_list(self, temp_repo, mock_github_token, mock_subprocess):
         """Test MCP tools/list method"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            worker = MCPWorker(
-                repo_name="test-repo",
-                repo_path=temp_repo,
-                port=8080,
+            from repository_manager import RepositoryConfig
+            repo_config = RepositoryConfig.create_repository_config(
+                name="test-repo",
+                path=temp_repo,
                 description="Test repository",
                 language="python",
+                port=8080,
+                python_path="/usr/bin/python3",
             )
+            worker = MCPWorker(repo_config)
 
             client = TestClient(worker.app)
 
@@ -226,13 +247,16 @@ class TestMCPWorker:
     ):
         """Test MCP tool call for codebase health check"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            worker = MCPWorker(
-                repo_name="test-repo",
-                repo_path=temp_repo,
-                port=8080,
+            from repository_manager import RepositoryConfig
+            repo_config = RepositoryConfig.create_repository_config(
+                name="test-repo",
+                path=temp_repo,
                 description="Test repository",
                 language="python",
+                port=8080,
+                python_path="/usr/bin/python3",
             )
+            worker = MCPWorker(repo_config)
 
             client = TestClient(worker.app)
 
@@ -262,13 +286,16 @@ class TestMCPWorker:
     def test_mcp_unknown_tool(self, temp_repo, mock_github_token, mock_subprocess):
         """Test MCP tool call for unknown tool"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            worker = MCPWorker(
-                repo_name="test-repo",
-                repo_path=temp_repo,
-                port=8080,
+            from repository_manager import RepositoryConfig
+            repo_config = RepositoryConfig.create_repository_config(
+                name="test-repo",
+                path=temp_repo,
                 description="Test repository",
                 language="python",
+                port=8080,
+                python_path="/usr/bin/python3",
             )
+            worker = MCPWorker(repo_config)
 
             client = TestClient(worker.app)
 
@@ -294,13 +321,16 @@ class TestMCPWorker:
     def test_shutdown_endpoint(self, temp_repo, mock_github_token, mock_subprocess):
         """Test the shutdown endpoint"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
-            worker = MCPWorker(
-                repo_name="test-repo",
-                repo_path=temp_repo,
-                port=8080,
+            from repository_manager import RepositoryConfig
+            repo_config = RepositoryConfig.create_repository_config(
+                name="test-repo",
+                path=temp_repo,
                 description="Test repository",
                 language="python",
+                port=8080,
+                python_path="/usr/bin/python3",
             )
+            worker = MCPWorker(repo_config)
 
             client = TestClient(worker.app)
 

@@ -102,6 +102,8 @@ class WorkerProcess:
     path: str
     description: str
     language: str
+    python_path: str
+    repository_config: RepositoryConfig | None = None
     process: subprocess.Popen[bytes] | None = None
     start_time: float | None = None
     restart_count: int = 0
@@ -209,6 +211,16 @@ class GitHubMCPMaster:
                         f"Repository path {repo_config['path']} does not exist"
                     )
 
+                # Create repository configuration
+                repository_config = RepositoryConfig.create_repository_config(
+                    name=repo_name,
+                    path=repo_config["path"],
+                    description=repo_config.get("description", repo_name),
+                    language=repo_config.get("language", "swift"),
+                    port=repo_config["port"],
+                    python_path=repo_config["python_path"],
+                )
+
                 # Create worker process info
                 worker = WorkerProcess(
                     repo_name=repo_name,
@@ -216,6 +228,8 @@ class GitHubMCPMaster:
                     path=repo_config["path"],
                     description=repo_config.get("description", repo_name),
                     language=repo_config.get("language", "swift"),
+                    python_path=repo_config["python_path"],
+                    repository_config=repository_config,
                 )
                 self.workers[repo_name] = worker
 
@@ -271,20 +285,8 @@ class GitHubMCPMaster:
                 venv_python if os.path.exists(venv_python) else sys.executable
             )
 
-            cmd = [
-                python_executable,
-                "mcp_worker.py",
-                "--repo-name",
-                worker.repo_name,
-                "--repo-path",
-                worker.path,
-                "--port",
-                str(worker.port),
-                "--description",
-                worker.description,
-                "--language",
-                worker.language,
-            ]
+            # Use repository config to generate command arguments
+            cmd = [python_executable, "mcp_worker.py"] + worker.repository_config.to_args()
 
             # Set up environment
             env = os.environ.copy()

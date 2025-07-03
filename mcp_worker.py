@@ -8,7 +8,7 @@ This unified worker process:
 - Handles a single repository with clean MCP endpoints
 - Runs on a dedicated port assigned by the master process
 - Provides both GitHub PR tools and codebase tools for the specific repository
-- Simplified architecture without URL routing complexity
+- Uses a single worker per repository architecture (no complex URL routing)
 """
 
 import argparse
@@ -64,17 +64,13 @@ class MCPWorker:
     app: FastAPI
     shutdown_coordinator: SimpleShutdownCoordinator
 
-    def __init__(
-        self,
-        repo_name: str,
-        repo_path: str,
-        port: int,
-        description: str,
-        language: str,
-    ):
+    def __init__(self, repository_config: RepositoryConfig):
+        # Store repository configuration
+        self.repo_config = repository_config
+        
         # Initialize logger first
-        self.logger = logging.getLogger(f"worker-{repo_name}")
-        self.logger.info(f"Starting initialization for {repo_name} ({language})")
+        self.logger = logging.getLogger(f"worker-{repository_config.name}")
+        self.logger.info(f"Starting initialization for {repository_config.name} ({repository_config.language})")
 
         # Load environment variables from .env file first
         dotenv_path = Path.home() / ".local" / "share" / "github-agent" / ".env"
@@ -94,11 +90,13 @@ class MCPWorker:
                     f"GITHUB_TOKEN loaded: {'Yes' if os.getenv('GITHUB_TOKEN') else 'No'}"
                 )
 
-        self.repo_name = repo_name
-        self.repo_path = repo_path
-        self.port = port
-        self.description = description
-        self.language = language
+        # Extract fields for easier access
+        self.repo_name = repository_config.name
+        self.repo_path = repository_config.path
+        self.port = repository_config.port
+        self.description = repository_config.description
+        self.language = repository_config.language
+        self.python_path = repository_config.python_path
 
         # Set up enhanced logging for this worker (use system-appropriate location)
         log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
@@ -129,46 +127,24 @@ class MCPWorker:
         self.logger.addHandler(console_handler)
 
         # Add file handler
-        file_handler = logging.FileHandler(log_dir / f"{repo_name}.log")
+        file_handler = logging.FileHandler(log_dir / f"{self.repo_name}.log")
         file_handler.setFormatter(detailed_formatter)
         file_handler.setLevel(logging.DEBUG)
         self.logger.addHandler(file_handler)
 
         self.logger.info(
-            f"Unified worker initializing for {repo_name} ({language}) on port {port}"
+            f"Unified worker initializing for {self.repo_name} ({self.language}) on port {self.port}"
         )
-        self.logger.info(f"Repository path: {repo_path}")
+        self.logger.info(f"Repository path: {self.repo_path}")
         self.logger.info(f"Log directory: {log_dir}")
 
         # Initialize simple shutdown coordination
         self.shutdown_coordinator = SimpleShutdownCoordinator(self.logger)
 
         # Validate repository path early
-        if not os.path.exists(repo_path):
-            self.logger.error(f"Repository path {repo_path} does not exist!")
-            raise ValueError(f"Repository path {repo_path} does not exist")
-
-        self.logger.debug("Creating repository configuration...")
-        try:
-            # Create repository configuration
-            self.logger.debug(
-                f"RepositoryConfig args: name={repo_name}, path={repo_path}, description={description}, language={language}"
-            )
-            self.repo_config = RepositoryConfig(
-                name=repo_name,
-                path=repo_path,
-                description=description,
-                language=language,
-                port=port,
-                python_path="/usr/bin/python3",  # Default value for tests
-                github_owner="unknown",  # Will be extracted from git remote
-                github_repo="unknown",  # Will be extracted from git remote
-            )
-            self.logger.debug("Repository configuration created successfully")
-        except Exception as e:
-            self.logger.error(f"Failed to create repository configuration: {e}")
-            self.logger.error(f"Traceback: {traceback.format_exc()}")
-            raise
+        if not os.path.exists(self.repo_path):
+            self.logger.error(f"Repository path {self.repo_path} does not exist!")
+            raise ValueError(f"Repository path {self.repo_path} does not exist")
 
         self.logger.debug("Creating GitHub context...")
         try:
@@ -207,7 +183,7 @@ class MCPWorker:
             raise
 
         self.logger.info(
-            f"Unified worker initialization complete for {repo_name} on port {port}"
+            f"Unified worker initialization complete for {self.repo_name} on port {self.port}"
         )
 
     def _setup_repository_manager(self) -> None:
@@ -732,6 +708,7 @@ def main() -> None:
         choices=["python", "swift"],
         help="Repository language",
     )
+    parser.add_argument("--python-path", required=True, help="Path to Python executable")
 
     logger.info("Parsing arguments...")
     args = parser.parse_args()
@@ -746,16 +723,12 @@ def main() -> None:
         sys.exit(1)
     logger.info("Repository path validation passed")
 
-    # Create and start worker
-    logger.info("Creating unified worker instance...")
+    # Create repository config from arguments and start worker
+    logger.info("Creating repository config from arguments...")
     try:
-        worker = MCPWorker(
-            repo_name=args.repo_name,
-            repo_path=args.repo_path,
-            port=args.port,
-            description=args.description,
-            language=args.language,
-        )
+        repository_config = RepositoryConfig.from_args(args)
+        logger.info("Creating unified worker instance...")
+        worker = MCPWorker(repository_config)
         worker.logger.info("Unified worker instance created successfully")
     except Exception as e:
         logger.error(f"Failed to create worker: {e}")
