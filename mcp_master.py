@@ -273,7 +273,7 @@ class GitHubMCPMaster:
 
             cmd = [
                 python_executable,
-                "github_mcp_worker.py",
+                "mcp_worker.py",
                 "--repo-name",
                 worker.repo_name,
                 "--repo-path",
