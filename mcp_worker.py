@@ -67,10 +67,12 @@ class MCPWorker:
     def __init__(self, repository_config: RepositoryConfig):
         # Store repository configuration
         self.repo_config = repository_config
-        
+
         # Initialize logger first
         self.logger = logging.getLogger(f"worker-{repository_config.name}")
-        self.logger.info(f"Starting initialization for {repository_config.name} ({repository_config.language})")
+        self.logger.info(
+            f"Starting initialization for {repository_config.name} ({repository_config.language})"
+        )
 
         # Load environment variables from .env file first
         dotenv_path = Path.home() / ".local" / "share" / "github-agent" / ".env"
@@ -708,7 +710,9 @@ def main() -> None:
         choices=["python", "swift"],
         help="Repository language",
     )
-    parser.add_argument("--python-path", required=True, help="Path to Python executable")
+    parser.add_argument(
+        "--python-path", required=True, help="Path to Python executable"
+    )
 
     logger.info("Parsing arguments...")
     args = parser.parse_args()

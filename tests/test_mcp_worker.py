@@ -58,6 +58,7 @@ class TestMCPWorker:
         """Test that the worker initializes correctly"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
             from repository_manager import RepositoryConfig
+
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
                 path=temp_repo,
@@ -78,6 +79,7 @@ class TestMCPWorker:
         """Test that worker fails with invalid repository path"""
         with pytest.raises(ValueError, match="Repository path .* does not exist"):
             from repository_manager import RepositoryConfig
+
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
                 path="/nonexistent/path",
@@ -92,6 +94,7 @@ class TestMCPWorker:
         """Test that the FastAPI app is created correctly"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
             from repository_manager import RepositoryConfig
+
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
                 path=temp_repo,
@@ -109,6 +112,7 @@ class TestMCPWorker:
         """Test that the app has the correct endpoints"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
             from repository_manager import RepositoryConfig
+
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
                 path=temp_repo,
@@ -135,6 +139,7 @@ class TestMCPWorker:
         """Test the health check endpoint"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
             from repository_manager import RepositoryConfig
+
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
                 path=temp_repo,
@@ -161,6 +166,7 @@ class TestMCPWorker:
         """Test MCP initialize method"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
             from repository_manager import RepositoryConfig
+
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
                 path=temp_repo,
@@ -196,6 +202,7 @@ class TestMCPWorker:
         """Test MCP tools/list method"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
             from repository_manager import RepositoryConfig
+
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
                 path=temp_repo,
@@ -248,6 +255,7 @@ class TestMCPWorker:
         """Test MCP tool call for codebase health check"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
             from repository_manager import RepositoryConfig
+
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
                 path=temp_repo,
@@ -287,6 +295,7 @@ class TestMCPWorker:
         """Test MCP tool call for unknown tool"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
             from repository_manager import RepositoryConfig
+
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
                 path=temp_repo,
@@ -322,6 +331,7 @@ class TestMCPWorker:
         """Test the shutdown endpoint"""
         with patch("github_tools.Github"), patch("mcp_worker.GitHubAPIContext"):
             from repository_manager import RepositoryConfig
+
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
                 path=temp_repo,

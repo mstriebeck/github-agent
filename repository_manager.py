@@ -329,26 +329,32 @@ class RepositoryConfig:
 
     def to_args(self) -> list[str]:
         """Convert RepositoryConfig to command line arguments for worker process
-        
+
         Returns:
             List of command line arguments that can be used to recreate this config
         """
         return [
-            "--repo-name", self.name,
-            "--repo-path", self.path,
-            "--port", str(self.port),
-            "--description", self.description,
-            "--language", self.language,
-            "--python-path", self.python_path,
+            "--repo-name",
+            self.name,
+            "--repo-path",
+            self.path,
+            "--port",
+            str(self.port),
+            "--description",
+            self.description,
+            "--language",
+            self.language,
+            "--python-path",
+            self.python_path,
         ]
 
     @classmethod
     def from_args(cls, args) -> "RepositoryConfig":
         """Create RepositoryConfig from argparse arguments
-        
+
         Args:
             args: Parsed arguments from argparse
-            
+
         Returns:
             RepositoryConfig instance created from the arguments
         """

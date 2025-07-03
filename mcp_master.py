@@ -286,7 +286,10 @@ class GitHubMCPMaster:
             )
 
             # Use repository config to generate command arguments
-            cmd = [python_executable, "mcp_worker.py"] + worker.repository_config.to_args()
+            cmd = [
+                python_executable,
+                "mcp_worker.py",
+            ] + worker.repository_config.to_args()
 
             # Set up environment
             env = os.environ.copy()
