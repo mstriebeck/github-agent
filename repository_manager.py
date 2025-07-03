@@ -102,7 +102,13 @@ class RepositoryConfig:
         logger = logging.getLogger(__name__)
         logger.info(f"Creating repository configuration for '{name}' at {path}")
 
-        # Normalize path first for validation
+        # Validate path before normalization
+        if not path:
+            raise ValueError("Repository path cannot be empty")
+        if not os.path.isabs(path):
+            raise ValueError(f"Repository path must be absolute, got: {path}")
+
+        # Normalize path after validation
         normalized_path = os.path.abspath(os.path.expanduser(path))
 
         # Extract GitHub information

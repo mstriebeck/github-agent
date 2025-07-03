@@ -99,17 +99,35 @@ logger = setup_enhanced_logging(logger)
 class WorkerProcess:
     """Information about a worker process"""
 
-    repo_name: str
-    port: int
-    path: str
-    description: str
-    language: str
-    python_path: str
     repository_config: RepositoryConfig
     process: subprocess.Popen[bytes] | None = None
     start_time: float | None = None
     restart_count: int = 0
     max_restarts: int = 5
+
+    @property
+    def repo_name(self) -> str:
+        return self.repository_config.name
+
+    @property
+    def port(self) -> int:
+        return self.repository_config.port
+
+    @property
+    def path(self) -> str:
+        return self.repository_config.path
+
+    @property
+    def description(self) -> str:
+        return self.repository_config.description
+
+    @property
+    def language(self) -> str:
+        return self.repository_config.language
+
+    @property
+    def python_path(self) -> str:
+        return self.repository_config.python_path
 
 
 def is_port_free(port: int) -> bool:
@@ -225,12 +243,6 @@ class GitHubMCPMaster:
 
                 # Create worker process info
                 worker = WorkerProcess(
-                    repo_name=repo_name,
-                    port=repo_config["port"],
-                    path=repo_config["path"],
-                    description=repo_config.get("description", repo_name),
-                    language=repo_config["language"],
-                    python_path=repo_config["python_path"],
                     repository_config=repository_config,
                 )
                 self.workers[repo_name] = worker

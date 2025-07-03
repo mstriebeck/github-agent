@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 """
-Unified MCP Worker Process - Single Repository Handler
+MCP Worker Process - Single Repository Handler
 Worker process that handles MCP protocol for a single repository on a dedicated port.
 
-This unified worker process:
+This worker process:
 - Handles a single repository with clean MCP endpoints
 - Runs on a dedicated port assigned by the master process
 - Provides both GitHub PR tools and codebase tools for the specific repository
@@ -52,7 +52,7 @@ from system_utils import MicrosecondFormatter, log_system_state
 
 
 class MCPWorker:
-    """Unified worker process for handling a single repository with both GitHub and codebase tools"""
+    """Worker process for handling a single repository with both GitHub and codebase tools"""
 
     # Class member type annotations
     repo_name: str
@@ -135,7 +135,7 @@ class MCPWorker:
         self.logger.addHandler(file_handler)
 
         self.logger.info(
-            f"Unified worker initializing for {self.repo_name} ({self.language}) on port {self.port}"
+            f"Worker initializing for {self.repo_name} ({self.language}) on port {self.port}"
         )
         self.logger.info(f"Repository path: {self.repo_path}")
         self.logger.info(f"Log directory: {log_dir}")
@@ -185,7 +185,7 @@ class MCPWorker:
             raise
 
         self.logger.info(
-            f"Unified worker initialization complete for {self.repo_name} on port {self.port}"
+            f"Worker initialization complete for {self.repo_name} on port {self.port}"
         )
 
     def _setup_repository_manager(self) -> None:
@@ -583,9 +583,7 @@ class MCPWorker:
         """Start the worker process"""
         self.logger.debug("Setting up uvicorn...")
 
-        self.logger.info(
-            f"Starting unified worker for {self.repo_name} on port {self.port}"
-        )
+        self.logger.info(f"Starting worker for {self.repo_name} on port {self.port}")
         self.logger.info(f"Repository path: {self.repo_path}")
         self.logger.info(f"MCP endpoint: http://localhost:{self.port}/mcp/")
 
@@ -697,9 +695,9 @@ def main() -> None:
     )
 
     logger = logging.getLogger(__name__)
-    logger.info("Starting unified worker process...")
+    logger.info("Starting worker process...")
 
-    parser = argparse.ArgumentParser(description="Unified MCP Worker Process")
+    parser = argparse.ArgumentParser(description="MCP Worker Process")
     parser.add_argument("--repo-name", required=True, help="Repository name")
     parser.add_argument("--repo-path", required=True, help="Repository filesystem path")
     parser.add_argument("--port", type=int, required=True, help="Port to listen on")
@@ -731,29 +729,29 @@ def main() -> None:
     logger.info("Creating repository config from arguments...")
     try:
         repository_config = RepositoryConfig.from_args(args)
-        logger.info("Creating unified worker instance...")
+        logger.info("Creating worker instance...")
         worker = MCPWorker(repository_config)
-        worker.logger.info("Unified worker instance created successfully")
+        worker.logger.info("Worker instance created successfully")
     except Exception as e:
         logger.error(f"Failed to create worker: {e}")
         traceback.print_exc()
         sys.exit(1)
 
-    worker.logger.info("Starting unified worker async loop...")
+    worker.logger.info("Starting worker async loop...")
     try:
         asyncio.run(worker.start())
 
         # Get final exit code from shutdown coordinator
         exit_code = worker.shutdown_coordinator.get_exit_code()
-        worker.logger.info(f"Unified worker shutting down with exit code: {exit_code}")
+        worker.logger.info(f"Worker shutting down with exit code: {exit_code}")
         sys.exit(exit_code)
 
     except KeyboardInterrupt:
-        worker.logger.info("Unified worker stopped by user")
+        worker.logger.info("Worker stopped by user")
         exit_code = worker.shutdown_coordinator.get_exit_code()
         sys.exit(exit_code)
     except Exception as e:
-        worker.logger.error(f"Unified worker failed: {e}")
+        worker.logger.error(f"Worker failed: {e}")
         traceback.print_exc()
         sys.exit(1)
 
