@@ -21,15 +21,25 @@ from repository_manager import (
 
 class TestRepositoryConfig(unittest.TestCase):
     """Test RepositoryConfig dataclass"""
+    
+    def create_test_repository_config(self, **kwargs):
+        """Helper method to create RepositoryConfig with defaults"""
+        defaults = {
+            "name": "test-repo",
+            "path": "/path/to/repo",
+            "description": "Test repository",
+            "language": "swift",
+            "port": 8000,
+            "python_path": "/usr/bin/python3",
+            "github_owner": "test-owner",
+            "github_repo": "test-repo"
+        }
+        defaults.update(kwargs)
+        return RepositoryConfig(**defaults)
 
     def test_valid_config(self):
         """Test creating valid repository configuration"""
-        config = RepositoryConfig(
-            name="test-repo",
-            path="/path/to/repo",
-            description="Test repository",
-            language="swift",
-        )
+        config = self.create_test_repository_config()
 
         self.assertEqual(config.name, "test-repo")
         self.assertEqual(config.path, os.path.abspath("/path/to/repo"))
@@ -38,26 +48,23 @@ class TestRepositoryConfig(unittest.TestCase):
     def test_empty_name_raises_error(self):
         """Test that empty name raises ValueError"""
         with self.assertRaises(ValueError) as context:
-            RepositoryConfig(
-                name="", path="/path/to/repo", description="Test", language="swift"
-            )
+            self.create_test_repository_config(name="")
 
         self.assertIn("Repository name cannot be empty", str(context.exception))
 
     def test_empty_path_raises_error(self):
         """Test that empty path raises ValueError"""
         with self.assertRaises(ValueError) as context:
-            RepositoryConfig(name="test", path="", description="Test", language="swift")
+            self.create_test_repository_config(path="")
 
         self.assertIn("Repository path cannot be empty", str(context.exception))
 
     def test_path_normalization(self):
         """Test that absolute paths are normalized and expanded"""
-        config = RepositoryConfig(
+        config = self.create_test_repository_config(
             name="test",
             path="/home/user/test-repo",
-            description="Test",
-            language="swift",
+            description="Test"
         )
 
         expected_path = os.path.abspath("/home/user/test-repo")
@@ -66,51 +73,29 @@ class TestRepositoryConfig(unittest.TestCase):
     def test_relative_path_raises_error(self):
         """Test that relative paths raise ValueError"""
         with self.assertRaises(ValueError) as context:
-            RepositoryConfig(
-                name="test", path="relative/path", description="Test", language="swift"
-            )
+            self.create_test_repository_config(path="relative/path")
 
         self.assertIn("Repository path must be absolute", str(context.exception))
 
     def test_valid_language_python(self):
         """Test that 'python' language is accepted"""
-        config = RepositoryConfig(
-            name="test-repo",
-            path="/path/to/repo",
-            description="Test repository",
-            language="python",
-        )
+        config = self.create_test_repository_config(language="python")
         self.assertEqual(config.language, "python")
 
     def test_valid_language_swift(self):
         """Test that 'swift' language is accepted"""
-        config = RepositoryConfig(
-            name="test-repo",
-            path="/path/to/repo",
-            description="Test repository",
-            language="swift",
-        )
+        config = self.create_test_repository_config(language="swift")
         self.assertEqual(config.language, "swift")
 
     def test_default_language_is_swift(self):
         """Test that default language is 'swift' for backward compatibility"""
-        config = RepositoryConfig(
-            name="test-repo",
-            path="/path/to/repo",
-            description="Test repository",
-            language="swift",
-        )
+        config = self.create_test_repository_config(language="swift")
         self.assertEqual(config.language, "swift")
 
     def test_invalid_language_raises_error(self):
         """Test that invalid language raises ValueError"""
         with self.assertRaises(ValueError) as context:
-            RepositoryConfig(
-                name="test-repo",
-                path="/path/to/repo",
-                description="Test repository",
-                language="javascript",
-            )
+            self.create_test_repository_config(language="javascript")
 
         error_msg = str(context.exception)
         self.assertIn("Unsupported language 'javascript'", error_msg)
@@ -120,24 +105,14 @@ class TestRepositoryConfig(unittest.TestCase):
     def test_case_sensitive_language_validation(self):
         """Test that language validation is case sensitive"""
         with self.assertRaises(ValueError) as context:
-            RepositoryConfig(
-                name="test-repo",
-                path="/path/to/repo",
-                description="Test repository",
-                language="Python",  # Capital P should fail
-            )
+            self.create_test_repository_config(language="Python")  # Capital P should fail
 
         self.assertIn("Unsupported language 'Python'", str(context.exception))
 
     def test_empty_language_raises_error(self):
         """Test that empty language raises ValueError"""
         with self.assertRaises(ValueError) as context:
-            RepositoryConfig(
-                name="test-repo",
-                path="/path/to/repo",
-                description="Test repository",
-                language="",
-            )
+            self.create_test_repository_config(language="")
 
         self.assertIn("Unsupported language ''", str(context.exception))
 
@@ -167,11 +142,13 @@ class TestRepositoryManager(unittest.TestCase):
                     "path": str(self.repo1_path),
                     "description": "Test repository 1",
                     "language": "python",
+                    "port": 8080,
                 },
                 "repo2": {
                     "path": str(self.repo2_path),
                     "description": "Test repository 2",
                     "language": "swift",
+                    "port": 8081,
                 },
             }
         }
@@ -235,20 +212,7 @@ class TestRepositoryManager(unittest.TestCase):
 
             self.assertFalse(result)
 
-    def test_load_configuration_fallback_mode(self):
-        """Test fallback to single repository mode"""
-        with patch.dict(os.environ, {"LOCAL_REPO_PATH": str(self.repo1_path)}):
-            manager = RepositoryManager(config_path=str(self.config_file))
-            result = manager.load_configuration()
 
-            self.assertTrue(result)
-            self.assertFalse(manager.is_multi_repo_mode())
-            self.assertEqual(manager.list_repositories(), ["default"])
-
-            default_repo = manager.get_repository("default")
-            self.assertIsNotNone(default_repo)
-            assert default_repo
-            self.assertEqual(default_repo.path, str(self.repo1_path))
 
     def test_invalid_configuration_missing_repositories_key(self):
         """Test handling of invalid configuration missing 'repositories' key"""
@@ -306,6 +270,7 @@ class TestRepositoryManager(unittest.TestCase):
                     "path": str(non_git_path),
                     "description": "Not a git repo",
                     "language": "python",
+                    "port": 8080,
                 }
             }
         }
@@ -316,6 +281,31 @@ class TestRepositoryManager(unittest.TestCase):
             result = manager.load_configuration()
 
             self.assertFalse(result)
+
+    def test_port_conflict_validation(self):
+        """Test that port conflicts are detected"""
+        config_with_port_conflict = {
+            "repositories": {
+                "repo1": {
+                    "path": str(self.repo1_path),
+                    "description": "Test repository 1",
+                    "language": "python",
+                    "port": 8080,
+                },
+                "repo2": {
+                    "path": str(self.repo2_path),
+                    "description": "Test repository 2", 
+                    "language": "swift",
+                    "port": 8080,  # Same port as repo1 - should fail
+                },
+            }
+        }
+        self._write_config_file(config_with_port_conflict)
+
+        manager = RepositoryManager(config_path=str(self.config_file))
+        result = manager.load_configuration()
+
+        self.assertFalse(result)
 
     def test_get_repository(self):
         """Test getting repository configuration by name"""

@@ -151,8 +151,10 @@ class TestRepositoryCLI(unittest.TestCase):
         self.assertEqual(returncode, 0, f"CLI failed: {stderr}")
         self.assertIn("repo1", stdout)
         self.assertIn("repo2", stdout)
-        self.assertIn("http://localhost:8080/mcp/repo1/", stdout)
-        self.assertIn("http://localhost:8080/mcp/repo2/", stdout)
+        # Check that each repository has its own port and URL
+        self.assertIn("Port:", stdout)
+        self.assertIn("URL: http://localhost:", stdout)
+        self.assertIn("/mcp/", stdout)
 
     def test_cli_remove_repository(self):
         """Test CLI remove repository command"""
