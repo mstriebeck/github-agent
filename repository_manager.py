@@ -23,7 +23,6 @@ from git import InvalidGitRepositoryError, Repo
 from constants import (
     GITHUB_HTTPS_PREFIX,
     GITHUB_SSH_PREFIX,
-    MCP_PORT_RANGE_START,
     MINIMUM_PYTHON_MAJOR,
     MINIMUM_PYTHON_MINOR,
     MINIMUM_PYTHON_VERSION,
@@ -329,10 +328,6 @@ class RepositoryConfig:
         return normalized_path
 
 
-
-
-
-
 class RepositoryManager:
     """Manages multiple repository configurations for the MCP server"""
 
@@ -393,7 +388,9 @@ class RepositoryManager:
                 )
                 return True
             else:
-                self.logger.error(f"❌ Configuration file not found: {self.config_path}")
+                self.logger.error(
+                    f"❌ Configuration file not found: {self.config_path}"
+                )
                 return False
 
         except Exception as e:
@@ -430,7 +427,7 @@ class RepositoryManager:
             # Port is required in configuration
             if "port" not in repo_data:
                 raise ValueError(f"Repository '{name}' must specify a 'port' field")
-                
+
             repo_config = RepositoryConfig.create_repository_config(
                 name=name,
                 path=repo_data["path"],
@@ -488,7 +485,7 @@ class RepositoryManager:
     def _validate_port_conflicts(self) -> None:
         """Validate that no two repositories use the same port"""
         port_to_repo = {}
-        
+
         for name, repo_config in self.repositories.items():
             port = repo_config.port
             if port in port_to_repo:
@@ -497,10 +494,10 @@ class RepositoryManager:
                     f"both configured to use port {port}"
                 )
             port_to_repo[port] = name
-            
-        self.logger.debug(f"✅ No port conflicts found among {len(self.repositories)} repositories")
 
-
+        self.logger.debug(
+            f"✅ No port conflicts found among {len(self.repositories)} repositories"
+        )
 
     def get_repository(self, repo_name: str) -> RepositoryConfig | None:
         """

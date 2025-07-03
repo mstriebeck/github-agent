@@ -21,7 +21,7 @@ from repository_manager import (
 
 class TestRepositoryConfig(unittest.TestCase):
     """Test RepositoryConfig dataclass"""
-    
+
     def create_test_repository_config(self, **kwargs):
         """Helper method to create RepositoryConfig with defaults"""
         defaults = {
@@ -32,7 +32,7 @@ class TestRepositoryConfig(unittest.TestCase):
             "port": 8000,
             "python_path": "/usr/bin/python3",
             "github_owner": "test-owner",
-            "github_repo": "test-repo"
+            "github_repo": "test-repo",
         }
         defaults.update(kwargs)
         return RepositoryConfig(**defaults)
@@ -62,9 +62,7 @@ class TestRepositoryConfig(unittest.TestCase):
     def test_path_normalization(self):
         """Test that absolute paths are normalized and expanded"""
         config = self.create_test_repository_config(
-            name="test",
-            path="/home/user/test-repo",
-            description="Test"
+            name="test", path="/home/user/test-repo", description="Test"
         )
 
         expected_path = os.path.abspath("/home/user/test-repo")
@@ -105,7 +103,9 @@ class TestRepositoryConfig(unittest.TestCase):
     def test_case_sensitive_language_validation(self):
         """Test that language validation is case sensitive"""
         with self.assertRaises(ValueError) as context:
-            self.create_test_repository_config(language="Python")  # Capital P should fail
+            self.create_test_repository_config(
+                language="Python"
+            )  # Capital P should fail
 
         self.assertIn("Unsupported language 'Python'", str(context.exception))
 
@@ -212,8 +212,6 @@ class TestRepositoryManager(unittest.TestCase):
 
             self.assertFalse(result)
 
-
-
     def test_invalid_configuration_missing_repositories_key(self):
         """Test handling of invalid configuration missing 'repositories' key"""
         invalid_config = {"other_key": "value"}
@@ -294,7 +292,7 @@ class TestRepositoryManager(unittest.TestCase):
                 },
                 "repo2": {
                     "path": str(self.repo2_path),
-                    "description": "Test repository 2", 
+                    "description": "Test repository 2",
                     "language": "swift",
                     "port": 8080,  # Same port as repo1 - should fail
                 },
