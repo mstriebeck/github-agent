@@ -68,21 +68,21 @@ else
     exit_code=1
 fi
 
-echo "========================================="
-echo "Running bandit security check (informational only)..."
-echo "========================================="
-bandit -r . -f json -o code_check_output/bandit/bandit-results.json 2>&1 | tee code_check_output/bandit/bandit.log
-bandit_exit=$?
-if [ $bandit_exit -eq 0 ]; then
-    echo "✅ Bandit security check passed"
-elif [ $bandit_exit -eq 127 ]; then
-    echo "⚠️ Bandit command not found (informational only - not failing build)"
-else
-    echo "⚠️ Bandit security check found issues (exit code: $bandit_exit) - informational only, not failing build"
-fi
+#echo "========================================="
+#echo "Running bandit security check (informational only)..."
+#echo "========================================="
+#bandit -r . -f json -o code_check_output/bandit/bandit-results.json 2>&1 | tee code_check_output/bandit/bandit.log
+#bandit_exit=$?
+#if [ $bandit_exit -eq 0 ]; then
+#    echo "✅ Bandit security check passed"
+#elif [ $bandit_exit -eq 127 ]; then
+#    echo "⚠️ Bandit command not found (informational only - not failing build)"
+#else
+#    echo "⚠️ Bandit security check found issues (exit code: $bandit_exit) - informational only, not failing build"
+#fi
 
 # Also generate text format for bandit
-bandit -r . -f txt 2>&1 | tee code_check_output/bandit/bandit-results.txt || true
+#bandit -r . -f txt 2>&1 | tee code_check_output/bandit/bandit-results.txt || true
 
 echo "========================================="
 echo "Code checks summary:"

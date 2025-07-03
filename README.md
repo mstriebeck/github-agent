@@ -22,7 +22,7 @@ A production-ready GitHub PR management server with MCP (Model Context Protocol)
 The system uses a master-worker architecture where each repository runs on its own dedicated port:
 
 * **Master Process** (`mcp_master.py`) - Spawns and monitors worker processes
-* **Worker Processes** (`github_mcp_worker.py`) - Handle individual repositories
+* **Worker Processes** (`mcp_worker.py`) - Handle individual repositories
 * **Clean URLs** - No complex routing: each repository has its own endpoint
 * **Process Isolation** - Issues in one repository don't affect others
 
@@ -318,7 +318,7 @@ To migrate from the old single-port server:
 
 ### Multi-Port Architecture (Current)
 * **`mcp_master.py`** - Master process that spawns and monitors workers
-* **`github_mcp_worker.py`** - Worker process for individual repositories
+* **`mcp_worker.py`** - Worker process for individual repositories
 * **`repository_manager.py`** - Repository configuration management
 * **`repository_cli.py`** - Command-line interface for configuration management
 * **`repositories.json`** - Repository configuration file

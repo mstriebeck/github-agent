@@ -9,6 +9,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from typing import cast
 from unittest.mock import patch
 
 from repository_manager import (
@@ -31,11 +32,18 @@ class TestRepositoryConfig(unittest.TestCase):
             "language": "swift",
             "port": 8000,
             "python_path": "/usr/bin/python3",
-            "github_owner": "test-owner",
-            "github_repo": "test-repo",
         }
         defaults.update(kwargs)
-        return RepositoryConfig(**defaults)
+        return RepositoryConfig.create_repository_config(
+            name=str(defaults["name"]),
+            path=str(defaults["path"]),
+            description=str(defaults["description"]),
+            language=str(defaults["language"]),
+            port=cast(int, defaults["port"]),
+            python_path=str(defaults["python_path"])
+            if defaults.get("python_path")
+            else None,
+        )
 
     def test_valid_config(self):
         """Test creating valid repository configuration"""

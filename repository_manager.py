@@ -524,7 +524,7 @@ class RepositoryManager:
 
     def _validate_port_conflicts(self) -> None:
         """Validate that no two repositories use the same port"""
-        port_to_repo = {}
+        port_to_repo: dict[int, str] = {}
 
         for name, repo_config in self.repositories.items():
             port = repo_config.port

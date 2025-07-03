@@ -350,8 +350,8 @@ check_required_files() {
     log_info "Checking required files..."
     
     REQUIRED_FILES=(
-        "github_mcp_master.py"
-        "github_mcp_worker.py"
+        "mcp_master.py"
+        "mcp_worker.py"
         "github_tools.py"
         "repository_manager.py"
         "repository_cli.py"
@@ -534,7 +534,7 @@ main() {
     else
         echo "1. Set your GitHub token: export GITHUB_TOKEN=your_token_here"
         echo "2. Change to repository directory: cd $REPO_ROOT"
-        echo "3. Start the master process: python3 mcp_master.py"
+        echo "3. Start the master process: python3 github_mcp_master.py"
         echo "4. Check status: python3 repository_cli.py status"
     fi
     echo

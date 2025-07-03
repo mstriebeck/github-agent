@@ -7,6 +7,7 @@ Tests for codebase_tools module
 import json
 import tempfile
 from pathlib import Path
+from typing import cast
 from unittest.mock import patch
 
 import pytest
@@ -24,11 +25,18 @@ def create_test_repository_config(**kwargs):
         "language": "python",
         "port": 8000,
         "python_path": "/usr/bin/python3",
-        "github_owner": "test-owner",
-        "github_repo": "test-repo",
     }
     defaults.update(kwargs)
-    return RepositoryConfig(**defaults)
+    return RepositoryConfig.create_repository_config(
+        name=str(defaults["name"]),
+        path=str(defaults["path"]),
+        description=str(defaults["description"]),
+        language=str(defaults["language"]),
+        port=cast(int, defaults["port"]),
+        python_path=str(defaults["python_path"])
+        if defaults.get("python_path")
+        else None,
+    )
 
 
 @pytest.fixture

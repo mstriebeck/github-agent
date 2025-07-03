@@ -27,6 +27,8 @@ from typing import Any
 
 import aiohttp
 
+from repository_manager import RepositoryConfig
+
 # Import shutdown coordination components
 from shutdown_simple import (
     SimpleHealthMonitor,
@@ -103,7 +105,7 @@ class WorkerProcess:
     description: str
     language: str
     python_path: str
-    repository_config: RepositoryConfig | None = None
+    repository_config: RepositoryConfig
     process: subprocess.Popen[bytes] | None = None
     start_time: float | None = None
     restart_count: int = 0
@@ -216,7 +218,7 @@ class GitHubMCPMaster:
                     name=repo_name,
                     path=repo_config["path"],
                     description=repo_config.get("description", repo_name),
-                    language=repo_config.get("language", "swift"),
+                    language=repo_config["language"],
                     port=repo_config["port"],
                     python_path=repo_config["python_path"],
                 )
@@ -227,7 +229,7 @@ class GitHubMCPMaster:
                     port=repo_config["port"],
                     path=repo_config["path"],
                     description=repo_config.get("description", repo_name),
-                    language=repo_config.get("language", "swift"),
+                    language=repo_config["language"],
                     python_path=repo_config["python_path"],
                     repository_config=repository_config,
                 )
@@ -239,7 +241,7 @@ class GitHubMCPMaster:
             logger.info(f"Loaded configuration for {len(self.workers)} repositories")
 
             # Check for port conflicts
-            ports_used = [w.port for w in self.workers.values()]
+            ports_used = [w.repository_config.port for w in self.workers.values()]
             if len(ports_used) != len(set(ports_used)):
                 logger.error("Port conflicts detected in configuration")
                 return False
@@ -289,7 +291,8 @@ class GitHubMCPMaster:
             cmd = [
                 python_executable,
                 "mcp_worker.py",
-            ] + worker.repository_config.to_args()
+                *worker.repository_config.to_args(),
+            ]
 
             # Set up environment
             env = os.environ.copy()
@@ -686,14 +689,14 @@ class GitHubMCPMaster:
         for repo_name, worker in self.workers.items():
             is_healthy = self.is_worker_healthy(worker)
             status["workers"][repo_name] = {
-                "port": worker.port,
-                "path": worker.path,
-                "description": worker.description,
+                "port": worker.repository_config.port,
+                "path": worker.repository_config.path,
+                "description": worker.repository_config.description,
                 "running": is_healthy,
                 "pid": worker.process.pid if worker.process else None,
                 "start_time": worker.start_time,
                 "restart_count": worker.restart_count,
-                "endpoint": f"http://localhost:{worker.port}/mcp/",
+                "endpoint": f"http://localhost:{worker.repository_config.port}/mcp/",
             }
 
         return status

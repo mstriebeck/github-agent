@@ -344,7 +344,7 @@ curl -I -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user
 tail -n 50 ~/.local/share/github-agent/logs/<repo-name>.log
 
 # Restart specific worker
-pkill -f "github_mcp_worker.py --repo-name <repo-name>"
+pkill -f "mcp_worker.py --repo-name <repo-name>"
 # Master will automatically restart it
 ```
 
@@ -354,7 +354,7 @@ Run individual components for debugging:
 
 ```bash
 # Test single worker
-python3 github_mcp_worker.py \
+python3 mcp_worker.py \
   --repo-name github-agent \
   --repo-path /Volumes/Code/github-agent \
   --port 8081 \

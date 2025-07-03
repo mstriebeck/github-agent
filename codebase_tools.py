@@ -9,6 +9,7 @@ import json
 import logging
 import subprocess
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ async def execute_codebase_health_check(repo_name: str) -> str:
         repo_config = repo_manager.repositories[repo_name]
         repo_path = Path(repo_config.path)
 
-        health_status = {
+        health_status: dict[str, Any] = {
             "repo": repo_name,
             "path": str(repo_path),
             "status": "healthy",
@@ -170,14 +171,14 @@ async def execute_codebase_health_check(repo_name: str) -> str:
                         ] = False
                 else:
                     if (repo_path / pattern).exists():
-                        health_status["checks"][
-                            f"has_{pattern.replace('.', '_')}"
-                        ] = True
+                        health_status["checks"][f"has_{pattern.replace('.', '_')}"] = (
+                            True
+                        )
                         swift_found = True
                     else:
-                        health_status["checks"][
-                            f"has_{pattern.replace('.', '_')}"
-                        ] = False
+                        health_status["checks"][f"has_{pattern.replace('.', '_')}"] = (
+                            False
+                        )
 
             if not swift_found:
                 health_status["warnings"].append("No Swift project files found")
