@@ -93,6 +93,15 @@ install_python_deps() {
             "uvicorn"
             "sqlmodel"
         )
+        
+        # Add codebase server dependencies if requested
+        if [ "$WITH_CODEBASE_SERVER" = true ]; then
+            PACKAGES+=(
+                "python-lsp-server[all]"
+                "watchdog"
+                "cachetools"
+            )
+        fi
         USE_REQUIREMENTS_FILE=false
     fi
     
@@ -459,11 +468,20 @@ run_verification() {
     
     # Test Python and libraries
     log_info "Testing Python libraries..."
-    if $PYTHON_CMD -c "import mcp, github, git, requests, pydantic; print('All libraries available')" 2>/dev/null; then
-        log_success "Python libraries verified"
+    if [ "$WITH_CODEBASE_SERVER" = true ]; then
+        if $PYTHON_CMD -c "import mcp, github, git, requests, pydantic, watchdog, cachetools; print('All libraries available')" 2>/dev/null; then
+            log_success "Python libraries verified (including codebase server)"
+        else
+            log_error "Python libraries test failed"
+            ((errors++))
+        fi
     else
-        log_error "Python libraries test failed"
-        ((errors++))
+        if $PYTHON_CMD -c "import mcp, github, git, requests, pydantic; print('All libraries available')" 2>/dev/null; then
+            log_success "Python libraries verified"
+        else
+            log_error "Python libraries test failed"
+            ((errors++))
+        fi
     fi
     
     # Test agents
@@ -545,27 +563,49 @@ main() {
     run_verification
 }
 
-# Usage info
-if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-    echo "PR Review Agent - System Setup Script"
-    echo
-    echo "This script sets up the development environment with required tools and libraries."
-    echo "Run this once per development machine from the agent repository directory."
-    echo
-    echo "Usage: $0"
-    echo
-    echo "Requirements:"
-    echo "  - Python 3.8+"
-    echo "  - Node.js and npm"
-    echo "  - Git"
-    echo
-    echo "The script will install:"
-    echo "  - Python libraries: mcp, pygithub, gitpython, requests, pydantic, python-dotenv"
-    echo "  - Claude Code (via npm)"
-    echo "  - SourceGraph Amp (via npm)"
-    echo
-    exit 0
-fi
+# Parse command line arguments
+WITH_CODEBASE_SERVER=false
+
+for arg in "$@"; do
+    case $arg in
+        --with-codebase-server)
+            WITH_CODEBASE_SERVER=true
+            ;;
+        --help|-h)
+            echo "PR Review Agent - System Setup Script"
+            echo
+            echo "This script sets up the development environment with required tools and libraries."
+            echo "Run this once per development machine from the agent repository directory."
+            echo
+            echo "Usage: $0 [options]"
+            echo
+            echo "Options:"
+            echo "  --with-codebase-server    Install codebase server dependencies (LSP, etc.)"
+            echo "  --help, -h               Show this help message"
+            echo
+            echo "Requirements:"
+            echo "  - Python 3.8+"
+            echo "  - Node.js and npm"
+            echo "  - Git"
+            echo
+            echo "The script will install:"
+            echo "  - Python libraries: mcp, pygithub, gitpython, requests, pydantic, python-dotenv"
+            echo "  - Claude Code (via npm)"
+            echo "  - SourceGraph Amp (via npm)"
+            if [ "$WITH_CODEBASE_SERVER" = true ]; then
+                echo "  - LSP servers: python-lsp-server"
+                echo "  - Codebase indexing: watchdog, cachetools"
+            fi
+            echo
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $arg"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
 
 # Run main setup
 main
