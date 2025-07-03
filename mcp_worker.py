@@ -296,7 +296,7 @@ class MCPWorker:
             self.shutdown_event.set()
             return {"status": "shutdown_initiated"}
 
-        # MCP SSE endpoint (simplified - no repository routing)
+        # MCP SSE endpoint
         @app.get("/mcp/")
         async def mcp_sse_endpoint(request: Request) -> StreamingResponse:
             """MCP SSE endpoint for server-to-client messages"""
@@ -345,7 +345,7 @@ class MCPWorker:
                 },
             )
 
-        # MCP POST endpoint (simplified - no repository routing)
+        # MCP POST endpoint
         @app.post("/mcp/")
         async def mcp_post_endpoint(request: Request) -> dict[str, Any]:
             """Handle POST requests (JSON-RPC MCP protocol)"""
