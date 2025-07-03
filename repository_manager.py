@@ -572,13 +572,15 @@ class RepositoryManager:
                 "description": repo_info.get("description", ""),
                 "language": repo_info.get("language", "python"),
             }
-            
+
             # Add new required fields with defaults if not provided
             repo_config["port"] = repo_info.get("port", 8081)  # Default port
-            repo_config["python_path"] = repo_info.get("python_path", "/usr/bin/python3")
+            repo_config["python_path"] = repo_info.get(
+                "python_path", "/usr/bin/python3"
+            )
             repo_config["github_owner"] = repo_info.get("github_owner", "unknown")
             repo_config["github_repo"] = repo_info.get("github_repo", name)
-            
+
             config_data["repositories"][name] = repo_config
 
         # Ensure directory exists

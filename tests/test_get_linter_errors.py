@@ -28,7 +28,7 @@ class TestGetLinterErrors(unittest.TestCase):
             "port": 8081,
             "python_path": "/usr/bin/python3",
             "github_owner": "test-owner",
-            "github_repo": "test-repo"
+            "github_repo": "test-repo",
         }
         defaults.update(kwargs)
         return RepositoryConfig(**defaults)
