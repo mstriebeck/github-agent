@@ -5,6 +5,7 @@ Tests for Repository Manager - Phase 1 Multi-Repository Support
 """
 
 import json
+import logging
 import os
 import tempfile
 import unittest
@@ -123,6 +124,91 @@ class TestRepositoryConfig(unittest.TestCase):
             self.create_test_repository_config(language="")
 
         self.assertIn("Unsupported language ''", str(context.exception))
+
+    def test_python_path_validation_empty_string(self):
+        """Test that empty python_path raises ValueError"""
+        with self.assertRaises(ValueError) as context:
+            RepositoryConfig.create_repository_config(
+                name="test",
+                path=os.path.abspath("/tmp/test"),
+                description="Test",
+                language="python",
+                port=8080,
+                python_path="",  # Empty string should fail
+            )
+        self.assertIn("python_path cannot be empty", str(context.exception))
+
+    def test_python_path_validation_whitespace_only(self):
+        """Test that whitespace-only python_path raises ValueError"""
+        with self.assertRaises(ValueError) as context:
+            RepositoryConfig.create_repository_config(
+                name="test",
+                path=os.path.abspath("/tmp/test"),
+                description="Test",
+                language="python",
+                port=8080,
+                python_path="   ",  # Whitespace only
+            )
+        self.assertIn("python_path cannot be empty", str(context.exception))
+
+    def test_python_path_validation_nonexistent_path(self):
+        """Test that non-existent python_path raises ValueError"""
+        with self.assertRaises(ValueError) as context:
+            RepositoryConfig.create_repository_config(
+                name="test",
+                path=os.path.abspath("/tmp/test"),
+                description="Test",
+                language="python",
+                port=8080,
+                python_path="/nonexistent/python",
+            )
+        self.assertIn("Python executable does not exist", str(context.exception))
+
+    def test_python_path_validation_not_executable(self):
+        """Test that non-executable python_path raises ValueError"""
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as tmp:
+            tmp.write("#!/usr/bin/env python3\nprint('test')")
+            tmp_path = tmp.name
+        
+        try:
+            # Make file not executable
+            os.chmod(tmp_path, 0o644)
+            
+            with self.assertRaises(ValueError) as context:
+                RepositoryConfig.create_repository_config(
+                    name="test",
+                    path=os.path.abspath("/tmp/test"),
+                    description="Test",
+                    language="python",
+                    port=8080,
+                    python_path=tmp_path,
+                )
+            self.assertIn("Python path is not executable", str(context.exception))
+        finally:
+            os.unlink(tmp_path)
+
+    def test_python_path_validation_invalid_executable(self):
+        """Test that invalid executable (not Python) raises ValueError"""
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as tmp:
+            tmp.write("#!/bin/sh\necho 'not python'")
+            tmp_path = tmp.name
+        
+        try:
+            # Make file executable
+            os.chmod(tmp_path, 0o755)
+            
+            with self.assertRaises(ValueError) as context:
+                RepositoryConfig.create_repository_config(
+                    name="test",
+                    path=os.path.abspath("/tmp/test"),
+                    description="Test",
+                    language="python",
+                    port=8080,
+                    python_path=tmp_path,
+                )
+            self.assertIn("does not appear to be Python", str(context.exception))
+        finally:
+            os.unlink(tmp_path)
 
 
 class TestRepositoryManager(unittest.TestCase):
@@ -452,6 +538,232 @@ class TestUtilityFunctions(unittest.TestCase):
             with self.subTest(name=name_item):
                 if name_item is not None:
                     self.assertFalse(validate_repo_name(name_item))
+
+
+class TestGitHubRemoteExtraction(unittest.TestCase):
+    """Test GitHub remote extraction functionality"""
+
+    def setUp(self):
+        """Set up test fixtures"""
+        self.temp_dir = tempfile.mkdtemp()
+        self.test_repo_path = Path(self.temp_dir) / "test_repo"
+        self.test_repo_path.mkdir()
+        
+        # Initialize git repo
+        os.system(f"cd {self.test_repo_path} && git init --quiet")
+        os.system(f"cd {self.test_repo_path} && git config user.email 'test@example.com'")
+        os.system(f"cd {self.test_repo_path} && git config user.name 'Test User'")
+
+    def tearDown(self):
+        """Clean up test fixtures"""
+        import shutil
+        shutil.rmtree(self.temp_dir)
+
+    def test_github_ssh_url_extraction(self):
+        """Test extraction from SSH GitHub URLs"""
+        test_cases = [
+            ("git@github.com:owner/repo.git", "owner", "repo"),
+            ("git@github.com:test-user/test-repo.git", "test-user", "test-repo"),
+            ("git@github.com:org/project", "org", "project"),  # No .git suffix
+        ]
+        
+        for remote_url, expected_owner, expected_repo in test_cases:
+            with self.subTest(remote_url=remote_url):
+                # Set up remote
+                os.system(f"cd {self.test_repo_path} && git remote add origin {remote_url}")
+                
+                # Extract info
+                owner, repo = RepositoryConfig._extract_github_info(
+                    str(self.test_repo_path), 
+                    logging.getLogger(__name__)
+                )
+                
+                self.assertEqual(owner, expected_owner)
+                self.assertEqual(repo, expected_repo)
+                
+                # Clean up for next test
+                os.system(f"cd {self.test_repo_path} && git remote remove origin")
+
+    def test_github_https_url_extraction(self):
+        """Test extraction from HTTPS GitHub URLs"""
+        test_cases = [
+            ("https://github.com/owner/repo.git", "owner", "repo"),
+            ("https://github.com/test-user/test-repo.git", "test-user", "test-repo"),
+            ("https://github.com/org/project", "org", "project"),  # No .git suffix
+            ("https://github.com/complex/repo-name.git", "complex", "repo-name"),
+        ]
+        
+        for remote_url, expected_owner, expected_repo in test_cases:
+            with self.subTest(remote_url=remote_url):
+                # Set up remote
+                os.system(f"cd {self.test_repo_path} && git remote add origin {remote_url}")
+                
+                # Extract info
+                owner, repo = RepositoryConfig._extract_github_info(
+                    str(self.test_repo_path), 
+                    logging.getLogger(__name__)
+                )
+                
+                self.assertEqual(owner, expected_owner)
+                self.assertEqual(repo, expected_repo)
+                
+                # Clean up for next test
+                os.system(f"cd {self.test_repo_path} && git remote remove origin")
+
+    def test_non_github_url_extraction(self):
+        """Test extraction from non-GitHub URLs returns None"""
+        non_github_urls = [
+            "https://gitlab.com/owner/repo.git",
+            "https://bitbucket.org/owner/repo.git",
+            "https://example.com/git/repo.git",
+            "git@gitlab.com:owner/repo.git",
+        ]
+        
+        for remote_url in non_github_urls:
+            with self.subTest(remote_url=remote_url):
+                # Set up remote
+                os.system(f"cd {self.test_repo_path} && git remote add origin {remote_url}")
+                
+                # Extract info
+                owner, repo = RepositoryConfig._extract_github_info(
+                    str(self.test_repo_path), 
+                    logging.getLogger(__name__)
+                )
+                
+                self.assertIsNone(owner)
+                self.assertIsNone(repo)
+                
+                # Clean up for next test
+                os.system(f"cd {self.test_repo_path} && git remote remove origin")
+
+    def test_no_remote_url_extraction(self):
+        """Test extraction when no remote is configured"""
+        # No remote configured
+        owner, repo = RepositoryConfig._extract_github_info(
+            str(self.test_repo_path), 
+            logging.getLogger(__name__)
+        )
+        
+        self.assertIsNone(owner)
+        self.assertIsNone(repo)
+
+    def test_invalid_github_url_format(self):
+        """Test extraction from malformed GitHub URLs"""
+        invalid_urls = [
+            "git@github.com:invalid-format",  # Missing repo part
+            "https://github.com/owner",  # Missing repo part
+            "git@github.com:",  # Empty path
+            "https://github.com/",  # Empty path
+        ]
+        
+        for remote_url in invalid_urls:
+            with self.subTest(remote_url=remote_url):
+                # Set up remote
+                os.system(f"cd {self.test_repo_path} && git remote add origin {remote_url}")
+                
+                # Extract info
+                owner, repo = RepositoryConfig._extract_github_info(
+                    str(self.test_repo_path), 
+                    logging.getLogger(__name__)
+                )
+                
+                self.assertIsNone(owner)
+                self.assertIsNone(repo)
+                
+                # Clean up for next test
+                os.system(f"cd {self.test_repo_path} && git remote remove origin")
+
+    def test_github_url_with_additional_path_components(self):
+        """Test extraction from GitHub URLs with additional path components"""
+        # GitHub URLs sometimes have additional path components that should be ignored
+        test_cases = [
+            ("https://github.com/owner/repo/tree/main", "owner", "repo"),
+            ("https://github.com/owner/repo/issues/123", "owner", "repo"),
+            ("git@github.com:owner/repo/subdir/file.txt", "owner", "repo"),
+        ]
+        
+        for remote_url, expected_owner, expected_repo in test_cases:
+            with self.subTest(remote_url=remote_url):
+                # Set up remote
+                os.system(f"cd {self.test_repo_path} && git remote add origin {remote_url}")
+                
+                # Extract info
+                owner, repo = RepositoryConfig._extract_github_info(
+                    str(self.test_repo_path), 
+                    logging.getLogger(__name__)
+                )
+                
+                self.assertEqual(owner, expected_owner)
+                self.assertEqual(repo, expected_repo)
+                
+                # Clean up for next test
+                os.system(f"cd {self.test_repo_path} && git remote remove origin")
+
+
+class TestErrorMessageClarity(unittest.TestCase):
+    """Test that error messages are clear and informative"""
+
+    def test_python_path_error_message_clarity(self):
+        """Test that Python path validation errors are clear"""
+        # Test non-existent path
+        with self.assertRaises(ValueError) as context:
+            RepositoryConfig.create_repository_config(
+                name="test",
+                path=os.path.abspath("/tmp/test"),
+                description="Test",
+                language="python",
+                port=8080,
+                python_path="/nonexistent/python/executable",
+            )
+        
+        error_msg = str(context.exception)
+        self.assertIn("Python executable does not exist", error_msg)
+        self.assertIn("/nonexistent/python/executable", error_msg)
+
+    def test_language_error_message_clarity(self):
+        """Test that language validation errors are clear"""
+        with self.assertRaises(ValueError) as context:
+            RepositoryConfig.create_repository_config(
+                name="test",
+                path=os.path.abspath("/tmp/test"),
+                description="Test",
+                language="javascript",
+                port=8080,
+            )
+        
+        error_msg = str(context.exception)
+        self.assertIn("Unsupported language 'javascript'", error_msg)
+        self.assertIn("repository 'test'", error_msg)
+        self.assertIn("python, swift", error_msg)
+
+    def test_path_error_message_clarity(self):
+        """Test that path validation errors are clear"""
+        with self.assertRaises(ValueError) as context:
+            RepositoryConfig.create_repository_config(
+                name="test",
+                path="relative/path",
+                description="Test",
+                language="python",
+                port=8080,
+            )
+        
+        error_msg = str(context.exception)
+        self.assertIn("Repository path must be absolute", error_msg)
+        self.assertIn("relative/path", error_msg)
+
+    def test_empty_name_error_message_clarity(self):
+        """Test that empty name validation errors are clear"""
+        with self.assertRaises(ValueError) as context:
+            RepositoryConfig.create_repository_config(
+                name="",
+                path=os.path.abspath("/tmp/test"),
+                description="Test",
+                language="python",
+                port=8080,
+            )
+        
+        error_msg = str(context.exception)
+        self.assertIn("Repository name cannot be empty", error_msg)
 
 
 if __name__ == "__main__":
