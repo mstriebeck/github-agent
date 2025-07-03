@@ -166,14 +166,14 @@ class TestRepositoryConfig(unittest.TestCase):
 
     def test_python_path_validation_not_executable(self):
         """Test that non-executable python_path raises ValueError"""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp:
             tmp.write("#!/usr/bin/env python3\nprint('test')")
             tmp_path = tmp.name
-        
+
         try:
             # Make file not executable
             os.chmod(tmp_path, 0o644)
-            
+
             with self.assertRaises(ValueError) as context:
                 RepositoryConfig.create_repository_config(
                     name="test",
@@ -189,14 +189,14 @@ class TestRepositoryConfig(unittest.TestCase):
 
     def test_python_path_validation_invalid_executable(self):
         """Test that invalid executable (not Python) raises ValueError"""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp:
             tmp.write("#!/bin/sh\necho 'not python'")
             tmp_path = tmp.name
-        
+
         try:
             # Make file executable
             os.chmod(tmp_path, 0o755)
-            
+
             with self.assertRaises(ValueError) as context:
                 RepositoryConfig.create_repository_config(
                     name="test",
@@ -548,15 +548,18 @@ class TestGitHubRemoteExtraction(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
         self.test_repo_path = Path(self.temp_dir) / "test_repo"
         self.test_repo_path.mkdir()
-        
+
         # Initialize git repo
         os.system(f"cd {self.test_repo_path} && git init --quiet")
-        os.system(f"cd {self.test_repo_path} && git config user.email 'test@example.com'")
+        os.system(
+            f"cd {self.test_repo_path} && git config user.email 'test@example.com'"
+        )
         os.system(f"cd {self.test_repo_path} && git config user.name 'Test User'")
 
     def tearDown(self):
         """Clean up test fixtures"""
         import shutil
+
         shutil.rmtree(self.temp_dir)
 
     def test_github_ssh_url_extraction(self):
@@ -566,21 +569,22 @@ class TestGitHubRemoteExtraction(unittest.TestCase):
             ("git@github.com:test-user/test-repo.git", "test-user", "test-repo"),
             ("git@github.com:org/project", "org", "project"),  # No .git suffix
         ]
-        
+
         for remote_url, expected_owner, expected_repo in test_cases:
             with self.subTest(remote_url=remote_url):
                 # Set up remote
-                os.system(f"cd {self.test_repo_path} && git remote add origin {remote_url}")
-                
+                os.system(
+                    f"cd {self.test_repo_path} && git remote add origin {remote_url}"
+                )
+
                 # Extract info
                 owner, repo = RepositoryConfig._extract_github_info(
-                    str(self.test_repo_path), 
-                    logging.getLogger(__name__)
+                    str(self.test_repo_path), logging.getLogger(__name__)
                 )
-                
+
                 self.assertEqual(owner, expected_owner)
                 self.assertEqual(repo, expected_repo)
-                
+
                 # Clean up for next test
                 os.system(f"cd {self.test_repo_path} && git remote remove origin")
 
@@ -592,21 +596,22 @@ class TestGitHubRemoteExtraction(unittest.TestCase):
             ("https://github.com/org/project", "org", "project"),  # No .git suffix
             ("https://github.com/complex/repo-name.git", "complex", "repo-name"),
         ]
-        
+
         for remote_url, expected_owner, expected_repo in test_cases:
             with self.subTest(remote_url=remote_url):
                 # Set up remote
-                os.system(f"cd {self.test_repo_path} && git remote add origin {remote_url}")
-                
+                os.system(
+                    f"cd {self.test_repo_path} && git remote add origin {remote_url}"
+                )
+
                 # Extract info
                 owner, repo = RepositoryConfig._extract_github_info(
-                    str(self.test_repo_path), 
-                    logging.getLogger(__name__)
+                    str(self.test_repo_path), logging.getLogger(__name__)
                 )
-                
+
                 self.assertEqual(owner, expected_owner)
                 self.assertEqual(repo, expected_repo)
-                
+
                 # Clean up for next test
                 os.system(f"cd {self.test_repo_path} && git remote remove origin")
 
@@ -618,21 +623,22 @@ class TestGitHubRemoteExtraction(unittest.TestCase):
             "https://example.com/git/repo.git",
             "git@gitlab.com:owner/repo.git",
         ]
-        
+
         for remote_url in non_github_urls:
             with self.subTest(remote_url=remote_url):
                 # Set up remote
-                os.system(f"cd {self.test_repo_path} && git remote add origin {remote_url}")
-                
+                os.system(
+                    f"cd {self.test_repo_path} && git remote add origin {remote_url}"
+                )
+
                 # Extract info
                 owner, repo = RepositoryConfig._extract_github_info(
-                    str(self.test_repo_path), 
-                    logging.getLogger(__name__)
+                    str(self.test_repo_path), logging.getLogger(__name__)
                 )
-                
+
                 self.assertIsNone(owner)
                 self.assertIsNone(repo)
-                
+
                 # Clean up for next test
                 os.system(f"cd {self.test_repo_path} && git remote remove origin")
 
@@ -640,10 +646,9 @@ class TestGitHubRemoteExtraction(unittest.TestCase):
         """Test extraction when no remote is configured"""
         # No remote configured
         owner, repo = RepositoryConfig._extract_github_info(
-            str(self.test_repo_path), 
-            logging.getLogger(__name__)
+            str(self.test_repo_path), logging.getLogger(__name__)
         )
-        
+
         self.assertIsNone(owner)
         self.assertIsNone(repo)
 
@@ -655,21 +660,22 @@ class TestGitHubRemoteExtraction(unittest.TestCase):
             "git@github.com:",  # Empty path
             "https://github.com/",  # Empty path
         ]
-        
+
         for remote_url in invalid_urls:
             with self.subTest(remote_url=remote_url):
                 # Set up remote
-                os.system(f"cd {self.test_repo_path} && git remote add origin {remote_url}")
-                
+                os.system(
+                    f"cd {self.test_repo_path} && git remote add origin {remote_url}"
+                )
+
                 # Extract info
                 owner, repo = RepositoryConfig._extract_github_info(
-                    str(self.test_repo_path), 
-                    logging.getLogger(__name__)
+                    str(self.test_repo_path), logging.getLogger(__name__)
                 )
-                
+
                 self.assertIsNone(owner)
                 self.assertIsNone(repo)
-                
+
                 # Clean up for next test
                 os.system(f"cd {self.test_repo_path} && git remote remove origin")
 
@@ -681,21 +687,22 @@ class TestGitHubRemoteExtraction(unittest.TestCase):
             ("https://github.com/owner/repo/issues/123", "owner", "repo"),
             ("git@github.com:owner/repo/subdir/file.txt", "owner", "repo"),
         ]
-        
+
         for remote_url, expected_owner, expected_repo in test_cases:
             with self.subTest(remote_url=remote_url):
                 # Set up remote
-                os.system(f"cd {self.test_repo_path} && git remote add origin {remote_url}")
-                
+                os.system(
+                    f"cd {self.test_repo_path} && git remote add origin {remote_url}"
+                )
+
                 # Extract info
                 owner, repo = RepositoryConfig._extract_github_info(
-                    str(self.test_repo_path), 
-                    logging.getLogger(__name__)
+                    str(self.test_repo_path), logging.getLogger(__name__)
                 )
-                
+
                 self.assertEqual(owner, expected_owner)
                 self.assertEqual(repo, expected_repo)
-                
+
                 # Clean up for next test
                 os.system(f"cd {self.test_repo_path} && git remote remove origin")
 
@@ -715,7 +722,7 @@ class TestErrorMessageClarity(unittest.TestCase):
                 port=8080,
                 python_path="/nonexistent/python/executable",
             )
-        
+
         error_msg = str(context.exception)
         self.assertIn("Python executable does not exist", error_msg)
         self.assertIn("/nonexistent/python/executable", error_msg)
@@ -730,7 +737,7 @@ class TestErrorMessageClarity(unittest.TestCase):
                 language="javascript",
                 port=8080,
             )
-        
+
         error_msg = str(context.exception)
         self.assertIn("Unsupported language 'javascript'", error_msg)
         self.assertIn("repository 'test'", error_msg)
@@ -746,7 +753,7 @@ class TestErrorMessageClarity(unittest.TestCase):
                 language="python",
                 port=8080,
             )
-        
+
         error_msg = str(context.exception)
         self.assertIn("Repository path must be absolute", error_msg)
         self.assertIn("relative/path", error_msg)
@@ -761,7 +768,7 @@ class TestErrorMessageClarity(unittest.TestCase):
                 language="python",
                 port=8080,
             )
-        
+
         error_msg = str(context.exception)
         self.assertIn("Repository name cannot be empty", error_msg)
 
