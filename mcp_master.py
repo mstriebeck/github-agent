@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 """
-GitHub MCP Master Process - Multi-Port Architecture
-Master process that spawns and monitors worker processes for each repository.
+MCP Master Process - Multi-Port Architecture
+Master process that spawns and monitors unified worker processes for each repository.
 
 This master process:
 - Reads repository configuration with port assignments
-- Spawns worker processes for each repository on dedicated ports
+- Spawns unified worker processes (GitHub + codebase tools) for each repository on dedicated ports
 - Monitors worker health and restarts failed processes
 - Handles graceful shutdown and cleanup
 """
@@ -178,7 +178,7 @@ async def wait_for_port_free(port: int, timeout: int = 30) -> bool:
     return False
 
 
-class GitHubMCPMaster:
+class MCPMaster:
     """Master process for managing multiple MCP worker processes"""
 
     def __init__(self, config_path: str = "repositories.json"):
@@ -499,7 +499,7 @@ class GitHubMCPMaster:
 
     async def start(self) -> bool:
         """Start the master process"""
-        logger.info("Starting GitHub MCP Master Process")
+        logger.info("Starting MCP Master Process")
 
         # Store loop reference for signal handler
         self.loop = asyncio.get_running_loop()
@@ -716,7 +716,7 @@ class GitHubMCPMaster:
 
 async def main() -> None:
     """Main entry point"""
-    master = GitHubMCPMaster()
+    master = MCPMaster()
 
     # Handle command line arguments
     if len(sys.argv) > 1:
