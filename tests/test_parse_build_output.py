@@ -145,9 +145,9 @@ async def test_parse_build_output_python():
         # Verify we found the expected types of issues
         issue_types = [issue["type"] for issue in issues]
         assert "python_warning" in issue_types, "Should find Python warnings"
-        assert "python_runtime_error" in issue_types, (
-            "Should find Python runtime errors"
-        )
+        assert (
+            "python_runtime_error" in issue_types
+        ), "Should find Python runtime errors"
         assert "python_test_failure" in issue_types, "Should find Python test failures"
 
         print("✓ Python build output parsing test passed!")
@@ -262,29 +262,29 @@ async def test_python_file_line_extraction():
                 attribute_error = issue
 
         # Verify AssertionError has correct file/line
-        assert assertion_error is not None, (
-            "Should find AssertionError with file/line info"
-        )
-        assert assertion_error["file"] == "tests/test_utilities.py", (
-            f"Expected 'tests/test_utilities.py', got '{assertion_error['file']}'"
-        )
-        assert assertion_error["line_number"] == 274, (
-            f"Expected line 274, got {assertion_error['line_number']}"
-        )
+        assert (
+            assertion_error is not None
+        ), "Should find AssertionError with file/line info"
+        assert (
+            assertion_error["file"] == "tests/test_utilities.py"
+        ), f"Expected 'tests/test_utilities.py', got '{assertion_error['file']}'"
+        assert (
+            assertion_error["line_number"] == 274
+        ), f"Expected line 274, got {assertion_error['line_number']}"
         print(
             f"✓ AssertionError correctly parsed: {assertion_error['file']}:{assertion_error['line_number']}"
         )
 
         # Verify AttributeError has correct file/line
-        assert attribute_error is not None, (
-            "Should find AttributeError with file/line info"
-        )
-        assert attribute_error["file"] == "tests/test_exit_codes.py", (
-            f"Expected 'tests/test_exit_codes.py', got '{attribute_error['file']}'"
-        )
-        assert attribute_error["line_number"] == 18, (
-            f"Expected line 18, got {attribute_error['line_number']}"
-        )
+        assert (
+            attribute_error is not None
+        ), "Should find AttributeError with file/line info"
+        assert (
+            attribute_error["file"] == "tests/test_exit_codes.py"
+        ), f"Expected 'tests/test_exit_codes.py', got '{attribute_error['file']}'"
+        assert (
+            attribute_error["line_number"] == 18
+        ), f"Expected line 18, got {attribute_error['line_number']}"
         print(
             f"✓ AttributeError correctly parsed: {attribute_error['file']}:{attribute_error['line_number']}"
         )
