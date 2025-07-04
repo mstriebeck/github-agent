@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
 """
-GitHub MCP Worker Process - Single Repository Handler
+MCP Worker Process - Single Repository Handler
 Worker process that handles MCP protocol for a single repository on a dedicated port.
 
 This worker process:
 - Handles a single repository with clean MCP endpoints
 - Runs on a dedicated port assigned by the master process
-- Provides all GitHub PR tools for the specific repository
-- Simplified architecture without URL routing complexity
+- Provides both GitHub PR tools and codebase tools for the specific repository
+- Uses a single worker per repository architecture (no complex URL routing)
 """
 
 import argparse
@@ -30,7 +30,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
+import codebase_tools
 import github_tools
+from codebase_tools import execute_codebase_health_check
 from github_tools import (
     GitHubAPIContext,
     execute_find_pr_for_branch,
@@ -49,8 +51,8 @@ from shutdown_simple import SimpleShutdownCoordinator
 from system_utils import MicrosecondFormatter, log_system_state
 
 
-class GitHubMCPWorker:
-    """Worker process for handling a single repository"""
+class MCPWorker:
+    """Worker process for handling a single repository with both GitHub and codebase tools"""
 
     # Class member type annotations
     repo_name: str
@@ -62,17 +64,15 @@ class GitHubMCPWorker:
     app: FastAPI
     shutdown_coordinator: SimpleShutdownCoordinator
 
-    def __init__(
-        self,
-        repo_name: str,
-        repo_path: str,
-        port: int,
-        description: str,
-        language: str,
-    ):
+    def __init__(self, repository_config: RepositoryConfig):
+        # Store repository configuration
+        self.repo_config = repository_config
+
         # Initialize logger first
-        self.logger = logging.getLogger(f"worker-{repo_name}")
-        self.logger.info(f"Starting initialization for {repo_name} ({language})")
+        self.logger = logging.getLogger(f"worker-{repository_config.name}")
+        self.logger.info(
+            f"Starting initialization for {repository_config.name} ({repository_config.language})"
+        )
 
         # Load environment variables from .env file first
         dotenv_path = Path.home() / ".local" / "share" / "github-agent" / ".env"
@@ -92,11 +92,13 @@ class GitHubMCPWorker:
                     f"GITHUB_TOKEN loaded: {'Yes' if os.getenv('GITHUB_TOKEN') else 'No'}"
                 )
 
-        self.repo_name = repo_name
-        self.repo_path = repo_path
-        self.port = port
-        self.description = description
-        self.language = language
+        # Extract fields for easier access
+        self.repo_name = repository_config.name
+        self.repo_path = repository_config.path
+        self.port = repository_config.port
+        self.description = repository_config.description
+        self.language = repository_config.language
+        self.python_path = repository_config.python_path
 
         # Set up enhanced logging for this worker (use system-appropriate location)
         log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
@@ -127,42 +129,24 @@ class GitHubMCPWorker:
         self.logger.addHandler(console_handler)
 
         # Add file handler
-        file_handler = logging.FileHandler(log_dir / f"{repo_name}.log")
+        file_handler = logging.FileHandler(log_dir / f"{self.repo_name}.log")
         file_handler.setFormatter(detailed_formatter)
         file_handler.setLevel(logging.DEBUG)
         self.logger.addHandler(file_handler)
 
         self.logger.info(
-            f"Worker initializing for {repo_name} ({language}) on port {port}"
+            f"Worker initializing for {self.repo_name} ({self.language}) on port {self.port}"
         )
-        self.logger.info(f"Repository path: {repo_path}")
+        self.logger.info(f"Repository path: {self.repo_path}")
         self.logger.info(f"Log directory: {log_dir}")
 
         # Initialize simple shutdown coordination
         self.shutdown_coordinator = SimpleShutdownCoordinator(self.logger)
 
         # Validate repository path early
-        if not os.path.exists(repo_path):
-            self.logger.error(f"Repository path {repo_path} does not exist!")
-            raise ValueError(f"Repository path {repo_path} does not exist")
-
-        self.logger.debug("Creating repository configuration...")
-        try:
-            # Create repository configuration
-            self.logger.debug(
-                f"RepositoryConfig args: name={repo_name}, path={repo_path}, description={description}, language={language}"
-            )
-            self.repo_config = RepositoryConfig(
-                name=repo_name,
-                path=repo_path,
-                description=description,
-                language=language,
-            )
-            self.logger.debug("Repository configuration created successfully")
-        except Exception as e:
-            self.logger.error(f"Failed to create repository configuration: {e}")
-            self.logger.error(f"Traceback: {traceback.format_exc()}")
-            raise
+        if not os.path.exists(self.repo_path):
+            self.logger.error(f"Repository path {self.repo_path} does not exist!")
+            raise ValueError(f"Repository path {self.repo_path} does not exist")
 
         self.logger.debug("Creating GitHub context...")
         try:
@@ -201,7 +185,7 @@ class GitHubMCPWorker:
             raise
 
         self.logger.info(
-            f"Worker initialization complete for {repo_name} on port {port}"
+            f"Worker initialization complete for {self.repo_name} on port {self.port}"
         )
 
     def _setup_repository_manager(self) -> None:
@@ -222,11 +206,24 @@ class GitHubMCPWorker:
             self.logger.error(f"Failed to import github_tools: {e}")
             raise
 
+        self.logger.debug("Setting up codebase_tools module...")
+        try:
+            # Configure codebase_tools logger
+            codebase_tools_logger = logging.getLogger("codebase_tools")
+            for handler in self.logger.handlers:
+                codebase_tools_logger.addHandler(handler)
+            codebase_tools_logger.setLevel(logging.DEBUG)
+            self.logger.info("Configured codebase_tools logger")
+
+        except Exception as e:
+            self.logger.error(f"Failed to configure codebase_tools: {e}")
+            raise
+
         self.logger.debug("Creating temporary repository manager...")
         try:
             # Create a minimal repository manager that only knows about this repo
             temp_repo_manager = RepositoryManager()
-            temp_repo_manager.repositories = {self.repo_name: self.repo_config}
+            temp_repo_manager.add_repository(self.repo_name, self.repo_config)
             self.logger.debug(f"Created repository manager with repo: {self.repo_name}")
         except Exception as e:
             self.logger.error(f"Failed to create repository manager: {e}")
@@ -234,7 +231,7 @@ class GitHubMCPWorker:
 
         self.logger.debug("Setting global repository manager in github_tools...")
         try:
-            # Replace the global repository manager in the tools module
+            # Replace the global repository manager in the tools modules
             github_tools.repo_manager = temp_repo_manager
             self.logger.debug("Successfully set global repository manager")
         except Exception as e:
@@ -244,8 +241,8 @@ class GitHubMCPWorker:
     def create_app(self) -> FastAPI:
         """Create FastAPI application for this worker"""
         app = FastAPI(
-            title=f"GitHub MCP Worker - {self.repo_name}",
-            description=f"GitHub PR management for {self.repo_name}",
+            title=f"MCP Worker - {self.repo_name}",
+            description=f"GitHub PR management and codebase tools for {self.repo_name}",
             version="2.0.0",
         )
 
@@ -262,7 +259,7 @@ class GitHubMCPWorker:
         @app.get("/")
         async def root() -> dict[str, Any]:
             return {
-                "name": f"GitHub MCP Worker - {self.repo_name}",
+                "name": f"MCP Worker - {self.repo_name}",
                 "repository": self.repo_name,
                 "port": self.port,
                 "path": self.repo_path,
@@ -270,6 +267,7 @@ class GitHubMCPWorker:
                 "version": "2.0.0",
                 "status": "running",
                 "endpoints": {"health": "/health", "mcp": "/mcp/"},
+                "tool_categories": ["github", "codebase"],
             }
 
         # Health check endpoint
@@ -283,6 +281,7 @@ class GitHubMCPWorker:
                 "timestamp": datetime.now().isoformat(),
                 "github_configured": github_configured,
                 "repo_path_exists": os.path.exists(self.repo_path),
+                "tool_categories": ["github", "codebase"],
             }
 
         # Graceful shutdown endpoint
@@ -297,7 +296,7 @@ class GitHubMCPWorker:
             self.shutdown_event.set()
             return {"status": "shutdown_initiated"}
 
-        # MCP SSE endpoint (simplified - no repository routing)
+        # MCP SSE endpoint
         @app.get("/mcp/")
         async def mcp_sse_endpoint(request: Request) -> StreamingResponse:
             """MCP SSE endpoint for server-to-client messages"""
@@ -346,7 +345,7 @@ class GitHubMCPWorker:
                 },
             )
 
-        # MCP POST endpoint (simplified - no repository routing)
+        # MCP POST endpoint
         @app.post("/mcp/")
         async def mcp_post_endpoint(request: Request) -> dict[str, Any]:
             """Handle POST requests (JSON-RPC MCP protocol)"""
@@ -367,9 +366,9 @@ class GitHubMCPWorker:
                                 "experimental": {},
                             },
                             "serverInfo": {
-                                "name": f"github-pr-agent-{self.repo_name}",
+                                "name": f"mcp-agent-{self.repo_name}",
                                 "version": "2.0.0",
-                                "description": f"GitHub Pull Request management, code review, CI/CD build analysis, and Git repository tools for {self.repo_name}. Provides GitHub API integration, build log parsing, linter analysis, test failure extraction, PR comment management, and local Git operations.",
+                                "description": f"GitHub Pull Request management, code review, CI/CD build analysis, codebase health checks, and Git repository tools for {self.repo_name}. Provides GitHub API integration, build log parsing, linter analysis, test failure extraction, PR comment management, local Git operations, and repository analysis.",
                             },
                         },
                     }
@@ -381,120 +380,20 @@ class GitHubMCPWorker:
                     return {"status": "ok"}
 
                 elif body.get("method") == "tools/list":
-                    # Return GitHub PR tools for this repository
+                    # Return combined GitHub and codebase tools for this repository
+                    github_tool_list = github_tools.get_tools(
+                        self.repo_name, self.repo_path
+                    )
+                    codebase_tool_list = codebase_tools.get_tools(
+                        self.repo_name, self.repo_path
+                    )
+
+                    all_tools = github_tool_list + codebase_tool_list
+
                     response = {
                         "jsonrpc": "2.0",
                         "id": body.get("id", 1),
-                        "result": {
-                            "tools": [
-                                {
-                                    "name": "git_get_current_commit",
-                                    "description": f"Get current local commit SHA, message, author and timestamp from the Git repository at {self.repo_path}. Shows the HEAD commit details including hash, commit message, author, and date. Local Git operation, no network required.",
-                                    "inputSchema": {
-                                        "type": "object",
-                                        "properties": {},
-                                        "required": [],
-                                    },
-                                },
-                                {
-                                    "name": "git_get_current_branch",
-                                    "description": f"Get the currently checked out Git branch name from the local repository at {self.repo_path}. Returns the active branch that would be used for new commits. Local Git operation, no network required.",
-                                    "inputSchema": {
-                                        "type": "object",
-                                        "properties": {},
-                                        "required": [],
-                                    },
-                                },
-                                {
-                                    "name": "github_find_pr_for_branch",
-                                    "description": f"Find and retrieve the GitHub Pull Request associated with a specific branch in {self.repo_name}. Searches GitHub API for open PRs that have the specified branch as their head branch. Returns PR details including number, title, URL, status, and merge information. Useful for connecting local branches to GitHub PRs. If branch_name is not provided, uses the currently checked out local branch.",
-                                    "inputSchema": {
-                                        "type": "object",
-                                        "properties": {
-                                            "branch_name": {
-                                                "type": "string",
-                                                "description": "Git branch name to search for (e.g., 'feature/new-login', 'main', 'develop'). Optional - if not provided, uses the currently checked out local branch.",
-                                            }
-                                        },
-                                        "required": [],
-                                    },
-                                },
-                                {
-                                    "name": "github_get_pr_comments",
-                                    "description": f"Retrieve all review comments, issue comments, and discussion threads from a GitHub Pull Request in {self.repo_name}. Uses GitHub API to fetch comments with author, timestamp, content, and reply status. Essential for finding unanswered code review comments that need responses, tracking discussion threads, and understanding PR feedback. If pr_number is not provided, automatically finds the PR for the current branch using github_find_pr_for_branch.",
-                                    "inputSchema": {
-                                        "type": "object",
-                                        "properties": {
-                                            "pr_number": {
-                                                "type": "integer",
-                                                "description": "GitHub Pull Request number (e.g., 123 for PR #123). Optional - if not provided, will auto-detect PR for current branch.",
-                                            }
-                                        },
-                                        "required": [],
-                                    },
-                                },
-                                {
-                                    "name": "github_post_pr_reply",
-                                    "description": f"Post a reply to a specific comment in a GitHub Pull Request for {self.repo_name}. Uses GitHub API to create a threaded response to review comments or general PR discussion comments. Supports GitHub Markdown formatting for rich text responses.",
-                                    "inputSchema": {
-                                        "type": "object",
-                                        "properties": {
-                                            "comment_id": {
-                                                "type": "integer",
-                                                "description": "GitHub comment ID to reply to (found in comment URLs or from github_get_pr_comments)",
-                                            },
-                                            "message": {
-                                                "type": "string",
-                                                "description": "Reply message content (supports GitHub Markdown formatting)",
-                                            },
-                                        },
-                                        "required": ["comment_id", "message"],
-                                    },
-                                },
-                                {
-                                    "name": "github_check_ci_build_and_test_errors_not_local",
-                                    "description": "🚨 CI STATUS & AUTO-FIX TOOL: For ANY mention of build/test status ('check build', 'CI OK?', 'build errors?') - use this tool to check GitHub CI status AND automatically start fixing any issues found. This tool both reports CI status AND initiates the fix workflow when errors exist. When users ask about build status, they expect you to fix problems, not just report them. After calling this tool: if errors found → immediately fix them → run local tests/lint per CLAUDE.md/AGENT.md → commit changes.",
-                                    "inputSchema": {
-                                        "type": "object",
-                                        "properties": {
-                                            "build_id": {
-                                                "type": "string",
-                                                "description": "GitHub Actions run ID (optional - defaults to latest CI run)",
-                                            }
-                                        },
-                                        "required": [],
-                                    },
-                                },
-                                {
-                                    "name": "github_check_ci_lint_errors_not_local",
-                                    "description": f"🚨 MANDATORY FOR LINT ISSUES: When user mentions 'lint errors', 'lint failures', 'fix lint errors', 'linting issues' - ALWAYS use this tool FIRST, NOT local commands. Gets live GitHub Actions lint errors for {self.repo_name} with exact error messages, file locations, and line numbers. NEVER run local lint when investigating CI lint failures - this tool provides the authoritative CI lint error data. Triggers: 'check lint', 'fix lint errors', 'linting is failing', 'lint has errors', 'CI lint issues'.",
-                                    "inputSchema": {
-                                        "type": "object",
-                                        "properties": {
-                                            "build_id": {
-                                                "type": "string",
-                                                "description": "Specific GitHub Actions run ID (optional - if not provided, uses the latest run for the current commit)",
-                                            }
-                                        },
-                                        "required": [],
-                                    },
-                                },
-                                {
-                                    "name": "github_get_build_status",
-                                    "description": f"📊 BUILD STATUS CHECKER: Use this tool to check if builds are passing/failing, investigate CI status, or when asked about 'build status'. Gets comprehensive CI/CD build status and check results for commits in {self.repo_name}. Shows overall build state (success/failure/pending/in_progress), individual check run details, and failure indicators. Essential for: checking if builds are ready, determining which checks failed, monitoring CI pipeline status before making changes. Use this FIRST when investigating build issues to understand what's failing.",
-                                    "inputSchema": {
-                                        "type": "object",
-                                        "properties": {
-                                            "commit_sha": {
-                                                "type": "string",
-                                                "description": "Git commit SHA to check build status for (optional - if not provided, uses the current HEAD commit)",
-                                            }
-                                        },
-                                        "required": [],
-                                    },
-                                },
-                            ]
-                        },
+                        "result": {"tools": all_tools},
                     }
                     self.message_queue.put(response)
                     return {"status": "queued"}
@@ -506,7 +405,7 @@ class GitHubMCPWorker:
 
                     self.logger.info(f"Tool call '{tool_name}' with args: {tool_args}")
 
-                    # Execute tools (all calls pass self.repo_name as the repo context)
+                    # Execute GitHub tools
                     if tool_name == "github_find_pr_for_branch":
                         branch_name = tool_args.get("branch_name")
                         if not branch_name:
@@ -623,6 +522,12 @@ class GitHubMCPWorker:
                             result = await execute_get_build_status(
                                 self.repo_name, commit_sha
                             )
+
+                    # Execute codebase tools
+                    elif tool_name == "codebase_health_check":
+                        result = await execute_codebase_health_check(
+                            self.repo_name, self.repo_path
+                        )
 
                     else:
                         result = json.dumps(
@@ -794,7 +699,7 @@ def main() -> None:
     logger = logging.getLogger(__name__)
     logger.info("Starting worker process...")
 
-    parser = argparse.ArgumentParser(description="GitHub MCP Worker Process")
+    parser = argparse.ArgumentParser(description="MCP Worker Process")
     parser.add_argument("--repo-name", required=True, help="Repository name")
     parser.add_argument("--repo-path", required=True, help="Repository filesystem path")
     parser.add_argument("--port", type=int, required=True, help="Port to listen on")
@@ -804,6 +709,9 @@ def main() -> None:
         required=True,
         choices=["python", "swift"],
         help="Repository language",
+    )
+    parser.add_argument(
+        "--python-path", required=True, help="Path to Python executable"
     )
 
     logger.info("Parsing arguments...")
@@ -819,16 +727,12 @@ def main() -> None:
         sys.exit(1)
     logger.info("Repository path validation passed")
 
-    # Create and start worker
-    logger.info("Creating worker instance...")
+    # Create repository config from arguments and start worker
+    logger.info("Creating repository config from arguments...")
     try:
-        worker = GitHubMCPWorker(
-            repo_name=args.repo_name,
-            repo_path=args.repo_path,
-            port=args.port,
-            description=args.description,
-            language=args.language,
-        )
+        repository_config = RepositoryConfig.from_args(args)
+        logger.info("Creating worker instance...")
+        worker = MCPWorker(repository_config)
         worker.logger.info("Worker instance created successfully")
     except Exception as e:
         logger.error(f"Failed to create worker: {e}")

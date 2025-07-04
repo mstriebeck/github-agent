@@ -10,6 +10,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import github_tools  # noqa: F401
@@ -18,6 +19,28 @@ from repository_manager import RepositoryConfig, RepositoryManager
 
 class TestRepositoryAwareTools(unittest.TestCase):
     """Test repository-aware GitHub tools and MCP integration"""
+
+    def _create_test_config(self, **kwargs):
+        """Helper method to create RepositoryConfig with defaults"""
+        defaults = {
+            "name": "test-repo",
+            "path": "/path/to/repo",
+            "description": "Test repository",
+            "language": "swift",
+            "port": 8081,
+            "python_path": "/usr/bin/python3",
+        }
+        defaults.update(kwargs)
+        return RepositoryConfig.create_repository_config(
+            name=str(defaults["name"]),
+            path=str(defaults["path"]),
+            description=str(defaults["description"]),
+            language=str(defaults["language"]),
+            port=cast(int, defaults["port"]),
+            python_path=str(defaults["python_path"])
+            if defaults.get("python_path")
+            else None,
+        )
 
     def setUp(self):
         """Set up test fixtures"""
@@ -41,11 +64,19 @@ class TestRepositoryAwareTools(unittest.TestCase):
                     "path": str(self.repo1_path),
                     "description": "Project A repository",
                     "language": "python",
+                    "port": 8081,
+                    "python_path": "/usr/bin/python3",
+                    "github_owner": "test-owner",
+                    "github_repo": "project-a",
                 },
                 "project-b": {
                     "path": str(self.repo2_path),
                     "description": "Project B repository",
                     "language": "swift",
+                    "port": 8082,
+                    "python_path": "/usr/bin/python3",
+                    "github_owner": "test-owner",
+                    "github_repo": "project-b",
                 },
             }
         }
@@ -81,11 +112,13 @@ class TestRepositoryAwareTools(unittest.TestCase):
         from github_tools import execute_get_current_branch, execute_get_current_commit
 
         # Test that functions accept repo_name as first parameter
-        repo_config = RepositoryConfig(
+        repo_config = self._create_test_config(
             name="project-a",
             path=str(self.repo1_path),
             description="Test repository",
             language="swift",
+            port=8081,
+            github_repo="project-a",
         )
 
         with patch("github_tools.repo_manager") as mock_repo_manager:
@@ -119,18 +152,22 @@ class TestRepositoryAwareTools(unittest.TestCase):
         """Test GitHubAPIContext works with different repository configurations"""
         from github_tools import GitHubAPIContext
 
-        repo_config_a = RepositoryConfig(
+        repo_config_a = self._create_test_config(
             name="project-a",
             path=str(self.repo1_path),
             description="Project A",
             language="swift",
+            port=8081,
+            github_repo="project-a",
         )
 
-        repo_config_b = RepositoryConfig(
+        repo_config_b = self._create_test_config(
             name="project-b",
             path=str(self.repo2_path),
             description="Project B",
             language="swift",
+            port=8082,
+            github_repo="project-b",
         )
 
         with patch("github_tools.Github") as mock_github_class:
@@ -228,6 +265,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
         self.assertEqual(params[0], "repo_name")
         self.assertEqual(params[1], "branch_name")
 
+    @unittest.skip("Fallback mode removed in US001-2")
     def test_backward_compatibility_single_repo_mode(self):
         """Test that single repository fallback mode still works"""
         with patch.dict(os.environ, {"LOCAL_REPO_PATH": str(self.repo1_path)}):

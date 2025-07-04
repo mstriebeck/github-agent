@@ -92,6 +92,9 @@ install_python_deps() {
             "fastapi"
             "uvicorn"
             "sqlmodel"
+            "python-lsp-server[all]"
+            "watchdog"
+            "cachetools"
         )
         USE_REQUIREMENTS_FILE=false
     fi
@@ -347,8 +350,8 @@ check_required_files() {
     log_info "Checking required files..."
     
     REQUIRED_FILES=(
-        "github_mcp_master.py"
-        "github_mcp_worker.py"
+        "mcp_master.py"
+        "mcp_worker.py"
         "github_tools.py"
         "repository_manager.py"
         "repository_cli.py"
@@ -459,8 +462,8 @@ run_verification() {
     
     # Test Python and libraries
     log_info "Testing Python libraries..."
-    if $PYTHON_CMD -c "import mcp, github, git, requests, pydantic; print('All libraries available')" 2>/dev/null; then
-        log_success "Python libraries verified"
+    if $PYTHON_CMD -c "import mcp, github, git, requests, pydantic, watchdog, cachetools; print('All libraries available')" 2>/dev/null; then
+        log_success "Python libraries verified (including codebase server)"
     else
         log_error "Python libraries test failed"
         ((errors++))
@@ -547,7 +550,7 @@ main() {
 
 # Usage info
 if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-    echo "PR Review Agent - System Setup Script"
+    echo "Coding MCP server - System Setup Script"
     echo
     echo "This script sets up the development environment with required tools and libraries."
     echo "Run this once per development machine from the agent repository directory."
@@ -561,6 +564,8 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo
     echo "The script will install:"
     echo "  - Python libraries: mcp, pygithub, gitpython, requests, pydantic, python-dotenv"
+    echo "  - LSP servers: python-lsp-server"
+    echo "  - Codebase indexing: watchdog, cachetools"
     echo "  - Claude Code (via npm)"
     echo "  - SourceGraph Amp (via npm)"
     echo

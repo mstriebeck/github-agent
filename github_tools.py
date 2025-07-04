@@ -18,12 +18,136 @@ import requests
 from github import Github
 from github.Repository import Repository
 
-from repository_manager import RepositoryConfig, RepositoryManager
+from repository_manager import (
+    AbstractRepositoryManager,
+    RepositoryConfig,
+    RepositoryManager,
+)
 
 logger = logging.getLogger(__name__)
 
 # Global repository manager (set by worker)
 repo_manager: RepositoryManager | None = None
+
+
+def get_tools(repo_name: str, repo_path: str) -> list[dict]:
+    """Get GitHub tool definitions for MCP registration
+
+    Args:
+        repo_name: Repository name for display purposes
+        repo_path: Repository path for tool descriptions
+
+    Returns:
+        List of tool definitions in MCP format
+    """
+    return [
+        {
+            "name": "git_get_current_commit",
+            "description": f"Get current local commit SHA, message, author and timestamp from the Git repository at {repo_path}. Shows the HEAD commit details including hash, commit message, author, and date. Local Git operation, no network required.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+        {
+            "name": "git_get_current_branch",
+            "description": f"Get the currently checked out Git branch name from the local repository at {repo_path}. Returns the active branch that would be used for new commits. Local Git operation, no network required.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+        {
+            "name": "github_find_pr_for_branch",
+            "description": f"Find and retrieve the GitHub Pull Request associated with a specific branch in {repo_name}. Searches GitHub API for open PRs that have the specified branch as their head branch. Returns PR details including number, title, URL, status, and merge information. Useful for connecting local branches to GitHub PRs. If branch_name is not provided, uses the currently checked out local branch.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "branch_name": {
+                        "type": "string",
+                        "description": "Git branch name to search for (e.g., 'feature/new-login', 'main', 'develop'). Optional - if not provided, uses the currently checked out local branch.",
+                    }
+                },
+                "required": [],
+            },
+        },
+        {
+            "name": "github_get_pr_comments",
+            "description": f"Retrieve all review comments, issue comments, and discussion threads from a GitHub Pull Request in {repo_name}. Uses GitHub API to fetch comments with author, timestamp, content, and reply status. Essential for finding unanswered code review comments that need responses, tracking discussion threads, and understanding PR feedback. If pr_number is not provided, automatically finds the PR for the current branch using github_find_pr_for_branch.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "pr_number": {
+                        "type": "integer",
+                        "description": "GitHub Pull Request number (e.g., 123 for PR #123). Optional - if not provided, will auto-detect PR for current branch.",
+                    }
+                },
+                "required": [],
+            },
+        },
+        {
+            "name": "github_post_pr_reply",
+            "description": f"Post a reply to a specific comment in a GitHub Pull Request for {repo_name}. Uses GitHub API to create a threaded response to review comments or general PR discussion comments. Supports GitHub Markdown formatting for rich text responses.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "comment_id": {
+                        "type": "integer",
+                        "description": "GitHub comment ID to reply to (found in comment URLs or from github_get_pr_comments)",
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Reply message content (supports GitHub Markdown formatting)",
+                    },
+                },
+                "required": ["comment_id", "message"],
+            },
+        },
+        {
+            "name": "github_check_ci_build_and_test_errors_not_local",
+            "description": "🚨 CI STATUS & AUTO-FIX TOOL: For ANY mention of build/test status ('check build', 'CI OK?', 'build errors?') - use this tool to check GitHub CI status AND automatically start fixing any issues found. This tool both reports CI status AND initiates the fix workflow when errors exist. When users ask about build status, they expect you to fix problems, not just report them. After calling this tool: if errors found → immediately fix them → run local tests/lint per CLAUDE.md/AGENT.md → commit changes.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "build_id": {
+                        "type": "string",
+                        "description": "GitHub Actions run ID (optional - defaults to latest CI run)",
+                    }
+                },
+                "required": [],
+            },
+        },
+        {
+            "name": "github_check_ci_lint_errors_not_local",
+            "description": f"🚨 MANDATORY FOR LINT ISSUES: When user mentions 'lint errors', 'lint failures', 'fix lint errors', 'linting issues' - ALWAYS use this tool FIRST, NOT local commands. Gets live GitHub Actions lint errors for {repo_name} with exact error messages, file locations, and line numbers. NEVER run local lint when investigating CI lint failures - this tool provides the authoritative CI lint error data. Triggers: 'check lint', 'fix lint errors', 'linting is failing', 'lint has errors', 'CI lint issues'.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "build_id": {
+                        "type": "string",
+                        "description": "Specific GitHub Actions run ID (optional - if not provided, uses the latest run for the current commit)",
+                    }
+                },
+                "required": [],
+            },
+        },
+        {
+            "name": "github_get_build_status",
+            "description": f"📊 BUILD STATUS CHECKER: Use this tool to check if builds are passing/failing, investigate CI status, or when asked about 'build status'. Gets comprehensive CI/CD build status and check results for commits in {repo_name}. Shows overall build state (success/failure/pending/in_progress), individual check run details, and failure indicators. Essential for: checking if builds are ready, determining which checks failed, monitoring CI pipeline status before making changes. Use this FIRST when investigating build issues to understand what's failing.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "commit_sha": {
+                        "type": "string",
+                        "description": "Git commit SHA to check build status for (optional - if not provided, uses the current HEAD commit)",
+                    }
+                },
+                "required": [],
+            },
+        },
+    ]
 
 
 class GitHubAPIContext:
@@ -887,7 +1011,9 @@ async def execute_github_check_ci_lint_errors_not_local(
                 logger.warning("⚠️ Lint output is empty!")
 
             logger.info("🔧 Step 8c: Parsing lint errors...")
-            parsed_result = await get_linter_errors(repo_name, lint_output, language)
+            parsed_result = await get_linter_errors(
+                repo_name, lint_output, language, repo_manager
+            )
             logger.info(
                 f"✅ Step 8c Partial: Parser returned: {len(parsed_result)} characters"
             )
@@ -1162,13 +1288,18 @@ def extract_error_code_from_mypy_error(error_line: str) -> str:
     return match.group(1) if match else ""
 
 
-async def get_linter_errors(repo_name: str, error_output: str, language: str) -> str:
+async def get_linter_errors(
+    repo_name: str,
+    error_output: str,
+    language: str,
+    repo_manager: AbstractRepositoryManager,
+) -> str:
     """Parse linter errors based on repository language configuration"""
     logger.info(f"=== PARSING LINTER ERRORS FOR '{repo_name}' ===")
     logger.info(f"Input length: {len(error_output)} characters")
 
     try:
-        if not repo_manager or repo_name not in repo_manager.repositories:
+        if repo_name not in repo_manager.repositories:
             logger.error(f"Repository {repo_name} not found in configuration")
             return json.dumps({"error": f"Repository {repo_name} not found"})
 

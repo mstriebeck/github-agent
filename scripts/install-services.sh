@@ -47,15 +47,18 @@ mkdir -p "$LOG_DIR"
 # Copy files
 echo "Copying service files..."
 # Remove existing files if they exist to avoid permission issues
-[ -f "$INSTALL_DIR/github_mcp_master.py" ] && rm -f "$INSTALL_DIR/github_mcp_master.py"
-[ -f "$INSTALL_DIR/github_mcp_worker.py" ] && rm -f "$INSTALL_DIR/github_mcp_worker.py"
+[ -f "$INSTALL_DIR/mcp_master.py" ] && rm -f "$INSTALL_DIR/mcp_master.py"
+[ -f "$INSTALL_DIR/mcp_worker.py" ] && rm -f "$INSTALL_DIR/mcp_worker.py"
 [ -f "$INSTALL_DIR/requirements.txt" ] && rm -f "$INSTALL_DIR/requirements.txt"
-cp github_mcp_master.py "$INSTALL_DIR/"
-cp github_mcp_worker.py "$INSTALL_DIR/"
+cp mcp_master.py "$INSTALL_DIR/"
+cp mcp_worker.py "$INSTALL_DIR/"
+cp codebase_tools.py "$INSTALL_DIR/"
 cp github_tools.py "$INSTALL_DIR/"
 cp repository_manager.py "$INSTALL_DIR/"
-cp repository_cli.py "$INSTALL_DIR/"
 cp requirements.txt "$INSTALL_DIR/"
+cp constants.py "$INSTALL_DIR/"
+cp shutdown_simple.py "$INSTALL_DIR/"
+cp system_utils.py "$INSTALL_DIR/"
 
 # Copy configuration if it exists
 if [ -f "repositories.json" ]; then
@@ -155,7 +158,7 @@ else
     <key>ProgramArguments</key>
     <array>
         <string>$INSTALL_DIR/.venv/bin/python</string>
-        <string>$INSTALL_DIR/github_mcp_master.py</string>
+        <string>$INSTALL_DIR/mcp_master.py</string>
     </array>
     <key>WorkingDirectory</key>
     <string>$INSTALL_DIR</string>

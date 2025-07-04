@@ -34,7 +34,7 @@ class TestRuffErrorParsing(unittest.TestCase):
         ]
         # Direct command format (actual ruff output)
         self.sample_ruff_errors_direct = [
-            "Error: github_mcp_master.py:97:14: UP007 Use `X | Y` for type annotations",
+            "Error: mcp_master.py:97:14: UP007 Use `X | Y` for type annotations",
             "Error: github_mcp_worker.py:632:13: RUF006 Store a reference to the return value of `asyncio.create_task`",
             "Error: repository_manager.py:166:21: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling",
         ]
@@ -107,7 +107,7 @@ class TestRuffErrorParsing(unittest.TestCase):
     def test_extract_from_direct_ruff_errors(self):
         """Test extraction from direct ruff command output"""
         expected_files = [
-            "github_mcp_master.py",
+            "mcp_master.py",
             "github_mcp_worker.py",
             "repository_manager.py",
         ]

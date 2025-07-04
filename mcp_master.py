@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 """
-GitHub MCP Master Process - Multi-Port Architecture
-Master process that spawns and monitors worker processes for each repository.
+MCP Master Process - Multi-Port Architecture
+Master process that spawns and monitors unified worker processes for each repository.
 
 This master process:
 - Reads repository configuration with port assignments
-- Spawns worker processes for each repository on dedicated ports
+- Spawns unified worker processes (GitHub + codebase tools) for each repository on dedicated ports
 - Monitors worker health and restarts failed processes
 - Handles graceful shutdown and cleanup
 """
@@ -26,6 +26,8 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
+
+from repository_manager import RepositoryConfig
 
 # Import shutdown coordination components
 from shutdown_simple import (
@@ -97,15 +99,35 @@ logger = setup_enhanced_logging(logger)
 class WorkerProcess:
     """Information about a worker process"""
 
-    repo_name: str
-    port: int
-    path: str
-    description: str
-    language: str
+    repository_config: RepositoryConfig
     process: subprocess.Popen[bytes] | None = None
     start_time: float | None = None
     restart_count: int = 0
     max_restarts: int = 5
+
+    @property
+    def repo_name(self) -> str:
+        return self.repository_config.name
+
+    @property
+    def port(self) -> int:
+        return self.repository_config.port
+
+    @property
+    def path(self) -> str:
+        return self.repository_config.path
+
+    @property
+    def description(self) -> str:
+        return self.repository_config.description
+
+    @property
+    def language(self) -> str:
+        return self.repository_config.language
+
+    @property
+    def python_path(self) -> str:
+        return self.repository_config.python_path
 
 
 def is_port_free(port: int) -> bool:
@@ -156,7 +178,7 @@ async def wait_for_port_free(port: int, timeout: int = 30) -> bool:
     return False
 
 
-class GitHubMCPMaster:
+class MCPMaster:
     """Master process for managing multiple MCP worker processes"""
 
     def __init__(self, config_path: str = "repositories.json"):
@@ -190,17 +212,30 @@ class GitHubMCPMaster:
                 logger.error("No repositories found in configuration")
                 return False
 
-            # Auto-assign ports if not specified
-            next_port = 8081
+            # Validate required fields for each repository
             for repo_name, repo_config in repositories.items():
-                if "port" not in repo_config:
-                    repo_config["port"] = next_port
-                    next_port += 1
-
                 # Validate required fields
+                if "port" not in repo_config:
+                    logger.error(
+                        f"Repository {repo_name} missing required 'port' field"
+                    )
+                    return False
+
                 if "path" not in repo_config:
                     logger.error(
                         f"Repository {repo_name} missing required 'path' field"
+                    )
+                    return False
+
+                if "language" not in repo_config:
+                    logger.error(
+                        f"Repository {repo_name} missing required 'language' field"
+                    )
+                    return False
+
+                if "python_path" not in repo_config:
+                    logger.error(
+                        f"Repository {repo_name} missing required 'python_path' field"
                     )
                     return False
 
@@ -209,13 +244,19 @@ class GitHubMCPMaster:
                         f"Repository path {repo_config['path']} does not exist"
                     )
 
-                # Create worker process info
-                worker = WorkerProcess(
-                    repo_name=repo_name,
-                    port=repo_config["port"],
+                # Create repository configuration
+                repository_config = RepositoryConfig.create_repository_config(
+                    name=repo_name,
                     path=repo_config["path"],
                     description=repo_config.get("description", repo_name),
-                    language=repo_config.get("language", "swift"),
+                    language=repo_config["language"],
+                    port=repo_config["port"],
+                    python_path=repo_config["python_path"],
+                )
+
+                # Create worker process info
+                worker = WorkerProcess(
+                    repository_config=repository_config,
                 )
                 self.workers[repo_name] = worker
 
@@ -225,7 +266,7 @@ class GitHubMCPMaster:
             logger.info(f"Loaded configuration for {len(self.workers)} repositories")
 
             # Check for port conflicts
-            ports_used = [w.port for w in self.workers.values()]
+            ports_used = [w.repository_config.port for w in self.workers.values()]
             if len(ports_used) != len(set(ports_used)):
                 logger.error("Port conflicts detected in configuration")
                 return False
@@ -235,25 +276,6 @@ class GitHubMCPMaster:
         except Exception as e:
             logger.error(f"Failed to load configuration: {e}")
             return False
-
-    def save_configuration(self) -> None:
-        """Save current configuration back to file (with auto-assigned ports)"""
-        try:
-            config: dict[str, Any] = {"repositories": {}}
-            for repo_name, worker in self.workers.items():
-                config["repositories"][repo_name] = {
-                    "path": worker.path,
-                    "port": worker.port,
-                    "description": worker.description,
-                }
-
-            with open(self.config_path, "w") as f:
-                json.dump(config, f, indent=2)
-
-            logger.info(f"Updated configuration saved to {self.config_path}")
-
-        except Exception as e:
-            logger.error(f"Failed to save configuration: {e}")
 
     def start_worker(self, worker: WorkerProcess) -> bool:
         """Start a worker process for a repository"""
@@ -271,19 +293,11 @@ class GitHubMCPMaster:
                 venv_python if os.path.exists(venv_python) else sys.executable
             )
 
+            # Use repository config to generate command arguments
             cmd = [
                 python_executable,
-                "github_mcp_worker.py",
-                "--repo-name",
-                worker.repo_name,
-                "--repo-path",
-                worker.path,
-                "--port",
-                str(worker.port),
-                "--description",
-                worker.description,
-                "--language",
-                worker.language,
+                "mcp_worker.py",
+                *worker.repository_config.to_args(),
             ]
 
             # Set up environment
@@ -479,7 +493,7 @@ class GitHubMCPMaster:
 
     async def start(self) -> bool:
         """Start the master process"""
-        logger.info("Starting GitHub MCP Master Process")
+        logger.info("Starting MCP Master Process")
 
         # Store loop reference for signal handler
         self.loop = asyncio.get_running_loop()
@@ -488,9 +502,6 @@ class GitHubMCPMaster:
         if not self.load_configuration():
             logger.error("Failed to load configuration, exiting")
             return False
-
-        # Save configuration with auto-assigned ports
-        self.save_configuration()
 
         # Set up signal handlers
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -681,14 +692,14 @@ class GitHubMCPMaster:
         for repo_name, worker in self.workers.items():
             is_healthy = self.is_worker_healthy(worker)
             status["workers"][repo_name] = {
-                "port": worker.port,
-                "path": worker.path,
-                "description": worker.description,
+                "port": worker.repository_config.port,
+                "path": worker.repository_config.path,
+                "description": worker.repository_config.description,
                 "running": is_healthy,
                 "pid": worker.process.pid if worker.process else None,
                 "start_time": worker.start_time,
                 "restart_count": worker.restart_count,
-                "endpoint": f"http://localhost:{worker.port}/mcp/",
+                "endpoint": f"http://localhost:{worker.repository_config.port}/mcp/",
             }
 
         return status
@@ -696,7 +707,7 @@ class GitHubMCPMaster:
 
 async def main() -> None:
     """Main entry point"""
-    master = GitHubMCPMaster()
+    master = MCPMaster()
 
     # Handle command line arguments
     if len(sys.argv) > 1:

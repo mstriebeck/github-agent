@@ -105,6 +105,33 @@ Coverage: Authentication module at 100%
 - Edge cases and error conditions must be tested
 - Integration tests for complex workflows
 
+### Usage of mock libraries (e.g. unittest.mock)
+- Only use mocking libraries for mocking out external resources (e.g. file system or http request)
+- For our own objects, we don't use mocking libraries but create an abstract base class of the object and then create a mock version of the object. We use dependency injection to be able to pass in the real objects in production and the mock objects in tests.
+
+### Dependency Injection Pattern
+- All functions that depend on our own objects should accept those objects as parameters (dependency injection)
+- Create abstract base classes to define interfaces for our objects
+- Create mock implementations of the abstract base classes for testing
+- Pass the concrete implementations in production and mock implementations in tests
+- Example: `get_linter_errors()` now takes `repo_manager: AbstractRepositoryManager` as a parameter instead of using a global variable
+
+**Before (using unittest.mock patches):**
+```python
+@patch("github_tools.repo_manager")
+def test_python_ruff_errors_parsing(self, mock_repo_manager):
+    mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
+    result_json = asyncio.run(get_linter_errors("python-repo", self.python_ruff_output, "python"))
+```
+
+**After (using dependency injection and mock objects):**
+```python
+def test_python_ruff_errors_parsing(self):
+    mock_repo_manager = MockRepositoryManager()
+    mock_repo_manager.add_repository("python-repo", self.python_repo_config)
+    result_json = asyncio.run(get_linter_errors("python-repo", self.python_ruff_output, "python", mock_repo_manager))
+```
+
 ### Test Modification Policy
 - **CRITICAL**: Never change test code to make failing tests pass
 - If tests need modification, always seek explicit approval first
