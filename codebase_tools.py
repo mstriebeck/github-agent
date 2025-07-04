@@ -27,7 +27,7 @@ def get_tools(repo_name: str, repo_path: str) -> list[dict]:
     return [
         {
             "name": "codebase_health_check",
-            "description": f"Perform a comprehensive health check of the repository at {repo_path}. Validates repository structure, checks for required files, verifies Git status, and reports on overall repository health.",
+            "description": f"Perform a basic health check of the repository at {repo_path}. Validates that the path exists, is accessible, and is a valid Git repository with readable metadata.",
             "inputSchema": {
                 "type": "object",
                 "properties": {},
@@ -37,11 +37,12 @@ def get_tools(repo_name: str, repo_path: str) -> list[dict]:
     ]
 
 
-async def execute_codebase_health_check(repo_name: str) -> str:
-    """Execute comprehensive health check for the repository
+async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
+    """Execute basic health check for the repository
 
     Args:
         repo_name: Repository name to check
+        repo_path: Path to the repository
 
     Returns:
         JSON string with health check results
@@ -49,183 +50,94 @@ async def execute_codebase_health_check(repo_name: str) -> str:
     logger.info(f"Performing health check for repository: {repo_name}")
 
     try:
-        # Get repository manager (should be set by worker)
-        from github_tools import repo_manager
-
-        if not repo_manager:
-            return json.dumps(
-                {"error": "Repository manager not initialized", "repo": repo_name}
-            )
-
-        # Get repository config
-        if repo_name not in repo_manager.repositories:
-            return json.dumps(
-                {
-                    "error": f"Repository '{repo_name}' not found in configuration",
-                    "repo": repo_name,
-                }
-            )
-
-        repo_config = repo_manager.repositories[repo_name]
-        repo_path = Path(repo_config.path)
+        repo_path_obj = Path(repo_path)
 
         health_status: dict[str, Any] = {
             "repo": repo_name,
-            "path": str(repo_path),
+            "path": str(repo_path_obj),
             "status": "healthy",
             "checks": {},
             "warnings": [],
             "errors": [],
         }
 
-        # Check 1: Repository path exists
-        if not repo_path.exists():
-            health_status["errors"].append("Repository path does not exist")
+        # Check 1: Repository exists and is accessible
+        if not repo_path_obj.exists():
             health_status["status"] = "unhealthy"
             health_status["checks"]["path_exists"] = False
-        else:
-            health_status["checks"]["path_exists"] = True
+            health_status["errors"].append(
+                f"Repository path does not exist: {repo_path_obj}"
+            )
+            return json.dumps(health_status)
 
-        # Check 2: Git repository
-        git_dir = repo_path / ".git"
+        if not repo_path_obj.is_dir():
+            health_status["status"] = "unhealthy"
+            health_status["checks"]["path_exists"] = True
+            health_status["checks"]["is_directory"] = False
+            health_status["errors"].append(
+                f"Repository path is not a directory: {repo_path_obj}"
+            )
+            return json.dumps(health_status)
+
+        health_status["checks"]["path_exists"] = True
+        health_status["checks"]["is_directory"] = True
+
+        # Check 2: Git repository validation
+        git_dir = repo_path_obj / ".git"
         if not git_dir.exists():
-            health_status["errors"].append("Not a Git repository (no .git directory)")
             health_status["status"] = "unhealthy"
             health_status["checks"]["is_git_repo"] = False
-        else:
-            health_status["checks"]["is_git_repo"] = True
-
-            # Check Git status
-            try:
-                result = subprocess.run(
-                    ["git", "status", "--porcelain"],
-                    cwd=repo_path,
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-
-                if result.stdout.strip():
-                    health_status["warnings"].append(
-                        "Repository has uncommitted changes"
-                    )
-                    health_status["checks"]["clean_working_tree"] = False
-                else:
-                    health_status["checks"]["clean_working_tree"] = True
-
-            except subprocess.CalledProcessError as e:
-                health_status["warnings"].append(f"Could not check Git status: {e}")
-                health_status["checks"]["clean_working_tree"] = None
-
-        # Check 3: Language-specific files
-        language = repo_config.language.lower()
-
-        if language == "python":
-            # Check for Python-specific files
-            python_files = [
-                ("requirements.txt", "Python dependencies file"),
-                ("pyproject.toml", "Python project configuration"),
-                ("setup.py", "Python setup script"),
-            ]
-
-            python_found = False
-            for filename, _description in python_files:
-                if (repo_path / filename).exists():
-                    health_status["checks"][f"has_{filename.replace('.', '_')}"] = True
-                    python_found = True
-                else:
-                    health_status["checks"][f"has_{filename.replace('.', '_')}"] = False
-
-            if not python_found:
-                health_status["warnings"].append(
-                    "No Python dependency files found (requirements.txt, pyproject.toml, or setup.py)"
-                )
-
-            # Check for Python files
-            python_file_count = len(list(repo_path.rglob("*.py")))
-            health_status["checks"]["python_file_count"] = python_file_count
-
-            if python_file_count == 0:
-                health_status["warnings"].append("No Python files found in repository")
-
-        elif language == "swift":
-            # Check for Swift-specific files
-            swift_files = [
-                ("Package.swift", "Swift package file"),
-                ("*.xcodeproj", "Xcode project"),
-                ("*.xcworkspace", "Xcode workspace"),
-            ]
-
-            swift_found = False
-            for pattern, _description in swift_files:
-                if pattern.startswith("*"):
-                    matches = list(repo_path.glob(pattern))
-                    if matches:
-                        health_status["checks"][
-                            f"has_{pattern.replace('*', 'any').replace('.', '_')}"
-                        ] = True
-                        swift_found = True
-                    else:
-                        health_status["checks"][
-                            f"has_{pattern.replace('*', 'any').replace('.', '_')}"
-                        ] = False
-                else:
-                    if (repo_path / pattern).exists():
-                        health_status["checks"][
-                            f"has_{pattern.replace('.', '_')}"
-                        ] = True
-                        swift_found = True
-                    else:
-                        health_status["checks"][
-                            f"has_{pattern.replace('.', '_')}"
-                        ] = False
-
-            if not swift_found:
-                health_status["warnings"].append("No Swift project files found")
-
-            # Check for Swift files
-            swift_file_count = len(list(repo_path.rglob("*.swift")))
-            health_status["checks"]["swift_file_count"] = swift_file_count
-
-            if swift_file_count == 0:
-                health_status["warnings"].append("No Swift files found in repository")
-
-        # Check 4: README file
-        readme_files = ["README.md", "README.rst", "README.txt", "README"]
-        readme_found = False
-        for readme in readme_files:
-            if (repo_path / readme).exists():
-                health_status["checks"]["has_readme"] = True
-                readme_found = True
-                break
-
-        if not readme_found:
-            health_status["checks"]["has_readme"] = False
-            health_status["warnings"].append("No README file found")
-
-        # Check 5: GitHub configuration
-        try:
-            # Validate GitHub access
-            github_owner = repo_config.github_owner
-            github_repo = repo_config.github_repo
-
-            if github_owner and github_repo:
-                health_status["checks"]["has_github_info"] = True
-                health_status["checks"]["github_owner"] = github_owner
-                health_status["checks"]["github_repo"] = github_repo
-            else:
-                health_status["checks"]["has_github_info"] = False
-                health_status["warnings"].append(
-                    "GitHub repository information not available"
-                )
-
-        except Exception as e:
-            health_status["warnings"].append(
-                f"Could not validate GitHub configuration: {e}"
+            health_status["errors"].append(
+                "Not a Git repository (no .git directory found)"
             )
-            health_status["checks"]["has_github_info"] = False
+            return json.dumps(health_status)
 
-        # Determine overall status
+        health_status["checks"]["is_git_repo"] = True
+
+        # Check 3: Basic Git metadata access
+        try:
+            # Get current branch
+            result = subprocess.run(
+                ["git", "branch", "--show-current"],
+                cwd=repo_path_obj,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                current_branch = result.stdout.strip()
+                health_status["checks"]["current_branch"] = current_branch
+            else:
+                health_status["warnings"].append(
+                    "Could not determine current Git branch"
+                )
+
+            # Get remote origin URL
+            result = subprocess.run(
+                ["git", "config", "--get", "remote.origin.url"],
+                cwd=repo_path_obj,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                remote_url = result.stdout.strip()
+                health_status["checks"]["has_remote"] = bool(remote_url)
+                if remote_url:
+                    health_status["checks"]["remote_url"] = remote_url
+            else:
+                health_status["checks"]["has_remote"] = False
+
+            health_status["checks"]["git_responsive"] = True
+
+        except subprocess.TimeoutExpired:
+            health_status["warnings"].append("Git commands timed out")
+            health_status["checks"]["git_responsive"] = False
+        except subprocess.CalledProcessError as e:
+            health_status["warnings"].append(f"Could not access Git metadata: {e}")
+            health_status["checks"]["git_responsive"] = False
+
+        # Determine overall health
         if health_status["errors"]:
             health_status["status"] = "unhealthy"
         elif health_status["warnings"]:
@@ -233,13 +145,48 @@ async def execute_codebase_health_check(repo_name: str) -> str:
         else:
             health_status["status"] = "healthy"
 
-        logger.info(
-            f"Health check completed for {repo_name}: {health_status['status']}"
-        )
         return json.dumps(health_status, indent=2)
 
     except Exception as e:
-        logger.error(f"Health check failed for {repo_name}: {e}")
+        logger.exception(f"Error during health check for {repo_name}")
+        error_response = {
+            "repo": repo_name,
+            "path": repo_path,
+            "status": "error",
+            "errors": [f"Health check failed: {e!s}"],
+            "checks": {},
+            "warnings": [],
+        }
+        return json.dumps(error_response)
+
+
+# Tool execution mapping
+TOOL_HANDLERS = {
+    "codebase_health_check": execute_codebase_health_check,
+}
+
+
+async def execute_tool(tool_name: str, **kwargs) -> str:
+    """Execute a codebase tool by name
+
+    Args:
+        tool_name: Name of the tool to execute
+        **kwargs: Tool-specific arguments
+
+    Returns:
+        Tool execution result as JSON string
+    """
+    if tool_name not in TOOL_HANDLERS:
         return json.dumps(
-            {"error": f"Health check failed: {e}", "repo": repo_name, "status": "error"}
+            {
+                "error": f"Unknown tool: {tool_name}",
+                "available_tools": list(TOOL_HANDLERS.keys()),
+            }
         )
+
+    handler = TOOL_HANDLERS[tool_name]
+    try:
+        return await handler(**kwargs)
+    except Exception as e:
+        logger.exception(f"Error executing tool {tool_name}")
+        return json.dumps({"error": f"Tool execution failed: {e!s}", "tool": tool_name})

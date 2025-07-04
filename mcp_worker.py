@@ -525,7 +525,9 @@ class MCPWorker:
 
                     # Execute codebase tools
                     elif tool_name == "codebase_health_check":
-                        result = await execute_codebase_health_check(self.repo_name)
+                        result = await execute_codebase_health_check(
+                            self.repo_name, self.repo_path
+                        )
 
                     else:
                         result = json.dumps(
