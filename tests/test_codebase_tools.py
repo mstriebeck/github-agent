@@ -238,7 +238,7 @@ class TestCodebaseTools:
             assert tool_name in codebase_tools.TOOL_HANDLERS
 
         # Verify handler is callable
-        for handler_name, handler in codebase_tools.TOOL_HANDLERS.items():
+        for _handler_name, handler in codebase_tools.TOOL_HANDLERS.items():
             assert callable(handler)
 
     @pytest.mark.asyncio

@@ -266,7 +266,7 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
 
     def test_empty_repositories_section_fails(self):
         """Test that empty repositories section fails validation"""
-        empty_config = {"repositories": {}}
+        empty_config: dict[str, dict[str, dict]] = {"repositories": {}}
         self._write_config_file(empty_config)
 
         master = MCPMaster(config_path=str(self.config_file))
