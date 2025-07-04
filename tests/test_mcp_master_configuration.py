@@ -8,6 +8,8 @@ and fails to start if required fields are missing.
 """
 
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -27,15 +29,12 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
         self.test_repo_path = Path(self.temp_dir) / "test_repo"
         self.test_repo_path.mkdir()
         # Make it a proper git repo
-        import subprocess
-
         subprocess.run(
             ["git", "init"], cwd=self.test_repo_path, check=True, capture_output=True
         )
 
         # Valid complete configuration for reference
         # Use sys.executable to get a valid Python path that works in any environment
-        import sys
 
         self.valid_config = {
             "repositories": {

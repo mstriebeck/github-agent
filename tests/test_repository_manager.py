@@ -7,6 +7,7 @@ Tests for Repository Manager - Phase 1 Multi-Repository Support
 import json
 import logging
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -230,8 +231,6 @@ class TestRepositoryManager(unittest.TestCase):
         self._init_git_repo(self.repo2_path)
 
         # Create test configuration
-        import sys
-
         self.test_config = {
             "repositories": {
                 "repo1": {
