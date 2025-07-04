@@ -26,8 +26,12 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
         # Create a valid test repository path
         self.test_repo_path = Path(self.temp_dir) / "test_repo"
         self.test_repo_path.mkdir()
-        # Make it a git repo
-        (self.test_repo_path / ".git").mkdir()
+        # Make it a proper git repo
+        import subprocess
+
+        subprocess.run(
+            ["git", "init"], cwd=self.test_repo_path, check=True, capture_output=True
+        )
 
         # Valid complete configuration for reference
         # Use sys.executable to get a valid Python path that works in any environment

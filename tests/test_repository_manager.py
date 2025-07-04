@@ -230,6 +230,8 @@ class TestRepositoryManager(unittest.TestCase):
         self._init_git_repo(self.repo2_path)
 
         # Create test configuration
+        import sys
+
         self.test_config = {
             "repositories": {
                 "repo1": {
@@ -237,12 +239,14 @@ class TestRepositoryManager(unittest.TestCase):
                     "description": "Test repository 1",
                     "language": "python",
                     "port": 8080,
+                    "python_path": sys.executable,
                 },
                 "repo2": {
                     "path": str(self.repo2_path),
                     "description": "Test repository 2",
                     "language": "swift",
                     "port": 8081,
+                    "python_path": sys.executable,
                 },
             }
         }
