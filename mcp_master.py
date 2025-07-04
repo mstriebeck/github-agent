@@ -277,8 +277,6 @@ class MCPMaster:
             logger.error(f"Failed to load configuration: {e}")
             return False
 
-
-
     def start_worker(self, worker: WorkerProcess) -> bool:
         """Start a worker process for a repository"""
         try:
@@ -504,8 +502,6 @@ class MCPMaster:
         if not self.load_configuration():
             logger.error("Failed to load configuration, exiting")
             return False
-
-
 
         # Set up signal handlers
         signal.signal(signal.SIGTERM, self.signal_handler)
