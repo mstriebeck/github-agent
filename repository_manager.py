@@ -34,13 +34,13 @@ from constants import (
 
 class AbstractRepositoryManager(abc.ABC):
     """Abstract base class for repository managers."""
-    
+
     @property
     @abc.abstractmethod
     def repositories(self) -> dict[str, Any]:
         """Get dictionary of repositories."""
         pass
-    
+
     @abc.abstractmethod
     def get_repository(self, name: str) -> Any | None:
         """Get repository by name."""
@@ -452,7 +452,7 @@ class RepositoryManager(AbstractRepositoryManager):
                 self._parse_configuration(config_data)
                 self._validate_repositories()
                 self.logger.info(
-                f"✅ Successfully loaded {len(self._repositories)} repositories"
+                    f"✅ Successfully loaded {len(self._repositories)} repositories"
                 )
                 return True
             else:

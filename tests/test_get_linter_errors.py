@@ -82,7 +82,9 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         mock_repo_manager.add_repository("python-repo", self.python_repo_config)
 
         result_json = asyncio.run(
-            get_linter_errors("python-repo", self.python_ruff_output, "python", mock_repo_manager)
+            get_linter_errors(
+                "python-repo", self.python_ruff_output, "python", mock_repo_manager
+            )
         )
         result = json.loads(result_json)
 
