@@ -133,18 +133,22 @@ class TestSQLiteSymbolStorage:
         # Schema should be created during initialization
         with storage._get_connection() as conn:
             # Check that symbols table exists
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT name FROM sqlite_master
                 WHERE type='table' AND name='symbols'
-            """)
+            """
+            )
             table_exists = cursor.fetchone() is not None
             assert table_exists
 
             # Check that indexes exist
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT name FROM sqlite_master
                 WHERE type='index' AND tbl_name='symbols'
-            """)
+            """
+            )
             indexes = [row[0] for row in cursor.fetchall()]
             expected_indexes = [
                 "idx_symbols_name",

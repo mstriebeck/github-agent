@@ -117,7 +117,8 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
     def create_schema(self) -> None:
         """Create the database schema for symbol storage."""
         with self._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS symbols (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
@@ -130,33 +131,44 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
+            """
+            )
 
             # Create indexes for common query patterns
-            conn.execute("""
+            conn.execute(
+                """
             CREATE INDEX IF NOT EXISTS idx_symbols_name
             ON symbols(name)
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
             CREATE INDEX IF NOT EXISTS idx_symbols_repository_id
             ON symbols(repository_id)
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
             CREATE INDEX IF NOT EXISTS idx_symbols_kind
             ON symbols(kind)
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
             CREATE INDEX IF NOT EXISTS idx_symbols_file_path
             ON symbols(file_path, repository_id)
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
             CREATE INDEX IF NOT EXISTS idx_symbols_name_repo
             ON symbols(name, repository_id)
-            """)
+            """
+            )
 
             conn.commit()
             logger.info(f"Created symbol storage schema in {self.db_path}")
