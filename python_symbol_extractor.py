@@ -122,6 +122,18 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
             self._visit_import_from(node)
         elif isinstance(node, ast.AugAssign):
             self._visit_augmented_assignment(node)
+        elif isinstance(node, ast.NamedExpr):
+            self._visit_named_expression(node)  # Walrus operator
+        elif isinstance(node, ast.With):
+            self._visit_with_statement(node)  # Context managers
+        elif isinstance(node, ast.AsyncWith):
+            self._visit_async_with_statement(node)  # Async context managers
+        elif isinstance(node, ast.For):
+            self._visit_for_loop(node)  # Iterator variables
+        elif isinstance(node, ast.AsyncFor):
+            self._visit_async_for_loop(node)  # Async iterator variables
+        elif isinstance(node, ast.ExceptHandler):
+            self._visit_except_handler(node)  # Exception variable binding
         else:
             # For nodes we don't handle directly, visit children
             for child in ast.iter_child_nodes(node):
@@ -201,72 +213,11 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
     def _visit_assignment(self, node: ast.Assign) -> None:
         """Visit a regular assignment."""
         for target in node.targets:
-            if isinstance(target, ast.Name):
-                var_name = target.id
-                full_name = self._get_full_name(var_name)
-                kind = self._determine_variable_kind(var_name, node)
-
-                symbol = Symbol(
-                    name=full_name,
-                    kind=kind,
-                    file_path=self.current_file_path,
-                    line_number=node.lineno,
-                    column_number=node.col_offset,
-                    repository_id=self.current_repository_id,
-                )
-                self.symbols.append(symbol)
-            elif isinstance(target, ast.Attribute):
-                # Handle attribute assignments like self.var = value
-                if isinstance(target.value, ast.Name) and target.value.id == "self":
-                    attr_name = target.attr
-                    full_name = self._get_full_name(attr_name)
-                    kind = self._determine_variable_kind(attr_name, node)
-
-                    symbol = Symbol(
-                        name=full_name,
-                        kind=kind,
-                        file_path=self.current_file_path,
-                        line_number=node.lineno,
-                        column_number=node.col_offset,
-                        repository_id=self.current_repository_id,
-                    )
-                    self.symbols.append(symbol)
+            self._extract_target_variables(target, node)
 
     def _visit_annotated_assignment(self, node: ast.AnnAssign) -> None:
         """Visit an annotated assignment."""
-        if isinstance(node.target, ast.Name):
-            var_name = node.target.id
-            full_name = self._get_full_name(var_name)
-            kind = self._determine_variable_kind(var_name, node)
-
-            symbol = Symbol(
-                name=full_name,
-                kind=kind,
-                file_path=self.current_file_path,
-                line_number=node.lineno,
-                column_number=node.col_offset,
-                repository_id=self.current_repository_id,
-            )
-            self.symbols.append(symbol)
-        elif isinstance(node.target, ast.Attribute):
-            # Handle attribute assignments like self.var: int = value
-            if (
-                isinstance(node.target.value, ast.Name)
-                and node.target.value.id == "self"
-            ):
-                attr_name = node.target.attr
-                full_name = self._get_full_name(attr_name)
-                kind = self._determine_variable_kind(attr_name, node)
-
-                symbol = Symbol(
-                    name=full_name,
-                    kind=kind,
-                    file_path=self.current_file_path,
-                    line_number=node.lineno,
-                    column_number=node.col_offset,
-                    repository_id=self.current_repository_id,
-                )
-                self.symbols.append(symbol)
+        self._extract_target_variables(node.target, node)
 
     def _visit_import(self, node: ast.Import) -> None:
         """Visit an import statement."""
@@ -324,6 +275,141 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
             )
             self.symbols.append(symbol)
 
+    def _visit_named_expression(self, node: ast.NamedExpr) -> None:
+        """Visit a named expression (walrus operator :=)."""
+        if isinstance(node.target, ast.Name):
+            var_name = node.target.id
+            full_name = self._get_full_name(var_name)
+            kind = self._determine_variable_kind(var_name, node)
+
+            symbol = Symbol(
+                name=full_name,
+                kind=kind,
+                file_path=self.current_file_path,
+                line_number=node.lineno,
+                column_number=node.col_offset,
+                repository_id=self.current_repository_id,
+            )
+            self.symbols.append(symbol)
+
+        # Continue visiting the value expression for nested patterns
+        self.visit_node(node.value)
+
+    def _visit_with_statement(self, node: ast.With) -> None:
+        """Visit a with statement and extract context manager variables."""
+        for item in node.items:
+            if item.optional_vars:
+                self._extract_target_variables(item.optional_vars, node)
+
+        # Visit the body
+        for stmt in node.body:
+            self.visit_node(stmt)
+
+    def _visit_async_with_statement(self, node: ast.AsyncWith) -> None:
+        """Visit an async with statement and extract context manager variables."""
+        for item in node.items:
+            if item.optional_vars:
+                self._extract_target_variables(item.optional_vars, node)
+
+        # Visit the body
+        for stmt in node.body:
+            self.visit_node(stmt)
+
+    def _visit_for_loop(self, node: ast.For) -> None:
+        """Visit a for loop and extract iterator variables."""
+        self._extract_target_variables(node.target, node)
+
+        # Visit the body and else clause
+        for stmt in node.body:
+            self.visit_node(stmt)
+        for stmt in node.orelse:
+            self.visit_node(stmt)
+
+    def _visit_async_for_loop(self, node: ast.AsyncFor) -> None:
+        """Visit an async for loop and extract iterator variables."""
+        self._extract_target_variables(node.target, node)
+
+        # Visit the body and else clause
+        for stmt in node.body:
+            self.visit_node(stmt)
+        for stmt in node.orelse:
+            self.visit_node(stmt)
+
+    def _visit_except_handler(self, node: ast.ExceptHandler) -> None:
+        """Visit an exception handler and extract exception variable."""
+        if node.name:
+            var_name = node.name
+            full_name = self._get_full_name(var_name)
+
+            symbol = Symbol(
+                name=full_name,
+                kind="variable",
+                file_path=self.current_file_path,
+                line_number=node.lineno,
+                column_number=node.col_offset,
+                repository_id=self.current_repository_id,
+            )
+            self.symbols.append(symbol)
+
+        # Visit the exception handler body
+        for stmt in node.body:
+            self.visit_node(stmt)
+
+    def _extract_target_variables(
+        self, target: ast.AST, source_node: ast.stmt | ast.expr
+    ) -> None:
+        """Extract variables from assignment targets (handles multiple assignment, unpacking, etc.)."""
+        if isinstance(target, ast.Name):
+            var_name = target.id
+            full_name = self._get_full_name(var_name)
+            kind = self._determine_variable_kind(var_name, source_node)
+
+            symbol = Symbol(
+                name=full_name,
+                kind=kind,
+                file_path=self.current_file_path,
+                line_number=source_node.lineno,
+                column_number=source_node.col_offset,
+                repository_id=self.current_repository_id,
+            )
+            self.symbols.append(symbol)
+        elif isinstance(target, ast.Tuple) or isinstance(target, ast.List):
+            # Handle tuple/list unpacking: a, b, c = values or [a, b, c] = values
+            for element in target.elts:
+                self._extract_target_variables(element, source_node)
+        elif isinstance(target, ast.Starred):
+            # Handle starred expressions: *rest
+            if isinstance(target.value, ast.Name):
+                var_name = target.value.id
+                full_name = self._get_full_name(var_name)
+                kind = self._determine_variable_kind(var_name, source_node)
+
+                symbol = Symbol(
+                    name=full_name,
+                    kind=kind,
+                    file_path=self.current_file_path,
+                    line_number=source_node.lineno,
+                    column_number=source_node.col_offset,
+                    repository_id=self.current_repository_id,
+                )
+                self.symbols.append(symbol)
+        elif isinstance(target, ast.Attribute):
+            # Handle attribute assignments like self.var = value
+            if isinstance(target.value, ast.Name) and target.value.id == "self":
+                attr_name = target.attr
+                full_name = self._get_full_name(attr_name)
+                kind = self._determine_variable_kind(attr_name, source_node)
+
+                symbol = Symbol(
+                    name=full_name,
+                    kind=kind,
+                    file_path=self.current_file_path,
+                    line_number=source_node.lineno,
+                    column_number=source_node.col_offset,
+                    repository_id=self.current_repository_id,
+                )
+                self.symbols.append(symbol)
+
     def _get_full_name(self, name: str) -> str:
         """Get the fully qualified name including scope."""
         if self.scope_stack:
@@ -359,7 +445,12 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
                     elif decorator.id == "staticmethod":
                         return "staticmethod"
                 elif isinstance(decorator, ast.Attribute):
-                    if decorator.attr in ["property", "classmethod", "staticmethod"]:
+                    # Handle property setters and deleters like @value.setter
+                    if decorator.attr == "setter":
+                        return "setter"
+                    elif decorator.attr == "deleter":
+                        return "deleter"
+                    elif decorator.attr in ["property", "classmethod", "staticmethod"]:
                         return decorator.attr
 
             # If directly inside a class but no special decorators, it's a method
@@ -367,7 +458,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
 
         return base_kind
 
-    def _determine_variable_kind(self, var_name: str, node: ast.AST) -> str:
+    def _determine_variable_kind(self, var_name: str, node: ast.stmt | ast.expr) -> str:
         """Determine if a variable is a constant or regular variable."""
         # Python convention: ALL_CAPS names are constants
         if var_name.isupper() and "_" in var_name:

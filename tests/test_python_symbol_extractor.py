@@ -614,3 +614,260 @@ class DataProcessor:
         gen_func = next(s for s in symbols if s.name == "generator_function")
         assert gen_func.kind == "function"
         assert gen_func.docstring == "A generator function."
+
+    def test_property_setters_deleters(self, extractor):
+        """Test extraction of property setters and deleters."""
+        source = '''
+class PropertyExample:
+    def __init__(self):
+        self._value = 0
+
+    @property
+    def value(self):
+        """Get the value."""
+        return self._value
+
+    @value.setter
+    def value(self, new_value):
+        """Set the value."""
+        self._value = new_value
+
+    @value.deleter
+    def value(self):
+        """Delete the value."""
+        del self._value
+'''
+        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+
+        # Find property-related symbols
+        prop_getter = next(
+            s
+            for s in symbols
+            if s.name == "PropertyExample.value" and s.kind == "property"
+        )
+        assert prop_getter.docstring == "Get the value."
+
+        prop_setter = next(
+            s
+            for s in symbols
+            if s.name == "PropertyExample.value" and s.kind == "setter"
+        )
+        assert prop_setter.docstring == "Set the value."
+
+        prop_deleter = next(
+            s
+            for s in symbols
+            if s.name == "PropertyExample.value" and s.kind == "deleter"
+        )
+        assert prop_deleter.docstring == "Delete the value."
+
+    def test_walrus_operator(self, extractor):
+        """Test extraction of walrus operator assignments."""
+        source = """
+def process_data():
+    # Simple walrus operator
+    if (n := len([1, 2, 3])) > 2:
+        print(f"Length is {n}")
+
+    # Nested walrus operator
+    while (line := input().strip()):
+        if (length := len(line)) > 10:
+            print(f"Long line: {length}")
+
+    # Multiple walrus operators in same expression
+    if (a := 5) > 2 and (b := 10) < 20:
+        result = a + b
+"""
+        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+
+        variable_names = [s.name for s in symbols if s.kind == "variable"]
+        assert "process_data.n" in variable_names
+        assert "process_data.line" in variable_names
+        assert "process_data.length" in variable_names
+        assert "process_data.a" in variable_names
+        assert "process_data.b" in variable_names
+
+    def test_context_manager_variables(self, extractor):
+        """Test extraction of context manager variables."""
+        source = """
+def file_operations():
+    # Simple context manager
+    with open('file.txt') as f:
+        content = f.read()
+
+    # Multiple context managers
+    with open('input.txt') as infile, open('output.txt') as outfile:
+        data = infile.read()
+        outfile.write(data)
+
+    # Nested context managers
+    with open('outer.txt') as outer:
+        with open('inner.txt') as inner:
+            combined = outer.read() + inner.read()
+
+async def async_file_operations():
+    # Async context manager
+    async with aiofiles.open('async_file.txt') as af:
+        async_content = await af.read()
+"""
+        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+
+        variable_names = [s.name for s in symbols if s.kind == "variable"]
+
+        # Sync context manager variables
+        assert "file_operations.f" in variable_names
+        assert "file_operations.infile" in variable_names
+        assert "file_operations.outfile" in variable_names
+        assert "file_operations.outer" in variable_names
+        assert "file_operations.inner" in variable_names
+
+        # Async context manager variables
+        assert "async_file_operations.af" in variable_names
+
+    def test_multiple_assignment_and_unpacking(self, extractor):
+        """Test extraction of multiple assignment and tuple unpacking."""
+        source = """
+def assignment_examples():
+    # Simple multiple assignment
+    a, b, c = 1, 2, 3
+
+    # List unpacking
+    [x, y, z] = [10, 20, 30]
+
+    # Tuple unpacking with starred expression
+    first, *middle, last = [1, 2, 3, 4, 5]
+
+    # Nested unpacking
+    (p, q), (r, s) = [(1, 2), (3, 4)]
+
+    # Mixed patterns
+    name, (age, height), *extras = ("John", (25, 180), "extra1", "extra2")
+
+class UnpackingInClass:
+    def __init__(self):
+        # Instance variable unpacking
+        self.x, self.y = 10, 20
+"""
+        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+
+        variable_names = [s.name for s in symbols if s.kind == "variable"]
+
+        # Simple multiple assignment
+        assert "assignment_examples.a" in variable_names
+        assert "assignment_examples.b" in variable_names
+        assert "assignment_examples.c" in variable_names
+
+        # List unpacking
+        assert "assignment_examples.x" in variable_names
+        assert "assignment_examples.y" in variable_names
+        assert "assignment_examples.z" in variable_names
+
+        # Tuple unpacking with starred
+        assert "assignment_examples.first" in variable_names
+        assert "assignment_examples.middle" in variable_names
+        assert "assignment_examples.last" in variable_names
+
+        # Nested unpacking
+        assert "assignment_examples.p" in variable_names
+        assert "assignment_examples.q" in variable_names
+        assert "assignment_examples.r" in variable_names
+        assert "assignment_examples.s" in variable_names
+
+        # Mixed patterns
+        assert "assignment_examples.name" in variable_names
+        assert "assignment_examples.age" in variable_names
+        assert "assignment_examples.height" in variable_names
+        assert "assignment_examples.extras" in variable_names
+
+        # Instance variables
+        assert "UnpackingInClass.__init__.x" in variable_names
+        assert "UnpackingInClass.__init__.y" in variable_names
+
+    def test_iterator_variables(self, extractor):
+        """Test extraction of iterator variables in for loops."""
+        source = """
+def loop_examples():
+    # Simple for loop
+    for item in items:
+        print(item)
+
+    # Multiple iterator variables
+    for key, value in dictionary.items():
+        process(key, value)
+
+    # Nested loops
+    for i in range(10):
+        for j in range(5):
+            result = i * j
+
+    # Unpacking in loop
+    for (x, y), z in complex_data:
+        coordinate = (x, y, z)
+
+async def async_loop_examples():
+    # Async for loop
+    async for data in async_generator():
+        processed = await process(data)
+
+    # Async unpacking
+    async for name, value in async_pairs():
+        await store(name, value)
+"""
+        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+
+        variable_names = [s.name for s in symbols if s.kind == "variable"]
+
+        # Simple for loop
+        assert "loop_examples.item" in variable_names
+
+        # Multiple iterator variables
+        assert "loop_examples.key" in variable_names
+        assert "loop_examples.value" in variable_names
+
+        # Nested loops
+        assert "loop_examples.i" in variable_names
+        assert "loop_examples.j" in variable_names
+
+        # Unpacking in loop
+        assert "loop_examples.x" in variable_names
+        assert "loop_examples.y" in variable_names
+        assert "loop_examples.z" in variable_names
+
+        # Async loops
+        assert "async_loop_examples.data" in variable_names
+        assert "async_loop_examples.name" in variable_names
+        assert "async_loop_examples.value" in variable_names
+
+    def test_exception_variable_binding(self, extractor):
+        """Test extraction of exception variables in except clauses."""
+        source = """
+def error_handling():
+    try:
+        risky_operation()
+    except ValueError as ve:
+        handle_value_error(ve)
+    except (TypeError, AttributeError) as ta:
+        handle_type_attr_error(ta)
+    except Exception as e:
+        log_error(e)
+
+    # Nested try-except
+    try:
+        outer_operation()
+        try:
+            inner_operation()
+        except RuntimeError as re:
+            handle_runtime_error(re)
+    except IOError as io:
+        handle_io_error(io)
+"""
+        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+
+        variable_names = [s.name for s in symbols if s.kind == "variable"]
+
+        # Exception variables
+        assert "error_handling.ve" in variable_names
+        assert "error_handling.ta" in variable_names
+        assert "error_handling.e" in variable_names
+        assert "error_handling.re" in variable_names
+        assert "error_handling.io" in variable_names
