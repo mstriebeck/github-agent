@@ -4,18 +4,16 @@ Unit tests for repository indexing functionality.
 
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
-from python_symbol_extractor import MockSymbolExtractor
+from python_symbol_extractor import PythonSymbolExtractor
 from repository_indexer import (
     AbstractRepositoryIndexer,
     IndexingResult,
-    MockRepositoryIndexer,
     PythonRepositoryIndexer,
 )
-from symbol_storage import MockSymbolStorage, Symbol
+from symbol_storage import Symbol
 
 
 class TestIndexingResult:
@@ -95,41 +93,27 @@ class TestPythonRepositoryIndexer:
     """Test the PythonRepositoryIndexer class."""
 
     @pytest.fixture
-    def mock_extractor(self):
-        """Create a mock symbol extractor."""
-        symbols = [
-            Symbol("test_function", "function", "test.py", 1, 0, "test-repo"),
-            Symbol("TestClass", "class", "test.py", 5, 0, "test-repo"),
-        ]
-        return MockSymbolExtractor(symbols)
-
-    @pytest.fixture
-    def mock_storage(self):
-        """Create a mock symbol storage."""
-        return MockSymbolStorage()
-
-    @pytest.fixture
-    def indexer(self, mock_extractor, mock_storage):
+    def indexer(self, mock_symbol_extractor, mock_symbol_storage):
         """Create a repository indexer."""
-        return PythonRepositoryIndexer(mock_extractor, mock_storage)
+        return PythonRepositoryIndexer(mock_symbol_extractor, mock_symbol_storage)
 
-    def test_init(self, mock_extractor, mock_storage):
+    def test_init(self, mock_symbol_extractor, mock_symbol_storage):
         """Test indexer initialization."""
-        indexer = PythonRepositoryIndexer(mock_extractor, mock_storage)
+        indexer = PythonRepositoryIndexer(mock_symbol_extractor, mock_symbol_storage)
 
-        assert indexer.symbol_extractor is mock_extractor
-        assert indexer.symbol_storage is mock_storage
+        assert indexer.symbol_extractor is mock_symbol_extractor
+        assert indexer.symbol_storage is mock_symbol_storage
         assert "__pycache__" in indexer.exclude_patterns
         assert ".git" in indexer.exclude_patterns
 
-    def test_init_with_custom_options(self, mock_extractor, mock_storage):
+    def test_init_with_custom_options(self, mock_symbol_extractor, mock_symbol_storage):
         """Test indexer initialization with custom options."""
         exclude_patterns = {"custom", "exclude"}
         max_size = 5.0
 
         indexer = PythonRepositoryIndexer(
-            mock_extractor,
-            mock_storage,
+            mock_symbol_extractor,
+            mock_symbol_storage,
             exclude_patterns=exclude_patterns,
             max_file_size_mb=max_size,
         )
@@ -239,13 +223,19 @@ class TestPythonRepositoryIndexer:
             assert len(result.processed_files) == 1
             assert Path(result.processed_files[0]).name == "main.py"
 
-    def test_index_repository_with_syntax_errors(self, mock_storage):
+    def test_index_repository_with_syntax_errors(self, mock_symbol_storage):
         """Test indexing repository with syntax error files."""
-        # Create extractor that will raise syntax errors
-        mock_extractor = Mock()
-        mock_extractor.extract_from_file.side_effect = SyntaxError("Invalid syntax")
+        # Create custom mock extractor that raises syntax errors
+        from tests.conftest import MockSymbolExtractor
 
-        indexer = PythonRepositoryIndexer(mock_extractor, mock_storage)
+        class SyntaxErrorExtractor(MockSymbolExtractor):
+            def extract_from_file(
+                self, file_path: str, repository_id: str
+            ) -> list[Symbol]:
+                raise SyntaxError("Invalid syntax")
+
+        mock_extractor = SyntaxErrorExtractor()
+        indexer = PythonRepositoryIndexer(mock_extractor, mock_symbol_storage)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -255,18 +245,22 @@ class TestPythonRepositoryIndexer:
 
             assert len(result.processed_files) == 0
             assert len(result.failed_files) == 1
-            assert "Syntax error" in result.failed_files[0][1]
+            assert "File parsing error" in result.failed_files[0][1]
             assert result.success_rate == 0.0
 
-    def test_index_repository_with_encoding_errors(self, mock_storage):
+    def test_index_repository_with_encoding_errors(self, mock_symbol_storage):
         """Test indexing repository with encoding error files."""
-        # Create extractor that will raise encoding errors
-        mock_extractor = Mock()
-        mock_extractor.extract_from_file.side_effect = UnicodeDecodeError(
-            "utf-8", b"", 0, 1, "invalid start byte"
-        )
+        # Create custom mock extractor that raises encoding errors
+        from tests.conftest import MockSymbolExtractor
 
-        indexer = PythonRepositoryIndexer(mock_extractor, mock_storage)
+        class EncodingErrorExtractor(MockSymbolExtractor):
+            def extract_from_file(
+                self, file_path: str, repository_id: str
+            ) -> list[Symbol]:
+                raise UnicodeDecodeError("utf-8", b"", 0, 1, "invalid start byte")
+
+        mock_extractor = EncodingErrorExtractor()
+        indexer = PythonRepositoryIndexer(mock_extractor, mock_symbol_storage)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -276,7 +270,7 @@ class TestPythonRepositoryIndexer:
 
             assert len(result.processed_files) == 0
             assert len(result.failed_files) == 1
-            assert "Encoding error" in result.failed_files[0][1]
+            assert "File parsing error" in result.failed_files[0][1]
             assert result.success_rate == 0.0
 
     def test_index_repository_with_large_files(self, indexer):
@@ -327,22 +321,15 @@ class TestPythonRepositoryIndexer:
             assert "test_main.py" in file_names
             assert "cached.py" not in file_names
 
-    def test_integration_with_real_storage_and_extractor(self):
+    def test_integration_with_real_storage_and_extractor(self, temp_database):
         """Integration test with real storage and extractor."""
-        from python_symbol_extractor import PythonSymbolExtractor
-        from symbol_storage import SQLiteSymbolStorage
+        # Create real extractor
+        extractor = PythonSymbolExtractor()
+
+        # Create indexer with real components
+        indexer = PythonRepositoryIndexer(extractor, temp_database)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            # Create temporary database
-            db_path = Path(tmp_dir) / "test.db"
-            storage = SQLiteSymbolStorage(str(db_path))
-
-            # Create real extractor
-            extractor = PythonSymbolExtractor()
-
-            # Create indexer
-            indexer = PythonRepositoryIndexer(extractor, storage)
-
             # Create test repository
             repo_path = Path(tmp_dir) / "test_repo"
             repo_path.mkdir()
@@ -383,7 +370,7 @@ def helper():
             assert result.success_rate == 1.0
 
             # Verify symbols were stored - search using query parameter
-            symbols = storage.search_symbols("", repository_id="integration-test")
+            symbols = temp_database.search_symbols("", repository_id="integration-test")
             assert len(symbols) > 0
 
             # Check specific symbols
@@ -398,20 +385,20 @@ def helper():
 class TestMockRepositoryIndexer:
     """Test the MockRepositoryIndexer class."""
 
-    def test_mock_with_default_result(self):
+    def test_mock_with_default_result(self, mock_repository_indexer):
         """Test mock indexer with default result."""
-        mock = MockRepositoryIndexer()
-
-        result = mock.index_repository("/test/path", "test-repo")
+        result = mock_repository_indexer.index_repository("/test/path", "test-repo")
 
         assert isinstance(result, IndexingResult)
-        assert mock.last_repository_path == "/test/path"
-        assert mock.last_repository_id == "test-repo"
+        assert mock_repository_indexer.last_repository_path == "/test/path"
+        assert mock_repository_indexer.last_repository_id == "test-repo"
 
     def test_mock_with_predefined_result(self):
         """Test mock indexer with predefined result."""
         predefined = IndexingResult()
         predefined.add_processed_file("test.py", 5)
+
+        from tests.conftest import MockRepositoryIndexer
 
         mock = MockRepositoryIndexer(predefined)
         result = mock.index_repository("/test/path", "test-repo")
@@ -420,22 +407,19 @@ class TestMockRepositoryIndexer:
         assert len(result.processed_files) == 1
         assert result.total_symbols == 5
 
-    def test_mock_clear_repository_index(self):
+    def test_mock_clear_repository_index(self, mock_repository_indexer):
         """Test mock clear repository index."""
-        mock = MockRepositoryIndexer()
+        mock_repository_indexer.clear_repository_index("repo1")
+        mock_repository_indexer.clear_repository_index("repo2")
 
-        mock.clear_repository_index("repo1")
-        mock.clear_repository_index("repo2")
+        assert mock_repository_indexer.clear_calls == ["repo1", "repo2"]
 
-        assert mock.clear_calls == ["repo1", "repo2"]
-
-    def test_abstract_interface_compliance(self):
+    def test_abstract_interface_compliance(
+        self, mock_symbol_extractor, mock_symbol_storage, mock_repository_indexer
+    ):
         """Test that indexers implement the abstract interface."""
-        from python_symbol_extractor import MockSymbolExtractor
-        from symbol_storage import MockSymbolStorage
-
         assert isinstance(
-            PythonRepositoryIndexer(MockSymbolExtractor(), MockSymbolStorage()),
+            PythonRepositoryIndexer(mock_symbol_extractor, mock_symbol_storage),
             AbstractRepositoryIndexer,
         )
-        assert isinstance(MockRepositoryIndexer(), AbstractRepositoryIndexer)
+        assert isinstance(mock_repository_indexer, AbstractRepositoryIndexer)

@@ -11,6 +11,9 @@ from unittest.mock import Mock
 
 import pytest
 
+from python_symbol_extractor import AbstractSymbolExtractor
+from repository_indexer import AbstractRepositoryIndexer, IndexingResult
+from symbol_storage import AbstractSymbolStorage, Symbol
 from tests.test_fixtures import MockRepositoryManager
 
 
@@ -277,14 +280,14 @@ def assert_clean_shutdown(shutdown_result, exit_code_manager, expected_exit_code
 
     if expected_exit_code:
         actual_exit_code = exit_code_manager.determine_exit_code("test")
-        assert (
-            actual_exit_code == expected_exit_code
-        ), f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
+        assert actual_exit_code == expected_exit_code, (
+            f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
+        )
 
     summary = exit_code_manager.get_exit_summary()
-    assert (
-        summary["total_problems"] == 0
-    ), f"Expected clean shutdown but found problems: {summary}"
+    assert summary["total_problems"] == 0, (
+        f"Expected clean shutdown but found problems: {summary}"
+    )
 
 
 def assert_shutdown_with_issues(
@@ -295,17 +298,169 @@ def assert_shutdown_with_issues(
     if shutdown_result is False:
         # Failed shutdown should have critical issues
         summary = exit_code_manager.get_exit_summary()
-        assert (
-            summary["total_problems"] > 0
-        ), "Failed shutdown should have reported problems"
+        assert summary["total_problems"] > 0, (
+            "Failed shutdown should have reported problems"
+        )
 
     if expected_problems:
         summary = exit_code_manager.get_exit_summary()
-        assert (
-            summary["total_problems"] >= expected_problems
-        ), f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
+        assert summary["total_problems"] >= expected_problems, (
+            f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
+        )
 
 
 # Add to pytest namespace for easy import
 pytest.assert_clean_shutdown = assert_clean_shutdown  # type: ignore[attr-defined]
 pytest.assert_shutdown_with_issues = assert_shutdown_with_issues  # type: ignore[attr-defined]
+
+
+# Mock classes for testing symbol extraction and indexing
+class MockSymbolStorage(AbstractSymbolStorage):
+    """Mock symbol storage for testing."""
+
+    def __init__(self):
+        """Initialize mock storage."""
+        self.symbols: list[Symbol] = []
+        self.deleted_repositories: list[str] = []
+
+    def create_schema(self) -> None:
+        """Create schema (no-op for mock)."""
+        pass
+
+    def insert_symbol(self, symbol: Symbol) -> None:
+        """Insert a symbol into mock storage."""
+        self.symbols.append(symbol)
+
+    def insert_symbols(self, symbols: list[Symbol]) -> None:
+        """Insert symbols into mock storage."""
+        self.symbols.extend(symbols)
+
+    def update_symbol(self, symbol: Symbol) -> None:
+        """Update symbol in mock storage (no-op for mock)."""
+        pass
+
+    def delete_symbol(self, symbol_id: int) -> None:
+        """Delete symbol by ID (no-op for mock)."""
+        pass
+
+    def delete_symbols_by_repository(self, repository_id: str) -> None:
+        """Delete symbols by repository in mock storage."""
+        self.deleted_repositories.append(repository_id)
+        self.symbols = [s for s in self.symbols if s.repository_id != repository_id]
+
+    def search_symbols(
+        self,
+        query: str,
+        repository_id: str | None = None,
+        symbol_kind: str | None = None,
+        limit: int = 50,
+    ) -> list[Symbol]:
+        """Search symbols in mock storage."""
+        results = self.symbols.copy()
+
+        if query:
+            results = [s for s in results if query.lower() in s.name.lower()]
+        if repository_id:
+            results = [s for s in results if s.repository_id == repository_id]
+        if symbol_kind:
+            results = [s for s in results if s.kind == symbol_kind]
+
+        return results[:limit]
+
+    def get_symbol_by_id(self, symbol_id: int) -> Symbol | None:
+        """Get symbol by ID in mock storage (not implemented for mock)."""
+        return None
+
+    def get_symbols_by_file(self, file_path: str, repository_id: str) -> list[Symbol]:
+        """Get symbols by file path in mock storage."""
+        return [
+            s
+            for s in self.symbols
+            if s.file_path == file_path and s.repository_id == repository_id
+        ]
+
+
+class MockSymbolExtractor(AbstractSymbolExtractor):
+    """Mock symbol extractor for testing."""
+
+    def __init__(self, symbols: list[Symbol] | None = None):
+        """Initialize mock extractor with predefined symbols."""
+        self.symbols = symbols or []
+
+    def extract_from_file(self, file_path: str, repository_id: str) -> list[Symbol]:
+        """Return predefined symbols."""
+        return self.symbols.copy()
+
+    def extract_from_source(
+        self, source: str, file_path: str, repository_id: str
+    ) -> list[Symbol]:
+        """Return predefined symbols."""
+        return self.symbols.copy()
+
+
+class MockRepositoryIndexer(AbstractRepositoryIndexer):
+    """Mock repository indexer for testing."""
+
+    def __init__(self, predefined_result: IndexingResult | None = None):
+        """Initialize mock indexer with optional predefined result."""
+        self.predefined_result = predefined_result or IndexingResult()
+        self.last_repository_path = ""
+        self.last_repository_id = ""
+        self.clear_calls: list[str] = []
+
+    def index_repository(
+        self, repository_path: str, repository_id: str
+    ) -> IndexingResult:
+        """Return predefined result and track call parameters."""
+        self.last_repository_path = repository_path
+        self.last_repository_id = repository_id
+        return self.predefined_result
+
+    def clear_repository_index(self, repository_id: str) -> None:
+        """Track clear repository calls."""
+        self.clear_calls.append(repository_id)
+
+
+# Test fixtures for mock objects
+@pytest.fixture
+def mock_symbol_storage():
+    """Create a mock symbol storage for testing."""
+    return MockSymbolStorage()
+
+
+@pytest.fixture
+def mock_symbol_extractor():
+    """Create a mock symbol extractor with predefined symbols."""
+    symbols = [
+        Symbol("test_function", "function", "test.py", 1, 0, "test-repo"),
+        Symbol("TestClass", "class", "test.py", 5, 0, "test-repo"),
+    ]
+    return MockSymbolExtractor(symbols)
+
+
+@pytest.fixture
+def mock_repository_indexer():
+    """Create a mock repository indexer for testing."""
+    return MockRepositoryIndexer()
+
+
+@pytest.fixture
+def temp_database():
+    """Create a temporary SQLite database for testing."""
+    import tempfile
+
+    from symbol_storage import SQLiteSymbolStorage
+
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_file:
+        db_path = temp_file.name
+
+    storage = SQLiteSymbolStorage(db_path)
+    yield storage
+
+    # Cleanup
+    import os
+
+    try:
+        os.unlink(db_path)
+    except OSError:
+        pass

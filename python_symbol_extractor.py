@@ -466,21 +466,3 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
         elif var_name.isupper():
             return "constant"
         return "variable"
-
-
-class MockSymbolExtractor(AbstractSymbolExtractor):
-    """Mock symbol extractor for testing."""
-
-    def __init__(self, symbols: list[Symbol] | None = None):
-        """Initialize mock extractor with predefined symbols."""
-        self.symbols = symbols or []
-
-    def extract_from_file(self, file_path: str, repository_id: str) -> list[Symbol]:
-        """Return predefined symbols."""
-        return self.symbols.copy()
-
-    def extract_from_source(
-        self, source: str, file_path: str, repository_id: str
-    ) -> list[Symbol]:
-        """Return predefined symbols."""
-        return self.symbols.copy()

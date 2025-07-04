@@ -90,7 +90,10 @@ class PythonRepositoryIndexer(AbstractRepositoryIndexer):
             symbol_extractor: Symbol extractor for parsing Python files
             symbol_storage: Storage backend for symbols
             exclude_patterns: Set of directory/file patterns to exclude
-            max_file_size_mb: Maximum file size in MB to process
+            max_file_size_mb: Maximum file size in MB to process. Files larger than this
+                are skipped to prevent memory issues during AST parsing and to avoid
+                processing generated or minified files that typically don't contain
+                meaningful symbols for code navigation.
         """
         self.symbol_extractor = symbol_extractor
         self.symbol_storage = symbol_storage
@@ -152,7 +155,17 @@ class PythonRepositoryIndexer(AbstractRepositoryIndexer):
         for python_file in python_files:
             try:
                 self._process_file(python_file, repository_id, result)
+            except (PermissionError, OSError) as e:
+                # File system errors that should fail hard - these indicate
+                # serious system issues that prevent proper indexing
+                error_msg = f"File system error accessing {python_file}: {e}"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg) from e
+            except (MemoryError, KeyboardInterrupt, SystemExit):
+                # Critical system errors that should always propagate
+                raise
             except Exception as e:
+                # All other unexpected errors are logged but don't fail the entire indexing
                 error_msg = f"Unexpected error processing {python_file}: {e}"
                 logger.error(error_msg)
                 result.add_failed_file(str(python_file), error_msg)
@@ -241,14 +254,19 @@ class PythonRepositoryIndexer(AbstractRepositoryIndexer):
         """
         file_str = str(file_path)
 
-        # Check file size
+        # Check file size - large files are skipped for several reasons:
+        # 1. Memory usage: Large files can consume excessive memory during AST parsing
+        # 2. Performance: Processing very large files can significantly slow indexing
+        # 3. Practical limits: Most legitimate Python files are reasonably sized
+        # 4. Generated files: Very large files are often generated/minified code
         try:
             file_size = file_path.stat().st_size
             if file_size > self.max_file_size_bytes:
                 logger.warning(
                     f"Skipping large file {file_str} "
                     f"({file_size / 1024 / 1024:.1f}MB > "
-                    f"{self.max_file_size_bytes / 1024 / 1024:.1f}MB)"
+                    f"{self.max_file_size_bytes / 1024 / 1024:.1f}MB). "
+                    f"Large files are skipped to prevent memory issues and improve performance."
                 )
                 result.add_skipped_file(file_str)
                 return
@@ -272,41 +290,27 @@ class PythonRepositoryIndexer(AbstractRepositoryIndexer):
             result.add_processed_file(file_str, len(symbols))
 
         except FileNotFoundError:
+            # File disappeared during processing - log as error since this is unexpected
             error_msg = f"File not found: {file_str}"
             logger.error(error_msg)
             result.add_failed_file(file_str, error_msg)
-        except UnicodeDecodeError as e:
-            error_msg = f"Encoding error: {e}"
-            logger.warning(f"Skipping {file_str} due to encoding error: {e}")
+        except (UnicodeDecodeError, SyntaxError) as e:
+            # Expected file-level issues that should be logged as warnings
+            # These are common in real codebases and shouldn't fail the indexing
+            error_msg = f"File parsing error: {e}"
+            logger.warning(f"Skipping {file_str} due to parsing error: {e}")
             result.add_failed_file(file_str, error_msg)
-        except SyntaxError as e:
-            error_msg = f"Syntax error: {e}"
-            logger.warning(f"Skipping {file_str} due to syntax error: {e}")
-            result.add_failed_file(file_str, error_msg)
+        except (PermissionError, OSError) as e:
+            # File system access errors that indicate serious problems
+            error_msg = f"File access error: {e}"
+            logger.error(f"Cannot access {file_str}: {e}")
+            # Re-raise to be caught by the outer handler for hard failure
+            raise
+        except (MemoryError, KeyboardInterrupt, SystemExit):
+            # Critical errors that must propagate
+            raise
         except Exception as e:
+            # Unexpected errors in symbol extraction or storage - log but continue
             error_msg = f"Processing error: {e}"
             logger.error(f"Error processing {file_str}: {e}")
             result.add_failed_file(file_str, error_msg)
-
-
-class MockRepositoryIndexer(AbstractRepositoryIndexer):
-    """Mock repository indexer for testing."""
-
-    def __init__(self, predefined_result: IndexingResult | None = None):
-        """Initialize mock indexer with optional predefined result."""
-        self.predefined_result = predefined_result or IndexingResult()
-        self.last_repository_path = ""
-        self.last_repository_id = ""
-        self.clear_calls: list[str] = []
-
-    def index_repository(
-        self, repository_path: str, repository_id: str
-    ) -> IndexingResult:
-        """Return predefined result and track call parameters."""
-        self.last_repository_path = repository_path
-        self.last_repository_id = repository_id
-        return self.predefined_result
-
-    def clear_repository_index(self, repository_id: str) -> None:
-        """Track clear repository calls."""
-        self.clear_calls.append(repository_id)
