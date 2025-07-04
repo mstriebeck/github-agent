@@ -7,6 +7,7 @@ Handles loading, validating, and managing multiple repository configurations
 for the GitHub MCP server's URL-based routing system.
 """
 
+import abc
 import json
 import logging
 import os
@@ -17,6 +18,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from git import InvalidGitRepositoryError, Repo
 
@@ -28,6 +30,21 @@ from constants import (
     MINIMUM_PYTHON_VERSION,
     SUPPORTED_LANGUAGES,
 )
+
+
+class AbstractRepositoryManager(abc.ABC):
+    """Abstract base class for repository managers."""
+    
+    @property
+    @abc.abstractmethod
+    def repositories(self) -> dict[str, Any]:
+        """Get dictionary of repositories."""
+        pass
+    
+    @abc.abstractmethod
+    def get_repository(self, name: str) -> Any | None:
+        """Get repository by name."""
+        pass
 
 
 @dataclass
@@ -374,7 +391,7 @@ class RepositoryConfig:
         )
 
 
-class RepositoryManager:
+class RepositoryManager(AbstractRepositoryManager):
     """Manages multiple repository configurations for the MCP server"""
 
     def __init__(self, config_path: str | None = None):
@@ -405,11 +422,16 @@ class RepositoryManager:
                     / "repositories.json"
                 )
 
-        self.repositories: dict[str, RepositoryConfig] = {}
+        self._repositories: dict[str, RepositoryConfig] = {}
 
         # Hot reload support
         self._last_modified: float | None = None
         self._reload_callbacks: list[Callable[[], None]] = []
+
+    @property
+    def repositories(self) -> dict[str, RepositoryConfig]:
+        """Get dictionary of repositories."""
+        return self._repositories
 
     def load_configuration(self) -> bool:
         """
@@ -430,7 +452,7 @@ class RepositoryManager:
                 self._parse_configuration(config_data)
                 self._validate_repositories()
                 self.logger.info(
-                    f"✅ Successfully loaded {len(self.repositories)} repositories"
+                f"✅ Successfully loaded {len(self._repositories)} repositories"
                 )
                 return True
             else:
@@ -452,7 +474,7 @@ class RepositoryManager:
         if not isinstance(repositories_data, dict):
             raise ValueError("'repositories' must be a dictionary")
 
-        self.repositories = {}
+        self._repositories = {}
         for name, repo_data in repositories_data.items():
             if not isinstance(repo_data, dict):
                 raise ValueError(
@@ -483,16 +505,16 @@ class RepositoryManager:
                 python_path=repo_data.get("python_path"),
             )
 
-            self.repositories[name] = repo_config
+            self._repositories[name] = repo_config
 
     def _validate_repositories(self) -> None:
         """Validate all configured repositories"""
-        self.logger.info(f"Validating {len(self.repositories)} repositories")
+        self.logger.info(f"Validating {len(self._repositories)} repositories")
 
         # Check for port conflicts first
         self._validate_port_conflicts()
 
-        for name, repo_config in self.repositories.items():
+        for name, repo_config in self._repositories.items():
             try:
                 self.logger.debug(
                     f"Validating repository '{name}' at {repo_config.path}"
@@ -532,7 +554,7 @@ class RepositoryManager:
         """Validate that no two repositories use the same port"""
         port_to_repo: dict[int, str] = {}
 
-        for name, repo_config in self.repositories.items():
+        for name, repo_config in self._repositories.items():
             port = repo_config.port
             if port in port_to_repo:
                 raise ValueError(
@@ -542,7 +564,7 @@ class RepositoryManager:
             port_to_repo[port] = name
 
         self.logger.debug(
-            f"✅ No port conflicts found among {len(self.repositories)} repositories"
+            f"✅ No port conflicts found among {len(self._repositories)} repositories"
         )
 
     def get_repository(self, repo_name: str) -> RepositoryConfig | None:
@@ -556,8 +578,8 @@ class RepositoryManager:
             RepositoryConfig if found, None otherwise
         """
         # Check multi-repo configuration
-        if repo_name in self.repositories:
-            return self.repositories[repo_name]
+        if repo_name in self._repositories:
+            return self._repositories[repo_name]
 
         return None
 
@@ -568,7 +590,19 @@ class RepositoryManager:
         Returns:
             List of repository names
         """
-        return list(self.repositories.keys())
+        return list(self._repositories.keys())
+
+    def get_repository(self, name: str) -> RepositoryConfig | None:
+        """
+        Get repository configuration by name
+
+        Args:
+            name: Repository name
+
+        Returns:
+            Repository configuration or None if not found
+        """
+        return self._repositories.get(name)
 
     def get_repository_info(self, repo_name: str) -> dict | None:
         """
@@ -598,7 +632,7 @@ class RepositoryManager:
 
     def is_multi_repo_mode(self) -> bool:
         """Check if running in multi-repository mode"""
-        return bool(self.repositories)
+        return bool(self._repositories)
 
     def create_default_config(self, repo_configs: list[dict]) -> None:
         """
@@ -673,14 +707,14 @@ class RepositoryManager:
 
                 # Attempt to reload
                 old_repos = (
-                    set(self.repositories.keys()) if self.repositories else set()
+                    set(self._repositories.keys()) if self._repositories else set()
                 )
 
                 if self.load_configuration():
                     self._last_modified = current_modified
 
                     new_repos = (
-                        set(self.repositories.keys()) if self.repositories else set()
+                        set(self._repositories.keys()) if self._repositories else set()
                     )
                     added = new_repos - old_repos
                     removed = old_repos - new_repos

@@ -105,6 +105,10 @@ Coverage: Authentication module at 100%
 - Edge cases and error conditions must be tested
 - Integration tests for complex workflows
 
+### Usage of mock libraries (e.g. unittest.mock)
+- Only use mocking libraries for mocking out external resources (e.g. file system or http request)
+- For our own objects, we don't use mocking libraries but create and abstract base class of the object and then create a mock version of the object. We use dependency injection to be able to pass in the real objects in production and the mock objects in tests.
+
 ### Test Modification Policy
 - **CRITICAL**: Never change test code to make failing tests pass
 - If tests need modification, always seek explicit approval first

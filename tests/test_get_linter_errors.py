@@ -14,6 +14,7 @@ from unittest.mock import Mock, patch
 
 from github_tools import get_linter_errors
 from repository_manager import RepositoryConfig
+from tests.test_fixtures import MockRepositoryManager
 
 
 class TestGetLinterErrors(unittest.TestCase):
@@ -75,13 +76,13 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
             github_repo="swift-repo",
         )
 
-    @patch("github_tools.repo_manager")
-    def test_python_ruff_errors_parsing(self, mock_repo_manager):
+    def test_python_ruff_errors_parsing(self):
         """Test parsing of ruff errors for Python repository"""
-        mock_repo_manager.repositories = {"python-repo": self.python_repo_config}
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.add_repository("python-repo", self.python_repo_config)
 
         result_json = asyncio.run(
-            get_linter_errors("python-repo", self.python_ruff_output, "python")
+            get_linter_errors("python-repo", self.python_ruff_output, "python", mock_repo_manager)
         )
         result = json.loads(result_json)
 

@@ -18,7 +18,7 @@ import requests
 from github import Github
 from github.Repository import Repository
 
-from repository_manager import RepositoryConfig, RepositoryManager
+from repository_manager import RepositoryConfig, RepositoryManager, AbstractRepositoryManager
 
 logger = logging.getLogger(__name__)
 
@@ -1007,7 +1007,7 @@ async def execute_github_check_ci_lint_errors_not_local(
                 logger.warning("⚠️ Lint output is empty!")
 
             logger.info("🔧 Step 8c: Parsing lint errors...")
-            parsed_result = await get_linter_errors(repo_name, lint_output, language)
+            parsed_result = await get_linter_errors(repo_name, lint_output, language, repo_manager)
             logger.info(
                 f"✅ Step 8c Partial: Parser returned: {len(parsed_result)} characters"
             )
@@ -1282,13 +1282,13 @@ def extract_error_code_from_mypy_error(error_line: str) -> str:
     return match.group(1) if match else ""
 
 
-async def get_linter_errors(repo_name: str, error_output: str, language: str) -> str:
+async def get_linter_errors(repo_name: str, error_output: str, language: str, repo_manager: AbstractRepositoryManager) -> str:
     """Parse linter errors based on repository language configuration"""
     logger.info(f"=== PARSING LINTER ERRORS FOR '{repo_name}' ===")
     logger.info(f"Input length: {len(error_output)} characters")
 
     try:
-        if not repo_manager or repo_name not in repo_manager.repositories:
+        if repo_name not in repo_manager.repositories:
             logger.error(f"Repository {repo_name} not found in configuration")
             return json.dumps({"error": f"Repository {repo_name} not found"})
 

@@ -11,7 +11,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from tests.test_abstracts import MockProcessRegistry
+from tests.test_fixtures import MockRepositoryManager
 
 
 @pytest.fixture(scope="session")
@@ -56,11 +56,9 @@ def mock_logger():
 
 
 @pytest.fixture
-def process_registry():
-    """Create a fresh process registry for each test."""
-    registry = MockProcessRegistry()
-    yield registry
-    registry.cleanup_all()
+def mock_repository_manager():
+    """Create a fresh mock repository manager for each test."""
+    return MockRepositoryManager()
 
 
 @pytest.fixture
