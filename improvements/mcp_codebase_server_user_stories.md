@@ -2,10 +2,10 @@
 
 ## Phase 1: Foundation and Basic Setup
 
-### US001 - Basic MCP Server Setup
+### US001 - Basic MCP Server Setup - DONE
 **Moved to**: [`improvements/mcp_server_user_stories/US001-Basic-MCP-Server-Setup.md`](file:///Volumes/Code/github-agent/improvements/mcp_server_user_stories/US001-Basic-MCP-Server-Setup.md)
 
-### US002 - Repository Configuration
+### US002 - Repository Configuration - DONE
 **As an administrator** I want to define repositories in a configuration file so that the system knows which codebases to index.
 
 **Acceptance Criteria:**
