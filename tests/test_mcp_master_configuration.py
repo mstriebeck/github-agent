@@ -30,6 +30,9 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
         (self.test_repo_path / ".git").mkdir()
 
         # Valid complete configuration for reference
+        # Use sys.executable to get a valid Python path that works in any environment
+        import sys
+
         self.valid_config = {
             "repositories": {
                 "test-repo": {
@@ -37,7 +40,7 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
                     "port": 8081,
                     "description": "Test repository",
                     "language": "python",
-                    "python_path": "/Volumes/Code/github-agent/.venv/bin/python",
+                    "python_path": sys.executable,
                 }
             }
         }
