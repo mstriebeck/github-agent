@@ -348,7 +348,8 @@ class TestPythonRepositoryIndexer:
             repo_path.mkdir()
 
             # Create Python files
-            (repo_path / "main.py").write_text("""
+            (repo_path / "main.py").write_text(
+                """
 def main():
     '''Main function.'''
     print("Hello, World!")
@@ -359,15 +360,18 @@ class Application:
     def run(self):
         '''Run the application.'''
         pass
-""")
+"""
+            )
 
-            (repo_path / "utils.py").write_text("""
+            (repo_path / "utils.py").write_text(
+                """
 CONSTANT = 42
 
 def helper():
     '''Helper function.'''
     return CONSTANT
-""")
+"""
+            )
 
             # Index the repository
             result = indexer.index_repository(str(repo_path), "integration-test")
