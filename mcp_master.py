@@ -212,17 +212,30 @@ class MCPMaster:
                 logger.error("No repositories found in configuration")
                 return False
 
-            # Auto-assign ports if not specified
-            next_port = 8081
+            # Validate required fields for each repository
             for repo_name, repo_config in repositories.items():
-                if "port" not in repo_config:
-                    repo_config["port"] = next_port
-                    next_port += 1
-
                 # Validate required fields
+                if "port" not in repo_config:
+                    logger.error(
+                        f"Repository {repo_name} missing required 'port' field"
+                    )
+                    return False
+
                 if "path" not in repo_config:
                     logger.error(
                         f"Repository {repo_name} missing required 'path' field"
+                    )
+                    return False
+
+                if "language" not in repo_config:
+                    logger.error(
+                        f"Repository {repo_name} missing required 'language' field"
+                    )
+                    return False
+
+                if "python_path" not in repo_config:
+                    logger.error(
+                        f"Repository {repo_name} missing required 'python_path' field"
                     )
                     return False
 
@@ -264,24 +277,7 @@ class MCPMaster:
             logger.error(f"Failed to load configuration: {e}")
             return False
 
-    def save_configuration(self) -> None:
-        """Save current configuration back to file (with auto-assigned ports)"""
-        try:
-            config: dict[str, Any] = {"repositories": {}}
-            for repo_name, worker in self.workers.items():
-                config["repositories"][repo_name] = {
-                    "path": worker.path,
-                    "port": worker.port,
-                    "description": worker.description,
-                }
 
-            with open(self.config_path, "w") as f:
-                json.dump(config, f, indent=2)
-
-            logger.info(f"Updated configuration saved to {self.config_path}")
-
-        except Exception as e:
-            logger.error(f"Failed to save configuration: {e}")
 
     def start_worker(self, worker: WorkerProcess) -> bool:
         """Start a worker process for a repository"""
@@ -509,8 +505,7 @@ class MCPMaster:
             logger.error("Failed to load configuration, exiting")
             return False
 
-        # Save configuration with auto-assigned ports
-        self.save_configuration()
+
 
         # Set up signal handlers
         signal.signal(signal.SIGTERM, self.signal_handler)
