@@ -201,13 +201,13 @@ class MCPMaster:
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
     def load_configuration(self) -> bool:
-        """Load repository configuration using comprehensive validation"""
+        """Load repository configuration using RepositoryManager"""
         try:
-            logger.info("Loading repository configuration with full validation...")
+            logger.info("Loading repository configuration...")
 
-            # Use RepositoryManager for comprehensive validation
+            # Use RepositoryManager to load and validate configuration
             if not self.repository_manager.load_configuration():
-                logger.error("❌ Repository configuration validation failed")
+                logger.error("❌ Repository configuration loading failed")
                 return False
 
             # Convert validated repository configs to worker processes
