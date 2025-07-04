@@ -46,6 +46,11 @@ class AbstractRepositoryManager(abc.ABC):
         """Get repository by name."""
         pass
 
+    @abc.abstractmethod
+    def add_repository(self, name: str, config: Any) -> None:
+        """Add a repository configuration."""
+        pass
+
 
 @dataclass
 class RepositoryConfig:
@@ -592,17 +597,16 @@ class RepositoryManager(AbstractRepositoryManager):
         """
         return list(self._repositories.keys())
 
-    def get_repository(self, name: str) -> RepositoryConfig | None:
+    def add_repository(self, name: str, config: RepositoryConfig) -> None:
         """
-        Get repository configuration by name
+        Add a repository configuration
 
         Args:
             name: Repository name
-
-        Returns:
-            Repository configuration or None if not found
+            config: Repository configuration
         """
-        return self._repositories.get(name)
+        self._repositories[name] = config
+        self.logger.debug(f"Added repository: {name}")
 
     def get_repository_info(self, repo_name: str) -> dict | None:
         """

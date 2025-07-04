@@ -223,7 +223,7 @@ class MCPWorker:
         try:
             # Create a minimal repository manager that only knows about this repo
             temp_repo_manager = RepositoryManager()
-            temp_repo_manager.repositories = {self.repo_name: self.repo_config}
+            temp_repo_manager.add_repository(self.repo_name, self.repo_config)
             self.logger.debug(f"Created repository manager with repo: {self.repo_name}")
         except Exception as e:
             self.logger.error(f"Failed to create repository manager: {e}")

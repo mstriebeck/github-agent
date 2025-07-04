@@ -18,8 +18,10 @@ Usage:
 
 from typing import Any
 
+from repository_manager import AbstractRepositoryManager
 
-class MockRepositoryManager:
+
+class MockRepositoryManager(AbstractRepositoryManager):
     """Mock implementation of repository manager for testing."""
 
     def __init__(self):
