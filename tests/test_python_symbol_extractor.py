@@ -416,6 +416,50 @@ class SecondClass:
         assert second_method.file_path == "file2.py"
         assert second_method.repository_id == "repo2"
 
+    def test_nested_imports(self, extractor):
+        """Test extracting imports nested inside functions and methods."""
+        source = """
+import os  # module level
+
+class DataProcessor:
+    def process_data(self):
+        import json  # nested in method
+        from pathlib import Path as PathLib  # nested in method with alias
+        return json.dumps({})
+
+def helper_function():
+    import sys  # nested in function
+    from collections import defaultdict as dd  # nested in function with alias
+    return sys.version
+
+def outer_function():
+    def inner_function():
+        import re  # deeply nested
+        return re.compile(r"test")
+    return inner_function
+"""
+        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+
+        import_symbols = [s for s in symbols if s.kind == "module"]
+        import_names = [s.name for s in import_symbols]
+
+        # Module-level import
+        assert "os" in import_names
+
+        # Method-level imports
+        assert "DataProcessor.process_data.json" in import_names
+        assert "DataProcessor.process_data.PathLib" in import_names
+
+        # Function-level imports
+        assert "helper_function.sys" in import_names
+        assert "helper_function.dd" in import_names
+
+        # Deeply nested import
+        assert "outer_function.inner_function.re" in import_names
+
+        # Verify total count
+        assert len(import_symbols) == 6
+
 
 class TestMockSymbolExtractor:
     """Test the MockSymbolExtractor class."""

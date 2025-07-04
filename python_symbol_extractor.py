@@ -273,9 +273,10 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
         for alias in node.names:
             import_name = alias.name
             alias_name = alias.asname if alias.asname else import_name
+            full_name = self._get_full_name(alias_name)
 
             symbol = Symbol(
-                name=alias_name,
+                name=full_name,
                 kind="module",
                 file_path=self.current_file_path,
                 line_number=node.lineno,
@@ -294,8 +295,10 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
             if import_name == "*":
                 continue
 
+            full_name = self._get_full_name(alias_name)
+
             symbol = Symbol(
-                name=alias_name,
+                name=full_name,
                 kind="module",
                 file_path=self.current_file_path,
                 line_number=node.lineno,
