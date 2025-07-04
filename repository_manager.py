@@ -479,6 +479,9 @@ class RepositoryManager(AbstractRepositoryManager):
         if not isinstance(repositories_data, dict):
             raise ValueError("'repositories' must be a dictionary")
 
+        if not repositories_data:
+            raise ValueError("Configuration must contain at least one repository")
+
         self._repositories = {}
         for name, repo_data in repositories_data.items():
             if not isinstance(repo_data, dict):
@@ -486,7 +489,7 @@ class RepositoryManager(AbstractRepositoryManager):
                     f"Repository '{name}' configuration must be a dictionary"
                 )
 
-            required_fields = ["path", "language"]
+            required_fields = ["path", "language", "port", "python_path"]
             for field in required_fields:
                 if field not in repo_data:
                     raise ValueError(
@@ -496,10 +499,6 @@ class RepositoryManager(AbstractRepositoryManager):
             self.logger.debug(
                 f"Creating repository config for '{name}' from parsed data"
             )
-
-            # Port is required in configuration
-            if "port" not in repo_data:
-                raise ValueError(f"Repository '{name}' must specify a 'port' field")
 
             repo_config = RepositoryConfig.create_repository_config(
                 name=name,

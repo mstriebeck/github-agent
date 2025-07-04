@@ -27,7 +27,7 @@ from typing import Any
 
 import aiohttp
 
-from repository_manager import RepositoryConfig
+from repository_manager import RepositoryConfig, RepositoryManager
 
 # Import shutdown coordination components
 from shutdown_simple import (
@@ -186,6 +186,9 @@ class MCPMaster:
         self.workers: dict[str, WorkerProcess] = {}
         self.running = False
 
+        # Initialize repository manager with comprehensive validation
+        self.repository_manager = RepositoryManager(config_path)
+
         # Initialize simple shutdown coordination
         self.shutdown_coordinator = SimpleShutdownCoordinator(logger)
 
@@ -198,83 +201,29 @@ class MCPMaster:
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
     def load_configuration(self) -> bool:
-        """Load repository configuration from JSON file"""
+        """Load repository configuration using comprehensive validation"""
         try:
-            if not os.path.exists(self.config_path):
-                logger.error(f"Configuration file {self.config_path} not found")
+            logger.info("Loading repository configuration with full validation...")
+
+            # Use RepositoryManager for comprehensive validation
+            if not self.repository_manager.load_configuration():
+                logger.error("❌ Repository configuration validation failed")
                 return False
 
-            with open(self.config_path) as f:
-                config = json.load(f)
-
-            repositories = config.get("repositories", {})
-            if not repositories:
-                logger.error("No repositories found in configuration")
-                return False
-
-            # Validate required fields for each repository
-            for repo_name, repo_config in repositories.items():
-                # Validate required fields
-                if "port" not in repo_config:
-                    logger.error(
-                        f"Repository {repo_name} missing required 'port' field"
-                    )
-                    return False
-
-                if "path" not in repo_config:
-                    logger.error(
-                        f"Repository {repo_name} missing required 'path' field"
-                    )
-                    return False
-
-                if "language" not in repo_config:
-                    logger.error(
-                        f"Repository {repo_name} missing required 'language' field"
-                    )
-                    return False
-
-                if "python_path" not in repo_config:
-                    logger.error(
-                        f"Repository {repo_name} missing required 'python_path' field"
-                    )
-                    return False
-
-                if not os.path.exists(repo_config["path"]):
-                    logger.warning(
-                        f"Repository path {repo_config['path']} does not exist"
-                    )
-
-                # Create repository configuration
-                repository_config = RepositoryConfig.create_repository_config(
-                    name=repo_name,
-                    path=repo_config["path"],
-                    description=repo_config.get("description", repo_name),
-                    language=repo_config["language"],
-                    port=repo_config["port"],
-                    python_path=repo_config["python_path"],
-                )
-
-                # Create worker process info
-                worker = WorkerProcess(
-                    repository_config=repository_config,
-                )
+            # Convert validated repository configs to worker processes
+            self.workers = {}
+            for repo_name, repo_config in self.repository_manager.repositories.items():
+                worker = WorkerProcess(repository_config=repo_config)
                 self.workers[repo_name] = worker
+                logger.debug(f"✅ Created worker for repository: {repo_name}")
 
-                # Worker is now registered in self.workers dict
-                # No complex tracking needed with worker-controlled shutdown
-
-            logger.info(f"Loaded configuration for {len(self.workers)} repositories")
-
-            # Check for port conflicts
-            ports_used = [w.repository_config.port for w in self.workers.values()]
-            if len(ports_used) != len(set(ports_used)):
-                logger.error("Port conflicts detected in configuration")
-                return False
-
+            logger.info(
+                f"✅ Successfully loaded and validated {len(self.workers)} repositories"
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Failed to load configuration: {e}")
+            logger.error(f"❌ Failed to load configuration: {e}")
             return False
 
     def start_worker(self, worker: WorkerProcess) -> bool:
