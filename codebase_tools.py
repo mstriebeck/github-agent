@@ -8,8 +8,11 @@ Contains codebase-related tool implementations for repository analysis and manag
 import json
 import logging
 import subprocess
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
+
+from symbol_storage import AbstractSymbolStorage, SQLiteSymbolStorage
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +35,32 @@ def get_tools(repo_name: str, repo_path: str) -> list[dict]:
                 "type": "object",
                 "properties": {},
                 "required": [],
+            },
+        },
+        {
+            "name": "search_symbols",
+            "description": f"Search for symbols (functions, classes, variables) in the {repo_name} repository. Supports fuzzy matching by symbol name with optional filtering by symbol kind.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query for symbol names (supports partial matches)",
+                    },
+                    "symbol_kind": {
+                        "type": "string",
+                        "description": "Optional filter by symbol kind",
+                        "enum": ["function", "class", "variable"],
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (default: 50, max: 100)",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 50,
+                    },
+                },
+                "required": ["query"],
             },
         },
     ]
@@ -160,9 +189,93 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
         return json.dumps(error_response)
 
 
+async def execute_search_symbols(
+    repo_name: str,
+    repo_path: str,
+    query: str,
+    symbol_kind: str | None = None,
+    limit: int = 50,
+    symbol_storage: AbstractSymbolStorage | None = None,
+) -> str:
+    """Execute symbol search for the repository
+
+    Args:
+        repo_name: Repository name to search
+        repo_path: Path to the repository
+        query: Search query for symbol names
+        symbol_kind: Optional filter by symbol kind (function, class, variable)
+        limit: Maximum number of results to return
+        symbol_storage: Optional symbol storage instance (for testing)
+
+    Returns:
+        JSON string with search results
+    """
+    logger.info(
+        f"Searching symbols in repository: {repo_name}, query: '{query}', kind: {symbol_kind}, limit: {limit}"
+    )
+
+    try:
+        # Validate limit
+        if limit < 1 or limit > 100:
+            return json.dumps(
+                {
+                    "error": "Limit must be between 1 and 100",
+                    "query": query,
+                    "repository": repo_name,
+                }
+            )
+
+        # Initialize symbol storage
+        storage = symbol_storage or SQLiteSymbolStorage(":memory:")
+
+        # Execute symbol search
+        symbols = storage.search_symbols(
+            query=query, repository_id=repo_name, symbol_kind=symbol_kind, limit=limit
+        )
+
+        # Format results for JSON response
+        results = []
+        for symbol in symbols:
+            results.append(
+                {
+                    "name": symbol.name,
+                    "kind": symbol.kind,
+                    "file_path": symbol.file_path,
+                    "line_number": symbol.line_number,
+                    "column_number": symbol.column_number,
+                    "docstring": symbol.docstring,
+                    "repository_id": symbol.repository_id,
+                }
+            )
+
+        response = {
+            "query": query,
+            "symbol_kind": symbol_kind,
+            "limit": limit,
+            "repository": repo_name,
+            "total_results": len(results),
+            "symbols": results,
+        }
+
+        logger.info(f"Found {len(results)} symbols for query '{query}' in {repo_name}")
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        logger.exception(f"Error during symbol search for {repo_name}")
+        error_response = {
+            "query": query,
+            "repository": repo_name,
+            "error": f"Symbol search failed: {e!s}",
+            "symbols": [],
+            "total_results": 0,
+        }
+        return json.dumps(error_response)
+
+
 # Tool execution mapping
-TOOL_HANDLERS = {
+TOOL_HANDLERS: dict[str, Callable[..., Awaitable[str]]] = {
     "codebase_health_check": execute_codebase_health_check,
+    "search_symbols": execute_search_symbols,
 }
 
 

@@ -529,6 +529,27 @@ class MCPWorker:
                             self.repo_name, self.repo_path
                         )
 
+                    elif tool_name == "search_symbols":
+                        query = tool_args.get("query")
+                        symbol_kind = tool_args.get("symbol_kind")
+                        limit = tool_args.get("limit", 50)
+
+                        if not query:
+                            result = json.dumps(
+                                {
+                                    "error": "Query parameter is required for symbol search"
+                                }
+                            )
+                        else:
+                            result = await codebase_tools.execute_tool(
+                                tool_name,
+                                repo_name=self.repo_name,
+                                repo_path=self.repo_path,
+                                query=query,
+                                symbol_kind=symbol_kind,
+                                limit=limit,
+                            )
+
                     else:
                         result = json.dumps(
                             {"error": f"Tool '{tool_name}' not implemented"}
