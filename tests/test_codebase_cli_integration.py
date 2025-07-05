@@ -11,23 +11,21 @@ from pathlib import Path
 import pytest
 
 from codebase_cli import execute_tool_command
-from symbol_storage import SQLiteSymbolStorage
 
 
 class TestCodebaseCLIIntegration:
     """Integration tests for codebase CLI with actual tools."""
 
     @pytest.mark.asyncio
-    async def test_search_symbols_integration(self):
+    async def test_search_symbols_integration(self, in_memory_symbol_storage):
         """Test search_symbols tool execution through CLI interface."""
         # Test that the tool executes without error and returns expected structure
-        symbol_storage = SQLiteSymbolStorage(":memory:")
         result = await execute_tool_command(
             "search_symbols",
             {"query": "test", "limit": 10},
             "test-repo",
             "/fake/path",
-            symbol_storage,
+            in_memory_symbol_storage,
         )
 
         # Verify results structure
@@ -42,16 +40,15 @@ class TestCodebaseCLIIntegration:
         assert isinstance(result["symbols"], list)
 
     @pytest.mark.asyncio
-    async def test_search_symbols_with_kind_filter(self):
+    async def test_search_symbols_with_kind_filter(self, in_memory_symbol_storage):
         """Test search_symbols with symbol kind filtering."""
         # Test that symbol kind filtering is properly passed through
-        symbol_storage = SQLiteSymbolStorage(":memory:")
         result = await execute_tool_command(
             "search_symbols",
             {"query": "user", "symbol_kind": "function", "limit": 10},
             "test-repo",
             "/fake/path",
-            symbol_storage,
+            in_memory_symbol_storage,
         )
 
         # Verify results structure
@@ -65,15 +62,14 @@ class TestCodebaseCLIIntegration:
         assert isinstance(result["symbols"], list)
 
     @pytest.mark.asyncio
-    async def test_search_symbols_limit_validation(self):
+    async def test_search_symbols_limit_validation(self, in_memory_symbol_storage):
         """Test search_symbols with invalid limit."""
-        symbol_storage = SQLiteSymbolStorage(":memory:")
         result = await execute_tool_command(
             "search_symbols",
             {"query": "test", "limit": 150},
             "test-repo",
             "/fake/path",
-            symbol_storage,
+            in_memory_symbol_storage,
         )
 
         # Should return error for invalid limit
@@ -81,7 +77,7 @@ class TestCodebaseCLIIntegration:
         assert "Limit must be between 1 and 100" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_health_check_integration(self):
+    async def test_health_check_integration(self, in_memory_symbol_storage):
         """Test health_check tool integration."""
         # Create a temporary directory with git repo
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -109,14 +105,13 @@ class TestCodebaseCLIIntegration:
                 ["git", "commit", "-m", "Initial commit"], cwd=repo_path, check=True
             )
 
-            # Execute health_check tool
-            symbol_storage = SQLiteSymbolStorage(":memory:")
+            # Execute health_check tool (requires symbol_storage parameter but doesn't use it)
             result = await execute_tool_command(
                 "codebase_health_check",
                 {},
                 "test-repo",
                 str(repo_path),
-                symbol_storage,
+                in_memory_symbol_storage,
             )
 
             # Verify results
@@ -136,15 +131,14 @@ class TestCodebaseCLIIntegration:
             assert result["status"] in ["healthy", "warning"]  # warnings are OK
 
     @pytest.mark.asyncio
-    async def test_health_check_nonexistent_path(self):
+    async def test_health_check_nonexistent_path(self, in_memory_symbol_storage):
         """Test health_check with nonexistent path."""
-        symbol_storage = SQLiteSymbolStorage(":memory:")
         result = await execute_tool_command(
             "codebase_health_check",
             {},
             "test-repo",
             "/nonexistent/path",
-            symbol_storage,
+            in_memory_symbol_storage,
         )
 
         # Should return unhealthy status
@@ -156,16 +150,15 @@ class TestCodebaseCLIIntegration:
     # The execute_tool_command function is thoroughly tested above and provides the core functionality.
 
     @pytest.mark.asyncio
-    async def test_tool_error_handling(self):
+    async def test_tool_error_handling(self, in_memory_symbol_storage):
         """Test error handling in tool execution."""
         # Test with invalid tool
-        symbol_storage = SQLiteSymbolStorage(":memory:")
         result = await execute_tool_command(
             "invalid_tool",
             {"param": "value"},
             "test-repo",
             "/fake/path",
-            symbol_storage,
+            in_memory_symbol_storage,
         )
 
         assert "error" in result

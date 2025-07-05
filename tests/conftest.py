@@ -336,6 +336,12 @@ def mock_symbol_storage():
 
 
 @pytest.fixture
+def in_memory_symbol_storage():
+    """Create an in-memory SQLite symbol storage for integration testing."""
+    return SQLiteSymbolStorage(":memory:")
+
+
+@pytest.fixture
 def mock_symbol_extractor():
     """Create an empty mock symbol extractor."""
     return MockSymbolExtractor()
