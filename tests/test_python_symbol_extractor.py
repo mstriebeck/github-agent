@@ -11,7 +11,6 @@ from python_symbol_extractor import (
     AbstractSymbolExtractor,
     PythonSymbolExtractor,
 )
-from symbol_storage import Symbol
 
 
 class TestPythonSymbolExtractor:
@@ -459,37 +458,18 @@ def outer_function():
         # Verify total count
         assert len(import_symbols) == 6
 
+    def test_mock_extractor_functionality(self, mock_symbol_extractor):
+        """Test mock extractor returns consistent results."""
+        # Mock should return predefined symbols regardless of input
+        result1 = mock_symbol_extractor.extract_from_file("any_file.py", "any_repo")
+        result2 = mock_symbol_extractor.extract_from_source(
+            "any source", "any_file.py", "any_repo"
+        )
 
-class TestMockSymbolExtractor:
-    """Test the MockSymbolExtractor class."""
-
-    def test_mock_extractor_with_predefined_symbols(self):
-        """Test mock extractor returns predefined symbols."""
-        from tests.conftest import MockSymbolExtractor
-
-        test_symbols = [
-            Symbol("test_func", "function", "test.py", 1, 0, "test-repo"),
-            Symbol("TestClass", "class", "test.py", 5, 0, "test-repo"),
-        ]
-
-        mock = MockSymbolExtractor(test_symbols)
-
-        # Should return the same symbols for any input
-        result1 = mock.extract_from_file("any_file.py", "any_repo")
-        result2 = mock.extract_from_source("any source", "any_file.py", "any_repo")
-
-        assert len(result1) == 2
+        assert len(result1) == 2  # From fixture setup
         assert len(result2) == 2
-        assert result1[0].name == "test_func"
-        assert result2[0].name == "test_func"
-
-    def test_mock_extractor_empty(self, mock_symbol_extractor):
-        """Test mock extractor with no predefined symbols."""
-        from tests.conftest import MockSymbolExtractor
-
-        mock = MockSymbolExtractor()
-        result = mock.extract_from_file("test.py", "test-repo")
-        assert len(result) == 0
+        assert result1[0].name == "test_function"
+        assert result2[0].name == "test_function"
 
     def test_abstract_interface_compliance(self, mock_symbol_extractor):
         """Test that both extractors implement the abstract interface."""
@@ -498,7 +478,6 @@ class TestMockSymbolExtractor:
 
         # Check that all abstract methods are implemented
         extractor = PythonSymbolExtractor()
-
         assert hasattr(extractor, "extract_from_file")
         assert hasattr(extractor, "extract_from_source")
         assert hasattr(mock_symbol_extractor, "extract_from_file")

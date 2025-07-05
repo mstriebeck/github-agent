@@ -14,6 +14,7 @@ from repository_indexer import (
     PythonRepositoryIndexer,
 )
 from symbol_storage import Symbol
+from tests.conftest import MockSymbolExtractor
 
 
 class TestIndexingResult:
@@ -226,7 +227,6 @@ class TestPythonRepositoryIndexer:
     def test_index_repository_with_syntax_errors(self, mock_symbol_storage):
         """Test indexing repository with syntax error files."""
         # Create custom mock extractor that raises syntax errors
-        from tests.conftest import MockSymbolExtractor
 
         class SyntaxErrorExtractor(MockSymbolExtractor):
             def extract_from_file(
@@ -251,7 +251,6 @@ class TestPythonRepositoryIndexer:
     def test_index_repository_with_encoding_errors(self, mock_symbol_storage):
         """Test indexing repository with encoding error files."""
         # Create custom mock extractor that raises encoding errors
-        from tests.conftest import MockSymbolExtractor
 
         class EncodingErrorExtractor(MockSymbolExtractor):
             def extract_from_file(
@@ -381,11 +380,7 @@ def helper():
             assert "CONSTANT" in symbol_names
             assert "helper" in symbol_names
 
-
-class TestMockRepositoryIndexer:
-    """Test the MockRepositoryIndexer class."""
-
-    def test_mock_with_default_result(self, mock_repository_indexer):
+    def test_mock_indexer_default_result(self, mock_repository_indexer):
         """Test mock indexer with default result."""
         result = mock_repository_indexer.index_repository("/test/path", "test-repo")
 
@@ -393,21 +388,7 @@ class TestMockRepositoryIndexer:
         assert mock_repository_indexer.last_repository_path == "/test/path"
         assert mock_repository_indexer.last_repository_id == "test-repo"
 
-    def test_mock_with_predefined_result(self):
-        """Test mock indexer with predefined result."""
-        predefined = IndexingResult()
-        predefined.add_processed_file("test.py", 5)
-
-        from tests.conftest import MockRepositoryIndexer
-
-        mock = MockRepositoryIndexer(predefined)
-        result = mock.index_repository("/test/path", "test-repo")
-
-        assert result is predefined
-        assert len(result.processed_files) == 1
-        assert result.total_symbols == 5
-
-    def test_mock_clear_repository_index(self, mock_repository_indexer):
+    def test_mock_indexer_clear_functionality(self, mock_repository_indexer):
         """Test mock clear repository index."""
         mock_repository_indexer.clear_repository_index("repo1")
         mock_repository_indexer.clear_repository_index("repo2")

@@ -2,6 +2,7 @@
 Pytest configuration and shared fixtures for shutdown system tests.
 """
 
+import os
 import tempfile
 import threading
 import time
@@ -13,7 +14,7 @@ import pytest
 
 from python_symbol_extractor import AbstractSymbolExtractor
 from repository_indexer import AbstractRepositoryIndexer, IndexingResult
-from symbol_storage import AbstractSymbolStorage, Symbol
+from symbol_storage import AbstractSymbolStorage, SQLiteSymbolStorage, Symbol
 from tests.test_fixtures import MockRepositoryManager
 
 
@@ -447,10 +448,6 @@ def mock_repository_indexer():
 @pytest.fixture
 def temp_database():
     """Create a temporary SQLite database for testing."""
-    import tempfile
-
-    from symbol_storage import SQLiteSymbolStorage
-
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_file:
         db_path = temp_file.name
 
@@ -458,8 +455,6 @@ def temp_database():
     yield storage
 
     # Cleanup
-    import os
-
     try:
         os.unlink(db_path)
     except OSError:

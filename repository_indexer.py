@@ -155,17 +155,13 @@ class PythonRepositoryIndexer(AbstractRepositoryIndexer):
         for python_file in python_files:
             try:
                 self._process_file(python_file, repository_id, result)
-            except (PermissionError, OSError) as e:
-                # File system errors that should fail hard - these indicate
-                # serious system issues that prevent proper indexing
-                error_msg = f"File system error accessing {python_file}: {e}"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg) from e
             except (MemoryError, KeyboardInterrupt, SystemExit):
-                # Critical system errors that should always propagate
+                # Critical system errors that should always propagate immediately
                 raise
             except Exception as e:
-                # All other unexpected errors are logged but don't fail the entire indexing
+                # All unexpected errors from _process_file are logged but don't fail entire indexing
+                # This includes database errors, symbol extraction errors, etc.
+                # File-level errors (permissions, syntax errors) are already handled in _process_file
                 error_msg = f"Unexpected error processing {python_file}: {e}"
                 logger.error(error_msg)
                 result.add_failed_file(str(python_file), error_msg)
@@ -254,11 +250,12 @@ class PythonRepositoryIndexer(AbstractRepositoryIndexer):
         """
         file_str = str(file_path)
 
-        # Check file size - large files are skipped for several reasons:
-        # 1. Memory usage: Large files can consume excessive memory during AST parsing
-        # 2. Performance: Processing very large files can significantly slow indexing
-        # 3. Practical limits: Most legitimate Python files are reasonably sized
-        # 4. Generated files: Very large files are often generated/minified code
+        # Check file size - large files are skipped to avoid performance and memory issues:
+        # 1. Memory usage: AST parsing loads entire file into memory, large files can cause OOM
+        # 2. Performance: Symbol extraction complexity increases significantly with file size
+        # 3. Practical limits: Most legitimate Python source files are under 10MB
+        # 4. Generated files: Very large files are typically auto-generated/minified code with minimal value
+        # 5. User experience: Prevents indexing from hanging on pathological cases
         try:
             file_size = file_path.stat().st_size
             if file_size > self.max_file_size_bytes:
@@ -301,11 +298,11 @@ class PythonRepositoryIndexer(AbstractRepositoryIndexer):
             logger.warning(f"Skipping {file_str} due to parsing error: {e}")
             result.add_failed_file(file_str, error_msg)
         except (PermissionError, OSError) as e:
-            # File system access errors that indicate serious problems
+            # File system access errors - log as warnings since individual file failures
+            # shouldn't stop the entire indexing process
             error_msg = f"File access error: {e}"
-            logger.error(f"Cannot access {file_str}: {e}")
-            # Re-raise to be caught by the outer handler for hard failure
-            raise
+            logger.warning(f"Cannot access {file_str}: {e}")
+            result.add_failed_file(file_str, error_msg)
         except (MemoryError, KeyboardInterrupt, SystemExit):
             # Critical errors that must propagate
             raise
