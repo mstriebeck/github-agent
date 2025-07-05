@@ -12,7 +12,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from symbol_storage import AbstractSymbolStorage, SQLiteSymbolStorage
+from symbol_storage import AbstractSymbolStorage
 
 logger = logging.getLogger(__name__)
 
@@ -193,9 +193,9 @@ async def execute_search_symbols(
     repo_name: str,
     repo_path: str,
     query: str,
+    symbol_storage: AbstractSymbolStorage,
     symbol_kind: str | None = None,
     limit: int = 50,
-    symbol_storage: AbstractSymbolStorage | None = None,
 ) -> str:
     """Execute symbol search for the repository
 
@@ -203,9 +203,9 @@ async def execute_search_symbols(
         repo_name: Repository name to search
         repo_path: Path to the repository
         query: Search query for symbol names
+        symbol_storage: Symbol storage instance for search operations
         symbol_kind: Optional filter by symbol kind (function, class, variable)
         limit: Maximum number of results to return
-        symbol_storage: Optional symbol storage instance (for testing)
 
     Returns:
         JSON string with search results
@@ -225,11 +225,8 @@ async def execute_search_symbols(
                 }
             )
 
-        # Initialize symbol storage
-        storage = symbol_storage or SQLiteSymbolStorage(":memory:")
-
         # Execute symbol search
-        symbols = storage.search_symbols(
+        symbols = symbol_storage.search_symbols(
             query=query, repository_id=repo_name, symbol_kind=symbol_kind, limit=limit
         )
 
@@ -284,7 +281,7 @@ async def execute_tool(tool_name: str, **kwargs) -> str:
 
     Args:
         tool_name: Name of the tool to execute
-        **kwargs: Tool-specific arguments
+        **kwargs: Tool-specific arguments (including symbol_storage for search_symbols)
 
     Returns:
         Tool execution result as JSON string

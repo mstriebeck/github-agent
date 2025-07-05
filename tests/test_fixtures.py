@@ -45,6 +45,16 @@ class MockRepositoryManager(AbstractRepositoryManager):
         """Add a repository configuration."""
         self._repositories[name] = config
 
+    def load_configuration(self) -> bool:
+        """Load repository configuration from file.
+
+        Returns:
+            True if configuration loaded successfully, False otherwise
+        """
+        if self._fail_on_access:
+            raise Exception("Test configuration load failure")
+        return True
+
     def remove_repository(self, name: str):
         """Remove a repository configuration."""
         self._repositories.pop(name, None)

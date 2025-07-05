@@ -446,11 +446,11 @@ class TestCodebaseTools:
         assert len(data["symbols"]) == 0
 
     @pytest.mark.asyncio
-    async def test_search_symbols_invalid_limit(self):
+    async def test_search_symbols_invalid_limit(self, mock_symbol_storage):
         """Test search symbols with invalid limit values"""
         # Test limit too low
         result = await codebase_tools.execute_search_symbols(
-            "test-repo", "/test/path", "test", limit=0
+            "test-repo", "/test/path", "test", mock_symbol_storage, limit=0
         )
 
         data = json.loads(result)
@@ -459,7 +459,7 @@ class TestCodebaseTools:
 
         # Test limit too high
         result = await codebase_tools.execute_search_symbols(
-            "test-repo", "/test/path", "test", limit=101
+            "test-repo", "/test/path", "test", mock_symbol_storage, limit=101
         )
 
         data = json.loads(result)
@@ -490,12 +490,19 @@ class TestCodebaseTools:
         assert data["limit"] == 50
 
     @pytest.mark.asyncio
-    async def test_search_symbols_exception_handling(self):
+    async def test_search_symbols_exception_handling(self, mock_symbol_storage):
         """Test search symbols exception handling"""
+
         # Mock a storage error by using a symbol storage that doesn't exist
         # This will cause an exception during search
+        # Make the search_symbols method raise an exception
+        def error_search(*args, **kwargs):
+            raise Exception("Database connection failed")
+
+        mock_symbol_storage.search_symbols = error_search
+
         result = await codebase_tools.execute_search_symbols(
-            "test-repo", "/test/path", "test"
+            "test-repo", "/test/path", "test", mock_symbol_storage
         )
 
         # Should handle exception gracefully and return error response

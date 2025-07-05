@@ -6,6 +6,8 @@ Shared constants for the GitHub MCP agent system.
 This file contains constants that are used across both Python code and shell scripts.
 """
 
+from pathlib import Path
+
 # Python version requirements
 MINIMUM_PYTHON_MAJOR = 3
 MINIMUM_PYTHON_MINOR = 8
@@ -21,3 +23,8 @@ MCP_PORT_RANGE_END = 8200
 # GitHub URL patterns
 GITHUB_SSH_PREFIX = "git@github.com:"
 GITHUB_HTTPS_PREFIX = "https://github.com/"
+
+# Data storage paths
+DATA_DIR = Path.home() / ".local" / "share" / "github-agent"
+LOGS_DIR = DATA_DIR / "logs"
+SYMBOLS_DB_PATH = DATA_DIR / "symbols.db"

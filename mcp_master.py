@@ -27,6 +27,7 @@ from typing import Any
 
 import aiohttp
 
+from constants import LOGS_DIR
 from repository_manager import RepositoryConfig, RepositoryManager
 
 # Import shutdown coordination components
@@ -39,8 +40,7 @@ from system_utils import MicrosecondFormatter, log_system_state
 # Configure logging with enhanced microsecond precision
 
 
-log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
-log_dir.mkdir(parents=True, exist_ok=True)
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 GLOBAL_LOG_LEVEL = logging.DEBUG
 
@@ -67,7 +67,7 @@ def setup_enhanced_logging(
 
     # File handler for detailed debug logs (use provided path or default)
     if log_file_path is None:
-        log_file_path = log_dir / "master.log"
+        log_file_path = LOGS_DIR / "master.log"
 
     file_handler = logging.FileHandler(log_file_path, mode="a")
     file_handler.setLevel(GLOBAL_LOG_LEVEL)
@@ -197,7 +197,7 @@ class MCPMaster:
         self.health_monitor.start_monitoring()
 
         # Use system-appropriate log location
-        self.log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
+        self.log_dir = LOGS_DIR
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
     def load_configuration(self) -> bool:
