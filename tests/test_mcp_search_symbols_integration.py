@@ -259,11 +259,11 @@ class TestSearchSymbolsMCPIntegration:
         assert handler == codebase_tools.execute_search_symbols
 
     @pytest.mark.asyncio
-    async def test_search_symbols_empty_query_handling(self):
+    async def test_search_symbols_empty_query_handling(self, mock_symbol_storage):
         """Test handling of empty or whitespace-only queries"""
         # Test empty string
         result = await codebase_tools.execute_tool(
-            "search_symbols", repo_name="test-repo", repo_path="/test/path", query=""
+            "search_symbols", repo_name="test-repo", repo_path="/test/path", query="", symbol_storage=mock_symbol_storage
         )
 
         data = json.loads(result)
@@ -273,7 +273,7 @@ class TestSearchSymbolsMCPIntegration:
 
         # Test whitespace-only query
         result = await codebase_tools.execute_tool(
-            "search_symbols", repo_name="test-repo", repo_path="/test/path", query="   "
+            "search_symbols", repo_name="test-repo", repo_path="/test/path", query="   ", symbol_storage=mock_symbol_storage
         )
 
         data = json.loads(result)
@@ -313,6 +313,7 @@ class TestSearchSymbolsMCPIntegration:
             repo_name="test-repo",
             repo_path="/test/path",
             query="__init__",
+            symbol_storage=mock_symbol_storage,
         )
 
         data = json.loads(result)
@@ -321,7 +322,7 @@ class TestSearchSymbolsMCPIntegration:
 
         # Test search with partial special characters
         result = await codebase_tools.execute_tool(
-            "search_symbols", repo_name="test-repo", repo_path="/test/path", query="_"
+            "search_symbols", repo_name="test-repo", repo_path="/test/path", query="_", symbol_storage=mock_symbol_storage
         )
 
         data = json.loads(result)
@@ -360,6 +361,7 @@ class TestSearchSymbolsMCPIntegration:
             repo_name="test-repo",
             repo_path="/test/path",
             query="test",
+            symbol_storage=mock_symbol_storage,
         )
 
         data = json.loads(result)
@@ -400,6 +402,7 @@ class TestSearchSymbolsMCPIntegration:
             repo_name="test-repo",
             repo_path="/test/path",
             query="function",
+            symbol_storage=mock_symbol_storage,
         )
 
         data = json.loads(result)
