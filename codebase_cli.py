@@ -9,13 +9,13 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Any
 
 import codebase_tools
 import github_tools
+from constants import DATA_DIR, SYMBOLS_DB_PATH
 from repository_manager import (
     AbstractRepositoryManager,
     RepositoryConfig,
@@ -320,12 +320,10 @@ Examples:
     # Create production objects
     repo_manager = RepositoryManager()
     formatter = OutputFormatter()
-    
+
     # Use persistent database in user data directory
-    data_dir = Path.home() / ".local" / "share" / "github-agent"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    db_path = data_dir / "symbols.db"
-    symbol_storage = SQLiteSymbolStorage(str(db_path))
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    symbol_storage = SQLiteSymbolStorage(str(SYMBOLS_DB_PATH))
 
     # Execute CLI functionality
     asyncio.run(execute_cli(args, repo_manager, formatter, symbol_storage))

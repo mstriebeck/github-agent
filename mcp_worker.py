@@ -21,7 +21,6 @@ import signal
 import sys
 import traceback
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 import uvicorn
@@ -32,6 +31,7 @@ from fastapi.responses import StreamingResponse
 
 import codebase_tools
 import github_tools
+from constants import DATA_DIR, LOGS_DIR
 from github_tools import (
     GitHubAPIContext,
     execute_find_pr_for_branch,
@@ -76,7 +76,7 @@ class MCPWorker:
         )
 
         # Load environment variables from .env file first
-        dotenv_path = Path.home() / ".local" / "share" / "github-agent" / ".env"
+        dotenv_path = DATA_DIR / ".env"
         if dotenv_path.exists():
             self.logger.info(f"Loading .env from {dotenv_path}")
             load_dotenv(dotenv_path)
@@ -102,7 +102,7 @@ class MCPWorker:
         self.python_path = repository_config.python_path
 
         # Set up enhanced logging for this worker (use system-appropriate location)
-        log_dir = Path.home() / ".local" / "share" / "github-agent" / "logs"
+        log_dir = LOGS_DIR
         log_dir.mkdir(parents=True, exist_ok=True)
 
         # Setup enhanced logging with microsecond precision (logger already initialized)

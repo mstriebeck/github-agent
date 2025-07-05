@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from constants import DATA_DIR
+
 
 def check_requirements() -> bool:
     """Check that required dependencies are available"""
@@ -52,10 +54,9 @@ def detect_existing_repo() -> str | None:
 
 def setup_config_directory() -> Path:
     """Ensure configuration directory exists"""
-    config_dir = Path.home() / ".local" / "share" / "github-agent"
-    config_dir.mkdir(parents=True, exist_ok=True)
-    print(f"📂 Configuration directory: {config_dir}")
-    return config_dir
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    print(f"📂 Configuration directory: {DATA_DIR}")
+    return DATA_DIR
 
 
 def run_cli_command(args: list[str]) -> tuple[bool, str]:
@@ -145,9 +146,7 @@ def fresh_setup_flow() -> bool:
     print("=" * 40)
 
     # Check if config already exists
-    config_path = (
-        Path.home() / ".local" / "share" / "github-agent" / "repositories.json"
-    )
+    config_path = DATA_DIR / "repositories.json"
     if config_path.exists():
         print("Configuration file already exists.")
         response = (
