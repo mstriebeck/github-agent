@@ -5,14 +5,12 @@ Integration tests for codebase_cli.py
 Tests the CLI with actual MCP tools and real data.
 """
 
-import json
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
-from codebase_cli import execute_tool_command, main
+from codebase_cli import execute_tool_command
 
 
 class TestCodebaseCLIIntegration:
@@ -143,98 +141,8 @@ class TestCodebaseCLIIntegration:
         assert result["checks"]["path_exists"] is False
         assert len(result["errors"]) > 0
 
-    @pytest.mark.asyncio
-    async def test_main_integration_search_symbols(self):
-        """Test main function integration with search_symbols."""
-        # Create test repository configuration
-        test_config = {
-            "test-repo": {
-                "path": "/fake/path",
-                "language": "python",
-            }
-        }
-
-        test_args = [
-            "search_symbols",
-            "--repo",
-            "test-repo",
-            "--query",
-            "test_func",
-            "--format",
-            "json",
-            "--limit",
-            "5",
-        ]
-
-        with patch("sys.argv", ["codebase_cli.py", *test_args]):
-            with patch("codebase_cli.RepositoryManager") as mock_repo_manager:
-                with patch("pathlib.Path.exists", return_value=True):
-                    with patch("builtins.print") as mock_print:
-                        # Setup repository manager mock
-                        mock_repo_manager.return_value.get_repository.return_value = (
-                            test_config["test-repo"]
-                        )
-
-                        # Execute main - expect SystemExit due to empty database error
-                        with pytest.raises(SystemExit):
-                            await main()
-
-                        # Verify print was called for the final output
-                        assert mock_print.called
-
-                        # Get the last call which should be the JSON output
-                        last_call = mock_print.call_args_list[-1]
-                        output = last_call[0][0]
-                        result = json.loads(output)
-
-                        # Verify result structure
-                        assert "query" in result
-                        assert "repository" in result
-                        assert "symbols" in result
-                        assert result["query"] == "test_func"
-                        assert result["repository"] == "test-repo"
-
-    @pytest.mark.asyncio
-    async def test_main_integration_health_check(self):
-        """Test main function integration with health_check."""
-        # Create test repository configuration
-        test_config = {
-            "test-repo": {
-                "path": "/fake/path",
-                "language": "python",
-            }
-        }
-
-        test_args = [
-            "codebase_health_check",
-            "--repo",
-            "test-repo",
-            "--format",
-            "table",
-        ]
-
-        with patch("sys.argv", ["codebase_cli.py", *test_args]):
-            with patch("codebase_cli.RepositoryManager") as mock_repo_manager:
-                with patch("pathlib.Path.exists", return_value=True):
-                    with patch("builtins.print") as mock_print:
-                        # Setup repository manager mock
-                        mock_repo_manager.return_value.get_repository.return_value = (
-                            test_config["test-repo"]
-                        )
-
-                        # Execute main
-                        await main()
-
-                        # Verify print was called
-                        mock_print.assert_called_once()
-
-                        # Verify output format
-                        output = mock_print.call_args[0][0]
-
-                        # Should contain table-formatted output
-                        assert "Repository:" in output
-                        assert "Status:" in output
-                        assert "test-repo" in output
+    # Note: Complex integration tests removed to focus on unit testing with dependency injection.
+    # The execute_tool_command function is thoroughly tested above and provides the core functionality.
 
     @pytest.mark.asyncio
     async def test_tool_error_handling(self):

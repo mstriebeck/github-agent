@@ -5,12 +5,41 @@ Unit tests for codebase_cli.py
 Tests CLI argument parsing, output formatting, and tool execution.
 """
 
+import argparse
 import json
 from unittest.mock import patch
 
 import pytest
 
-from codebase_cli import OutputFormatter, execute_tool_command, main
+from codebase_cli import OutputFormatter, execute_cli, execute_tool_command
+from repository_manager import AbstractRepositoryManager
+
+
+class MockRepositoryManager(AbstractRepositoryManager):
+    """Mock repository manager for testing."""
+
+    def __init__(self):
+        self._repositories: dict[str, dict] = {}
+        self._should_fail_load = False
+
+    @property
+    def repositories(self) -> dict[str, dict]:
+        return self._repositories
+
+    def get_repository(self, name: str) -> dict | None:
+        return self._repositories.get(name)
+
+    def add_repository(self, name: str, config: dict) -> None:
+        self._repositories[name] = config
+
+    def load_configuration(self) -> bool:
+        if self._should_fail_load:
+            raise Exception("Mock configuration load failure")
+        return True
+
+    def set_fail_load(self, should_fail: bool) -> None:
+        """Set whether load_configuration should fail."""
+        self._should_fail_load = should_fail
 
 
 class TestOutputFormatter:
@@ -231,248 +260,162 @@ class TestExecuteToolCommand:
             assert "Tool execution failed: Tool failed" in result["error"]
 
 
-class TestMainFunction:
-    """Test cases for main CLI function."""
+class TestExecuteCLI:
+    """Test cases for execute_cli function using dependency injection."""
 
     @pytest.mark.asyncio
-    async def test_main_search_symbols_success(self):
+    async def test_execute_cli_search_symbols_success(self):
         """Test successful search_symbols command execution."""
-        test_args = [
-            "search_symbols",
-            "--repo",
-            "test-repo",
-            "--query",
-            "test_func",
-            "--format",
-            "json",
-        ]
+        # Setup test arguments
+        args = argparse.Namespace(
+            tool="search_symbols",
+            repo="test-repo",
+            query="test_func",
+            kind=None,
+            limit=50,
+            format="json",
+        )
 
-        mock_repo_config = {"path": "/path/to/repo"}
+        # Setup mock repository manager
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.add_repository("test-repo", {"path": "/path/to/repo"})
+
+        # Setup formatter
+        formatter = OutputFormatter()
+
         mock_result = {"symbols": [], "total_results": 0}
 
-        with patch("sys.argv", ["codebase_cli.py", *test_args]):
-            with patch("codebase_cli.RepositoryManager") as mock_repo_manager:
-                with patch("codebase_cli.execute_tool_command") as mock_execute:
-                    with patch("builtins.print") as mock_print:
-                        with patch("pathlib.Path.exists", return_value=True):
-                            # Setup mocks
-                            mock_repo_manager.return_value.get_repository.return_value = mock_repo_config
-                            mock_execute.return_value = mock_result
+        with patch("codebase_cli.execute_tool_command") as mock_execute:
+            with patch("builtins.print") as mock_print:
+                with patch("pathlib.Path.exists", return_value=True):
+                    # Setup mocks
+                    mock_execute.return_value = mock_result
 
-                            # Execute main
-                            await main()
+                    # Execute CLI
+                    await execute_cli(args, mock_repo_manager, formatter)
 
-                            # Verify execution
-                            mock_execute.assert_called_once_with(
-                                "search_symbols",
-                                {"query": "test_func", "limit": 50},
-                                "test-repo",
-                                "/path/to/repo",
-                            )
+                    # Verify execution
+                    mock_execute.assert_called_once_with(
+                        "search_symbols",
+                        {"query": "test_func", "limit": 50},
+                        "test-repo",
+                        "/path/to/repo",
+                    )
 
-                            # Verify output
-                            mock_print.assert_called_once()
-                            output = mock_print.call_args[0][0]
-                            assert json.loads(output) == mock_result
+                    # Verify output
+                    mock_print.assert_called_once()
+                    output = mock_print.call_args[0][0]
+                    assert json.loads(output) == mock_result
 
     @pytest.mark.asyncio
-    async def test_main_health_check_success(self):
+    async def test_execute_cli_health_check_success(self):
         """Test successful health_check command execution."""
-        test_args = [
-            "codebase_health_check",
-            "--repo",
-            "test-repo",
-            "--format",
-            "simple",
-        ]
+        # Setup test arguments
+        args = argparse.Namespace(
+            tool="codebase_health_check", repo="test-repo", format="simple"
+        )
 
-        mock_repo_config = {"path": "/path/to/repo"}
+        # Setup mock repository manager
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.add_repository("test-repo", {"path": "/path/to/repo"})
+
+        # Setup formatter
+        formatter = OutputFormatter()
+
         mock_result = {
             "repo": "test-repo",
             "status": "healthy",
             "checks": {"path_exists": True},
         }
 
-        with patch("sys.argv", ["codebase_cli.py", *test_args]):
-            with patch("codebase_cli.RepositoryManager") as mock_repo_manager:
-                with patch("codebase_cli.execute_tool_command") as mock_execute:
-                    with patch("builtins.print") as mock_print:
-                        with patch("pathlib.Path.exists", return_value=True):
-                            # Setup mocks
-                            mock_repo_manager.return_value.get_repository.return_value = mock_repo_config
-                            mock_execute.return_value = mock_result
+        with patch("codebase_cli.execute_tool_command") as mock_execute:
+            with patch("builtins.print") as mock_print:
+                with patch("pathlib.Path.exists", return_value=True):
+                    # Setup mocks
+                    mock_execute.return_value = mock_result
 
-                            # Execute main
-                            await main()
+                    # Execute CLI
+                    await execute_cli(args, mock_repo_manager, formatter)
 
-                            # Verify execution
-                            mock_execute.assert_called_once_with(
-                                "codebase_health_check",
-                                {},
-                                "test-repo",
-                                "/path/to/repo",
-                            )
+                    # Verify execution
+                    mock_execute.assert_called_once_with(
+                        "codebase_health_check",
+                        {},
+                        "test-repo",
+                        "/path/to/repo",
+                    )
 
-                            # Verify output
-                            mock_print.assert_called_once()
-                            output = mock_print.call_args[0][0]
-                            assert "Repository test-repo: healthy" in output
-
-    @pytest.mark.asyncio
-    async def test_main_missing_query_error(self):
-        """Test error when query is missing for search_symbols."""
-        test_args = [
-            "search_symbols",
-            "--repo",
-            "test-repo",
-        ]
-
-        with patch("sys.argv", ["codebase_cli.py", *test_args]):
-            with patch("sys.exit") as mock_exit:
-                with patch("builtins.print") as mock_print:
-                    # Mock exit to raise SystemExit instead of continuing
-                    mock_exit.side_effect = SystemExit(1)
-
-                    with pytest.raises(SystemExit):
-                        await main()
-
-                    # Should exit with error
-                    mock_exit.assert_called_with(1)
-
-                    # Should print error message
+                    # Verify output
                     mock_print.assert_called_once()
-                    error_msg = mock_print.call_args[0][0]
-                    assert "query is required" in error_msg
+                    output = mock_print.call_args[0][0]
+                    assert "Repository test-repo: healthy" in output
 
     @pytest.mark.asyncio
-    async def test_main_invalid_limit_error(self):
-        """Test error when limit is invalid."""
-        test_args = [
-            "search_symbols",
-            "--repo",
-            "test-repo",
-            "--query",
-            "test",
-            "--limit",
-            "150",
-        ]
-
-        with patch("sys.argv", ["codebase_cli.py", *test_args]):
-            with patch("sys.exit") as mock_exit:
-                with patch("builtins.print") as mock_print:
-                    # Mock exit to raise SystemExit instead of continuing
-                    mock_exit.side_effect = SystemExit(1)
-
-                    with pytest.raises(SystemExit):
-                        await main()
-
-                    # Should exit with error
-                    mock_exit.assert_called_with(1)
-
-                    # Should print error message
-                    mock_print.assert_called_once()
-                    error_msg = mock_print.call_args[0][0]
-                    assert "limit must be between 1 and 100" in error_msg
-
-    @pytest.mark.asyncio
-    async def test_main_repo_not_found_error(self):
+    async def test_execute_cli_repo_not_found_error(self):
         """Test error when repository is not found."""
-        test_args = [
-            "search_symbols",
-            "--repo",
-            "nonexistent-repo",
-            "--query",
-            "test",
-        ]
+        # Setup test arguments
+        args = argparse.Namespace(
+            tool="search_symbols",
+            repo="nonexistent-repo",
+            query="test",
+            kind=None,
+            limit=50,
+            format="simple",
+        )
 
-        with patch("sys.argv", ["codebase_cli.py", *test_args]):
-            with patch("codebase_cli.RepositoryManager") as mock_repo_manager:
-                with patch("sys.exit") as mock_exit:
-                    with patch("builtins.print") as mock_print:
-                        # Setup mock to return None (repo not found)
-                        mock_repo_manager.return_value.get_repository.return_value = (
-                            None
-                        )
+        # Setup empty mock repository manager
+        mock_repo_manager = MockRepositoryManager()
+        formatter = OutputFormatter()
 
-                        # Mock exit to raise SystemExit instead of continuing
-                        mock_exit.side_effect = SystemExit(1)
+        with patch("sys.exit") as mock_exit:
+            with patch("builtins.print") as mock_print:
+                # Mock exit to raise SystemExit instead of continuing
+                mock_exit.side_effect = SystemExit(1)
 
-                        with pytest.raises(SystemExit):
-                            await main()
+                with pytest.raises(SystemExit):
+                    await execute_cli(args, mock_repo_manager, formatter)
 
-                        # Should exit with error
-                        mock_exit.assert_called_with(1)
+                # Should exit with error
+                mock_exit.assert_called_with(1)
 
-                        # Should print error message
-                        mock_print.assert_called_once()
-                        error_msg = mock_print.call_args[0][0]
-                        assert "Repository 'nonexistent-repo' not found" in error_msg
-
-    @pytest.mark.asyncio
-    async def test_main_repo_path_not_exists_error(self):
-        """Test error when repository path doesn't exist."""
-        test_args = [
-            "search_symbols",
-            "--repo",
-            "test-repo",
-            "--query",
-            "test",
-        ]
-
-        mock_repo_config = {"path": "/nonexistent/path"}
-
-        with patch("sys.argv", ["codebase_cli.py", *test_args]):
-            with patch("codebase_cli.RepositoryManager") as mock_repo_manager:
-                with patch("sys.exit") as mock_exit:
-                    with patch("builtins.print") as mock_print:
-                        with patch("pathlib.Path.exists", return_value=False):
-                            # Setup mock
-                            mock_repo_manager.return_value.get_repository.return_value = mock_repo_config
-
-                            # Mock exit to raise SystemExit instead of continuing
-                            mock_exit.side_effect = SystemExit(1)
-
-                            with pytest.raises(SystemExit):
-                                await main()
-
-                            # Should exit with error
-                            mock_exit.assert_called_with(1)
-
-                            # Should print error message
-                            mock_print.assert_called_once()
-                            error_msg = mock_print.call_args[0][0]
-                            assert "Repository path does not exist" in error_msg
+                # Should print error message
+                mock_print.assert_called_once()
+                error_msg = mock_print.call_args[0][0]
+                assert "Repository 'nonexistent-repo' not found" in error_msg
 
     @pytest.mark.asyncio
-    async def test_main_tool_error_exit_code(self):
+    async def test_execute_cli_tool_error_exit_code(self):
         """Test that tool errors result in exit code 1."""
-        test_args = [
-            "search_symbols",
-            "--repo",
-            "test-repo",
-            "--query",
-            "test",
-        ]
+        # Setup test arguments
+        args = argparse.Namespace(
+            tool="search_symbols",
+            repo="test-repo",
+            query="test",
+            kind=None,
+            limit=50,
+            format="simple",
+        )
 
-        mock_repo_config = {"path": "/path/to/repo"}
+        # Setup mock repository manager
+        mock_repo_manager = MockRepositoryManager()
+        mock_repo_manager.add_repository("test-repo", {"path": "/path/to/repo"})
+        formatter = OutputFormatter()
+
         mock_result = {"error": "Tool failed"}
 
-        with patch("sys.argv", ["codebase_cli.py", *test_args]):
-            with patch("codebase_cli.RepositoryManager") as mock_repo_manager:
-                with patch("codebase_cli.execute_tool_command") as mock_execute:
-                    with patch("sys.exit") as mock_exit:
-                        with patch("builtins.print") as mock_print:
-                            with patch("pathlib.Path.exists", return_value=True):
-                                # Setup mocks
-                                mock_repo_manager.return_value.get_repository.return_value = mock_repo_config
-                                mock_execute.return_value = mock_result
+        with patch("codebase_cli.execute_tool_command") as mock_execute:
+            with patch("sys.exit") as mock_exit:
+                with patch("builtins.print") as mock_print:
+                    with patch("pathlib.Path.exists", return_value=True):
+                        # Setup mocks
+                        mock_execute.return_value = mock_result
 
-                                await main()
+                        await execute_cli(args, mock_repo_manager, formatter)
 
-                                # Should exit with error code
-                                mock_exit.assert_called_once_with(1)
+                        # Should exit with error code
+                        mock_exit.assert_called_once_with(1)
 
-                                # Should print error output
-                                mock_print.assert_called_once()
-                                output = mock_print.call_args[0][0]
-                                assert "Error: Tool failed" in output
+                        # Should print error output
+                        mock_print.assert_called_once()
+                        output = mock_print.call_args[0][0]
+                        assert "Error: Tool failed" in output

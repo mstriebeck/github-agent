@@ -15,7 +15,11 @@ from typing import Any
 
 import codebase_tools
 import github_tools
-from repository_manager import RepositoryConfig, RepositoryManager
+from repository_manager import (
+    AbstractRepositoryManager,
+    RepositoryConfig,
+    RepositoryManager,
+)
 
 
 class OutputFormatter:
@@ -167,8 +171,80 @@ async def execute_tool_command(
         return {"error": f"Tool execution failed: {e}", "tool": tool_name}
 
 
-async def main():
-    """Main CLI entry point."""
+async def execute_cli(
+    args: argparse.Namespace,
+    repo_manager: AbstractRepositoryManager,
+    formatter: OutputFormatter,
+) -> None:
+    """Execute CLI functionality with dependency injection.
+
+    Args:
+        args: Parsed command-line arguments
+        repo_manager: Repository manager instance
+        formatter: Output formatter instance
+    """
+    # Load repository configuration
+    try:
+        repo_manager.load_configuration()
+        repo_config = repo_manager.get_repository(args.repo)
+        if not repo_config:
+            print(
+                f"Error: Repository '{args.repo}' not found in configuration",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        # Handle both RepositoryConfig object and dict for testing
+        if isinstance(repo_config, RepositoryConfig):
+            repo_path = repo_config.path
+        else:
+            repo_path = repo_config["path"]
+
+        # Validate repository path
+        if not Path(repo_path).exists():
+            print(
+                f"Error: Repository path does not exist: {repo_path}", file=sys.stderr
+            )
+            sys.exit(1)
+
+    except Exception as e:
+        print(f"Error loading repository configuration: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Prepare tool arguments
+    tool_args: dict[str, Any] = {}
+
+    if args.tool == "search_symbols":
+        tool_args["query"] = args.query
+        if args.kind:
+            tool_args["symbol_kind"] = args.kind
+        tool_args["limit"] = args.limit
+
+    # Execute tool
+    try:
+        result = await execute_tool_command(args.tool, tool_args, args.repo, repo_path)
+
+        # Format and display output
+        if args.format == "json":
+            output = formatter.format_json(result)
+        elif args.format == "table":
+            output = formatter.format_table(result)
+        else:  # simple
+            output = formatter.format_simple(result)
+
+        print(output)
+
+        # Exit with error code if there was an error
+        if "error" in result:
+            sys.exit(1)
+
+    except Exception as e:
+        print(f"Error executing tool: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def main():
+    """Main CLI entry point - handles argument parsing and object creation."""
     parser = argparse.ArgumentParser(
         description="Simple CLI for MCP Tool Testing",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -228,67 +304,13 @@ Examples:
             print("Error: --limit must be between 1 and 100", file=sys.stderr)
             sys.exit(1)
 
-    # Load repository configuration
-    try:
-        repo_manager = RepositoryManager()
-        repo_manager.load_configuration()
-        repo_config = repo_manager.get_repository(args.repo)
-        if not repo_config:
-            print(
-                f"Error: Repository '{args.repo}' not found in configuration",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+    # Create production objects
+    repo_manager = RepositoryManager()
+    formatter = OutputFormatter()
 
-        # Handle both RepositoryConfig object and dict for testing
-        if isinstance(repo_config, RepositoryConfig):
-            repo_path = repo_config.path
-        else:
-            repo_path = repo_config["path"]
-
-        # Validate repository path
-        if not Path(repo_path).exists():
-            print(
-                f"Error: Repository path does not exist: {repo_path}", file=sys.stderr
-            )
-            sys.exit(1)
-
-    except Exception as e:
-        print(f"Error loading repository configuration: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    # Prepare tool arguments
-    tool_args: dict[str, Any] = {}
-
-    if args.tool == "search_symbols":
-        tool_args["query"] = args.query
-        if args.kind:
-            tool_args["symbol_kind"] = args.kind
-        tool_args["limit"] = args.limit
-
-    # Execute tool
-    try:
-        result = await execute_tool_command(args.tool, tool_args, args.repo, repo_path)
-
-        # Format and display output
-        formatter = OutputFormatter()
-        if args.format == "json":
-            output = formatter.format_json(result)
-        elif args.format == "table":
-            output = formatter.format_table(result)
-        else:  # simple
-            output = formatter.format_simple(result)
-
-        print(output)
-
-        # Exit with error code if there was an error
-        if "error" in result:
-            sys.exit(1)
-
-    except Exception as e:
-        print(f"Error executing tool: {e}", file=sys.stderr)
-        sys.exit(1)
+    # Execute CLI functionality
+    asyncio.run(execute_cli(args, repo_manager, formatter))
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

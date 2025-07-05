@@ -51,6 +51,15 @@ class AbstractRepositoryManager(abc.ABC):
         """Add a repository configuration."""
         pass
 
+    @abc.abstractmethod
+    def load_configuration(self) -> bool:
+        """Load repository configuration from file.
+
+        Returns:
+            True if configuration loaded successfully, False otherwise
+        """
+        pass
+
 
 @dataclass
 class RepositoryConfig:
