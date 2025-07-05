@@ -12,6 +12,7 @@ import logging
 import os
 from dataclasses import dataclass
 
+from constants import Language
 from repository_manager import RepositoryManager
 
 
@@ -57,7 +58,15 @@ class CodebaseRepositoryConfigManager:
 
         for repo_name, repo_config in self.repository_manager.repositories.items():
             # Filter for Python repositories
-            if repo_config.language == "python":
+            try:
+                repo_language = Language(repo_config.language)
+            except ValueError:
+                self.logger.warning(
+                    f"Unsupported language '{repo_config.language}' for repository {repo_name}"
+                )
+                continue
+
+            if repo_language == Language.PYTHON:
                 self.logger.debug(f"Found Python repository: {repo_name}")
 
                 try:
@@ -93,17 +102,11 @@ class CodebaseRepositoryConfigManager:
         Raises:
             ValueError: If repository path is invalid or contains no Python files
         """
-        # Check if path exists
-        if not os.path.exists(repo_path):
-            raise ValueError(f"Repository path does not exist: {repo_path}")
+        # Note: Path existence and read permissions are already validated by RepositoryManager
 
-        # Check if it's a directory
+        # Check if it's a directory (RepositoryManager doesn't check this)
         if not os.path.isdir(repo_path):
             raise ValueError(f"Repository path is not a directory: {repo_path}")
-
-        # Check read permissions
-        if not os.access(repo_path, os.R_OK):
-            raise ValueError(f"No read access to repository: {repo_path}")
 
         # Check if repository contains Python files
         if not self._has_python_files(repo_path):
@@ -148,7 +151,15 @@ class CodebaseRepositoryConfigManager:
         if not repo_config:
             return None
 
-        if repo_config.language != "python":
+        try:
+            repo_language = Language(repo_config.language)
+        except ValueError:
+            self.logger.warning(
+                f"Unsupported language '{repo_config.language}' for repository {name}"
+            )
+            return None
+
+        if repo_language != Language.PYTHON:
             return None
 
         try:

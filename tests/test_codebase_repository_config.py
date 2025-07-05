@@ -82,33 +82,38 @@ class TestCodebaseRepositoryConfig:
 class TestCodebaseRepositoryConfigManager:
     """Test the CodebaseRepositoryConfigManager class."""
 
-    def test_initialization(self):
+    def test_initialization(self, mock_repository_manager):
         """Test manager initialization."""
-        mock_repo_manager = Mock(spec=RepositoryManager)
-        manager = CodebaseRepositoryConfigManager(mock_repo_manager)
+        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
 
-        assert manager.repository_manager == mock_repo_manager
+        assert manager.repository_manager == mock_repository_manager
         assert manager.logger is not None
 
-    def test_get_python_repositories_empty(self):
+    def test_get_python_repositories_empty(self, mock_repository_manager):
         """Test getting Python repositories when none are configured."""
-        mock_repo_manager = Mock(spec=RepositoryManager)
-        mock_repo_manager.repositories = {}
-
-        manager = CodebaseRepositoryConfigManager(mock_repo_manager)
+        # MockRepositoryManager starts empty
+        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
         python_repos = manager.get_python_repositories()
 
         assert python_repos == []
 
-    def test_get_python_repositories_no_python(self):
+    def test_get_python_repositories_no_python(self, mock_repository_manager):
         """Test getting Python repositories when no Python repos are configured."""
-        mock_repo_config = Mock(spec=RepositoryConfig)
-        mock_repo_config.language = "swift"
+        # Create RepositoryConfig directly for testing
+        swift_repo_config = RepositoryConfig(
+            name="swift-repo",
+            path="/tmp/test-swift-repo",
+            description="Test Swift repository",
+            language="swift",
+            port=8082,
+            python_path="/usr/bin/python3",
+            github_owner="test",
+            github_repo="swift-repo",
+        )
 
-        mock_repo_manager = Mock(spec=RepositoryManager)
-        mock_repo_manager.repositories = {"swift-repo": mock_repo_config}
+        mock_repository_manager.add_repository("swift-repo", swift_repo_config)
 
-        manager = CodebaseRepositoryConfigManager(mock_repo_manager)
+        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
         python_repos = manager.get_python_repositories()
 
         assert python_repos == []
@@ -161,12 +166,13 @@ class TestCodebaseRepositoryConfigManager:
             # Should return empty list when validation fails
             assert python_repos == []
 
-    def test_validate_python_repository_non_existent_path(self):
+    def test_validate_python_repository_non_existent_path(
+        self, mock_repository_manager
+    ):
         """Test validation fails for non-existent path."""
-        mock_repo_manager = Mock(spec=RepositoryManager)
-        manager = CodebaseRepositoryConfigManager(mock_repo_manager)
+        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
 
-        with pytest.raises(ValueError, match="Repository path does not exist"):
+        with pytest.raises(ValueError, match="Repository path is not a directory"):
             manager._validate_python_repository("/non/existent/path")
 
     def test_validate_python_repository_file_not_directory(self):
