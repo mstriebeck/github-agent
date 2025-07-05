@@ -115,6 +115,12 @@ class PythonRepositoryIndexer(AbstractRepositoryIndexer):
         }
         self.max_file_size_bytes = int(max_file_size_mb * 1024 * 1024)
 
+        logger.info(
+            f"Initialized PythonRepositoryIndexer with max_file_size_mb={max_file_size_mb}"
+        )
+        logger.debug(f"Exclude patterns: {self.exclude_patterns}")
+        logger.debug(f"Max file size bytes: {self.max_file_size_bytes}")
+
     def index_repository(
         self, repository_path: str, repository_id: str
     ) -> IndexingResult:
@@ -141,11 +147,16 @@ class PythonRepositoryIndexer(AbstractRepositoryIndexer):
         logger.info(
             f"Starting indexing of repository: {repository_id} at {repository_path}"
         )
+        logger.debug(
+            f"Indexing configuration: max_file_size_mb={self.max_file_size_bytes / 1024 / 1024:.1f}, exclude_patterns={self.exclude_patterns}"
+        )
 
         # Clear existing data for this repository
+        logger.info(f"Clearing existing index data for repository: {repository_id}")
         self.clear_repository_index(repository_id)
 
         result = IndexingResult()
+        logger.debug("Initialized indexing result tracking")
 
         # Find all Python files
         python_files = self._find_python_files(repo_path)
@@ -153,6 +164,7 @@ class PythonRepositoryIndexer(AbstractRepositoryIndexer):
 
         # Process each Python file
         for python_file in python_files:
+            logger.info(f"Processing file: {python_file}")
             try:
                 self._process_file(python_file, repository_id, result)
             except (MemoryError, KeyboardInterrupt, SystemExit):
@@ -166,7 +178,13 @@ class PythonRepositoryIndexer(AbstractRepositoryIndexer):
                 logger.error(error_msg)
                 result.add_failed_file(str(python_file), error_msg)
 
-        logger.info(f"Indexing completed: {result}")
+        logger.info(f"Indexing completed for repository {repository_id}")
+        logger.info(
+            f"Summary: {len(result.processed_files)} files processed, {len(result.failed_files)} failed, {len(result.skipped_files)} skipped"
+        )
+        logger.info(f"Total symbols extracted: {result.total_symbols}")
+        logger.info(f"Success rate: {result.success_rate:.1%}")
+        logger.debug(f"Full indexing result: {result}")
         return result
 
     def clear_repository_index(self, repository_id: str) -> None:
@@ -187,13 +205,18 @@ class PythonRepositoryIndexer(AbstractRepositoryIndexer):
         Returns:
             List of Python file paths
         """
+        logger.debug(f"Starting file discovery in: {repo_path}")
         python_files = []
+        excluded_dirs = []
 
         for root, dirs, files in os.walk(repo_path):
             root_path = Path(root)
 
             # Skip excluded directories
+            original_dirs = dirs[:]
             dirs[:] = [d for d in dirs if not self._should_exclude_path(root_path / d)]
+            for excluded_dir in set(original_dirs) - set(dirs):
+                excluded_dirs.append(root_path / excluded_dir)
 
             # Process Python files
             for file in files:
@@ -203,7 +226,16 @@ class PythonRepositoryIndexer(AbstractRepositoryIndexer):
                 ):
                     python_files.append(file_path)
 
-        return sorted(python_files)
+        if excluded_dirs:
+            logger.debug(
+                f"Excluded {len(excluded_dirs)} directories: {excluded_dirs[:5]}{'...' if len(excluded_dirs) > 5 else ''}"
+            )
+
+        sorted_files = sorted(python_files)
+        logger.debug(
+            f"File discovery completed: found {len(sorted_files)} Python files"
+        )
+        return sorted_files
 
     def _is_python_file(self, file_path: Path) -> bool:
         """Check if a file is a Python file.

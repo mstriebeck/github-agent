@@ -460,13 +460,22 @@ def outer_function():
 
     def test_mock_extractor_functionality(self, mock_symbol_extractor):
         """Test mock extractor returns consistent results."""
+        from symbol_storage import Symbol
+
+        # Set up test data explicitly in the test
+        test_symbols = [
+            Symbol("test_function", "function", "test.py", 1, 0, "test-repo"),
+            Symbol("TestClass", "class", "test.py", 5, 0, "test-repo"),
+        ]
+        mock_symbol_extractor.symbols = test_symbols
+
         # Mock should return predefined symbols regardless of input
         result1 = mock_symbol_extractor.extract_from_file("any_file.py", "any_repo")
         result2 = mock_symbol_extractor.extract_from_source(
             "any source", "any_file.py", "any_repo"
         )
 
-        assert len(result1) == 2  # From fixture setup
+        assert len(result1) == 2
         assert len(result2) == 2
         assert result1[0].name == "test_function"
         assert result2[0].name == "test_function"

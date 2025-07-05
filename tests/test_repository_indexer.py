@@ -177,6 +177,13 @@ class TestPythonRepositoryIndexer:
 
     def test_index_repository_with_python_files(self, indexer):
         """Test indexing repository with Python files."""
+        # Set up mock to return 2 symbols per file
+        test_symbols = [
+            Symbol("test_func", "function", "test.py", 1, 0, "test-repo"),
+            Symbol("TestClass", "class", "test.py", 5, 0, "test-repo"),
+        ]
+        indexer.symbol_extractor.symbols = test_symbols
+
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
 
@@ -195,7 +202,9 @@ class TestPythonRepositoryIndexer:
             # Should process 3 Python files
             assert len(result.processed_files) == 3
             assert len(result.failed_files) == 0
-            assert result.total_symbols == 6  # 2 symbols per file from mock
+            assert (
+                result.total_symbols == 6
+            )  # 2 symbols per file from mock (3 files * 2 symbols)
             assert result.success_rate == 1.0
 
             # Verify files were processed
