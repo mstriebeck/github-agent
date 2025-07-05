@@ -2,15 +2,18 @@
 Pytest configuration and shared fixtures for shutdown system tests.
 """
 
+import os
 import tempfile
 import threading
 import time
 from pathlib import Path
 from typing import Any
-from unittest.mock import Mock
 
 import pytest
 
+from python_symbol_extractor import AbstractSymbolExtractor
+from repository_indexer import AbstractRepositoryIndexer, IndexingResult
+from symbol_storage import AbstractSymbolStorage, SQLiteSymbolStorage, Symbol
 from tests.test_fixtures import MockRepositoryManager
 
 
@@ -19,40 +22,6 @@ def temp_dir():
     """Create a temporary directory for test files."""
     with tempfile.TemporaryDirectory() as temp_dir:
         yield Path(temp_dir)
-
-
-@pytest.fixture
-def mock_logger():
-    """Create a mock logger with common assertions."""
-    logger = Mock()
-
-    # Add convenience methods for checking log calls
-    def assert_logged(level, message_contains):
-        """Assert that a message was logged at the specified level."""
-        method = getattr(logger, level.lower())
-        calls = method.call_args_list
-        for call in calls:
-            if message_contains in str(call):
-                return True
-        raise AssertionError(
-            f"Expected {level} log containing '{message_contains}' not found"
-        )
-
-    def assert_not_logged(level, message_contains):
-        """Assert that a message was NOT logged at the specified level."""
-        method = getattr(logger, level.lower())
-        calls = method.call_args_list
-        for call in calls:
-            if message_contains in str(call):
-                raise AssertionError(
-                    f"Unexpected {level} log containing '{message_contains}' found"
-                )
-        return True
-
-    logger.assert_logged = assert_logged
-    logger.assert_not_logged = assert_not_logged
-
-    return logger
 
 
 @pytest.fixture
@@ -67,36 +36,6 @@ def temp_health_file(temp_dir):
     health_file = temp_dir / "health.json"
     yield str(health_file)
     # Cleanup is automatic with temp_dir
-
-
-@pytest.fixture
-def isolated_logger():
-    """Create a real logger for tests that need actual logging."""
-    import logging
-
-    logger = logging.getLogger(f"test_{time.time()}")
-    logger.setLevel(logging.DEBUG)
-
-    # Clear any existing handlers
-    logger.handlers.clear()
-
-    # Add memory handler for test verification
-    log_records = []
-
-    class TestHandler(logging.Handler):
-        def emit(self, record):
-            log_records.append(record)
-
-    handler = TestHandler()
-    logger.addHandler(handler)
-
-    # Add log_records as an attribute for test access
-    logger.log_records = log_records  # type: ignore[attr-defined]
-
-    yield logger
-
-    # Cleanup
-    logger.handlers.clear()
 
 
 @pytest.fixture
@@ -180,8 +119,8 @@ def cleanup_threads():
 class MockTimeProvider:
     """Mock time provider for testing time-dependent behavior."""
 
-    def __init__(self, start_time=0.0):
-        self.current_time = start_time
+    def __init__(self):
+        self.current_time = 0.0
         self._lock = threading.Lock()
 
     def time(self):
@@ -241,35 +180,6 @@ def captured_signals():
     signal.signal = original_signal
 
 
-# Pytest configuration
-def pytest_configure(config):
-    """Configure pytest with custom markers."""
-    config.addinivalue_line(
-        "markers", "slow: marks tests as slow (may take several seconds)"
-    )
-    config.addinivalue_line("markers", "integration: marks tests as integration tests")
-    config.addinivalue_line("markers", "edge_case: marks tests as edge case tests")
-
-
-def pytest_collection_modifyitems(config, items):
-    """Automatically mark tests based on their location."""
-    for item in items:
-        # Mark integration tests
-        if "integration" in item.fspath.basename:
-            item.add_marker(pytest.mark.integration)
-
-        # Mark edge case tests
-        if "edge_case" in item.fspath.basename:
-            item.add_marker(pytest.mark.edge_case)
-
-        # Mark slow tests (those with certain patterns)
-        if any(
-            keyword in item.name.lower()
-            for keyword in ["concurrent", "timeout", "slow"]
-        ):
-            item.add_marker(pytest.mark.slow)
-
-
 # Custom assertions for shutdown testing
 def assert_clean_shutdown(shutdown_result, exit_code_manager, expected_exit_code=None):
     """Assert that a shutdown completed cleanly."""
@@ -309,3 +219,145 @@ def assert_shutdown_with_issues(
 # Add to pytest namespace for easy import
 pytest.assert_clean_shutdown = assert_clean_shutdown  # type: ignore[attr-defined]
 pytest.assert_shutdown_with_issues = assert_shutdown_with_issues  # type: ignore[attr-defined]
+
+
+# Mock classes for testing symbol extraction and indexing
+class MockSymbolStorage(AbstractSymbolStorage):
+    """Mock symbol storage for testing."""
+
+    def __init__(self):
+        """Initialize mock storage."""
+        self.symbols: list[Symbol] = []
+        self.deleted_repositories: list[str] = []
+
+    def create_schema(self) -> None:
+        """Create schema (no-op for mock)."""
+        pass
+
+    def insert_symbol(self, symbol: Symbol) -> None:
+        """Insert a symbol into mock storage."""
+        self.symbols.append(symbol)
+
+    def insert_symbols(self, symbols: list[Symbol]) -> None:
+        """Insert symbols into mock storage."""
+        self.symbols.extend(symbols)
+
+    def update_symbol(self, symbol: Symbol) -> None:
+        """Update symbol in mock storage (no-op for mock)."""
+        pass
+
+    def delete_symbol(self, symbol_id: int) -> None:
+        """Delete symbol by ID (no-op for mock)."""
+        pass
+
+    def delete_symbols_by_repository(self, repository_id: str) -> None:
+        """Delete symbols by repository in mock storage."""
+        self.deleted_repositories.append(repository_id)
+        self.symbols = [s for s in self.symbols if s.repository_id != repository_id]
+
+    def search_symbols(
+        self,
+        query: str,
+        repository_id: str | None = None,
+        symbol_kind: str | None = None,
+        limit: int = 50,
+    ) -> list[Symbol]:
+        """Search symbols in mock storage."""
+        results = self.symbols.copy()
+
+        if query:
+            results = [s for s in results if query.lower() in s.name.lower()]
+        if repository_id:
+            results = [s for s in results if s.repository_id == repository_id]
+        if symbol_kind:
+            results = [s for s in results if s.kind == symbol_kind]
+
+        return results[:limit]
+
+    def get_symbol_by_id(self, symbol_id: int) -> Symbol | None:
+        """Get symbol by ID in mock storage (not implemented for mock)."""
+        return None
+
+    def get_symbols_by_file(self, file_path: str, repository_id: str) -> list[Symbol]:
+        """Get symbols by file path in mock storage."""
+        return [
+            s
+            for s in self.symbols
+            if s.file_path == file_path and s.repository_id == repository_id
+        ]
+
+
+class MockSymbolExtractor(AbstractSymbolExtractor):
+    """Mock symbol extractor for testing."""
+
+    def __init__(self):
+        """Initialize empty mock extractor."""
+        self.symbols: list[Symbol] = []
+
+    def extract_from_file(self, file_path: str, repository_id: str) -> list[Symbol]:
+        """Return predefined symbols."""
+        return self.symbols.copy()
+
+    def extract_from_source(
+        self, source: str, file_path: str, repository_id: str
+    ) -> list[Symbol]:
+        """Return predefined symbols."""
+        return self.symbols.copy()
+
+
+class MockRepositoryIndexer(AbstractRepositoryIndexer):
+    """Mock repository indexer for testing."""
+
+    def __init__(self):
+        """Initialize empty mock indexer."""
+        self.predefined_result = IndexingResult()
+        self.last_repository_path = ""
+        self.last_repository_id = ""
+        self.clear_calls: list[str] = []
+
+    def index_repository(
+        self, repository_path: str, repository_id: str
+    ) -> IndexingResult:
+        """Return predefined result and track call parameters."""
+        self.last_repository_path = repository_path
+        self.last_repository_id = repository_id
+        return self.predefined_result
+
+    def clear_repository_index(self, repository_id: str) -> None:
+        """Track clear repository calls."""
+        self.clear_calls.append(repository_id)
+
+
+# Test fixtures for mock objects
+@pytest.fixture
+def mock_symbol_storage():
+    """Create a mock symbol storage for testing."""
+    return MockSymbolStorage()
+
+
+@pytest.fixture
+def mock_symbol_extractor():
+    """Create an empty mock symbol extractor."""
+    return MockSymbolExtractor()
+
+
+@pytest.fixture
+def mock_repository_indexer():
+    """Create a mock repository indexer for testing."""
+    return MockRepositoryIndexer()
+
+
+@pytest.fixture
+def temp_database():
+    """Create a temporary SQLite database for testing."""
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_file:
+        db_path = temp_file.name
+
+    storage = SQLiteSymbolStorage(db_path)
+    yield storage
+
+    # Cleanup
+    try:
+        os.unlink(db_path)
+    except OSError:
+        pass
