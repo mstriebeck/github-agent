@@ -8,7 +8,6 @@ import threading
 import time
 from pathlib import Path
 from typing import Any
-from unittest.mock import Mock
 
 import pytest
 
@@ -26,40 +25,6 @@ def temp_dir():
 
 
 @pytest.fixture
-def mock_logger():
-    """Create a mock logger with common assertions."""
-    logger = Mock()
-
-    # Add convenience methods for checking log calls
-    def assert_logged(level, message_contains):
-        """Assert that a message was logged at the specified level."""
-        method = getattr(logger, level.lower())
-        calls = method.call_args_list
-        for call in calls:
-            if message_contains in str(call):
-                return True
-        raise AssertionError(
-            f"Expected {level} log containing '{message_contains}' not found"
-        )
-
-    def assert_not_logged(level, message_contains):
-        """Assert that a message was NOT logged at the specified level."""
-        method = getattr(logger, level.lower())
-        calls = method.call_args_list
-        for call in calls:
-            if message_contains in str(call):
-                raise AssertionError(
-                    f"Unexpected {level} log containing '{message_contains}' found"
-                )
-        return True
-
-    logger.assert_logged = assert_logged
-    logger.assert_not_logged = assert_not_logged
-
-    return logger
-
-
-@pytest.fixture
 def mock_repository_manager():
     """Create a fresh mock repository manager for each test."""
     return MockRepositoryManager()
@@ -71,36 +36,6 @@ def temp_health_file(temp_dir):
     health_file = temp_dir / "health.json"
     yield str(health_file)
     # Cleanup is automatic with temp_dir
-
-
-@pytest.fixture
-def isolated_logger():
-    """Create a real logger for tests that need actual logging."""
-    import logging
-
-    logger = logging.getLogger(f"test_{time.time()}")
-    logger.setLevel(logging.DEBUG)
-
-    # Clear any existing handlers
-    logger.handlers.clear()
-
-    # Add memory handler for test verification
-    log_records = []
-
-    class TestHandler(logging.Handler):
-        def emit(self, record):
-            log_records.append(record)
-
-    handler = TestHandler()
-    logger.addHandler(handler)
-
-    # Add log_records as an attribute for test access
-    logger.log_records = log_records  # type: ignore[attr-defined]
-
-    yield logger
-
-    # Cleanup
-    logger.handlers.clear()
 
 
 @pytest.fixture
@@ -184,8 +119,8 @@ def cleanup_threads():
 class MockTimeProvider:
     """Mock time provider for testing time-dependent behavior."""
 
-    def __init__(self, start_time=0.0):
-        self.current_time = start_time
+    def __init__(self):
+        self.current_time = 0.0
         self._lock = threading.Lock()
 
     def time(self):
@@ -243,35 +178,6 @@ def captured_signals():
 
     # Restore
     signal.signal = original_signal
-
-
-# Pytest configuration
-def pytest_configure(config):
-    """Configure pytest with custom markers."""
-    config.addinivalue_line(
-        "markers", "slow: marks tests as slow (may take several seconds)"
-    )
-    config.addinivalue_line("markers", "integration: marks tests as integration tests")
-    config.addinivalue_line("markers", "edge_case: marks tests as edge case tests")
-
-
-def pytest_collection_modifyitems(config, items):
-    """Automatically mark tests based on their location."""
-    for item in items:
-        # Mark integration tests
-        if "integration" in item.fspath.basename:
-            item.add_marker(pytest.mark.integration)
-
-        # Mark edge case tests
-        if "edge_case" in item.fspath.basename:
-            item.add_marker(pytest.mark.edge_case)
-
-        # Mark slow tests (those with certain patterns)
-        if any(
-            keyword in item.name.lower()
-            for keyword in ["concurrent", "timeout", "slow"]
-        ):
-            item.add_marker(pytest.mark.slow)
 
 
 # Custom assertions for shutdown testing
@@ -384,9 +290,9 @@ class MockSymbolStorage(AbstractSymbolStorage):
 class MockSymbolExtractor(AbstractSymbolExtractor):
     """Mock symbol extractor for testing."""
 
-    def __init__(self, symbols: list[Symbol] | None = None):
-        """Initialize mock extractor with predefined symbols."""
-        self.symbols = symbols or []
+    def __init__(self):
+        """Initialize empty mock extractor."""
+        self.symbols: list[Symbol] = []
 
     def extract_from_file(self, file_path: str, repository_id: str) -> list[Symbol]:
         """Return predefined symbols."""
@@ -402,9 +308,9 @@ class MockSymbolExtractor(AbstractSymbolExtractor):
 class MockRepositoryIndexer(AbstractRepositoryIndexer):
     """Mock repository indexer for testing."""
 
-    def __init__(self, predefined_result: IndexingResult | None = None):
-        """Initialize mock indexer with optional predefined result."""
-        self.predefined_result = predefined_result or IndexingResult()
+    def __init__(self):
+        """Initialize empty mock indexer."""
+        self.predefined_result = IndexingResult()
         self.last_repository_path = ""
         self.last_repository_id = ""
         self.clear_calls: list[str] = []
