@@ -242,12 +242,11 @@ deploy_file "codebase_tools.py"
 deploy_file "repository_manager.py"
 deploy_file "repositories.json"
 deploy_file "requirements.txt"
-
-# Deploy shutdown system files
 deploy_file "shutdown_simple.py"
 deploy_file "exit_codes.py"
 deploy_file "health_monitor.py"
 deploy_file "system_utils.py"
+deploy_file "symbol_storage.py"
 
 # Update dependencies if requirements changed
 echo "Updating Python dependencies..."
