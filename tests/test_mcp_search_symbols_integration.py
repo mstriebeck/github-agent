@@ -263,7 +263,11 @@ class TestSearchSymbolsMCPIntegration:
         """Test handling of empty or whitespace-only queries"""
         # Test empty string
         result = await codebase_tools.execute_tool(
-            "search_symbols", repo_name="test-repo", repo_path="/test/path", query="", symbol_storage=mock_symbol_storage
+            "search_symbols",
+            repo_name="test-repo",
+            repo_path="/test/path",
+            query="",
+            symbol_storage=mock_symbol_storage,
         )
 
         data = json.loads(result)
@@ -273,7 +277,11 @@ class TestSearchSymbolsMCPIntegration:
 
         # Test whitespace-only query
         result = await codebase_tools.execute_tool(
-            "search_symbols", repo_name="test-repo", repo_path="/test/path", query="   ", symbol_storage=mock_symbol_storage
+            "search_symbols",
+            repo_name="test-repo",
+            repo_path="/test/path",
+            query="   ",
+            symbol_storage=mock_symbol_storage,
         )
 
         data = json.loads(result)
@@ -322,7 +330,11 @@ class TestSearchSymbolsMCPIntegration:
 
         # Test search with partial special characters
         result = await codebase_tools.execute_tool(
-            "search_symbols", repo_name="test-repo", repo_path="/test/path", query="_", symbol_storage=mock_symbol_storage
+            "search_symbols",
+            repo_name="test-repo",
+            repo_path="/test/path",
+            query="_",
+            symbol_storage=mock_symbol_storage,
         )
 
         data = json.loads(result)
