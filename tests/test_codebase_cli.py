@@ -13,7 +13,6 @@ import pytest
 
 from codebase_cli import OutputFormatter, execute_cli, execute_tool_command
 from repository_manager import AbstractRepositoryManager
-from symbol_storage import AbstractSymbolStorage, Symbol
 
 
 class MockRepositoryManager(AbstractRepositoryManager):
@@ -41,9 +40,6 @@ class MockRepositoryManager(AbstractRepositoryManager):
     def set_fail_load(self, should_fail: bool) -> None:
         """Set whether load_configuration should fail."""
         self._should_fail_load = should_fail
-
-
-
 
 
 class TestOutputFormatter:
@@ -223,7 +219,11 @@ class TestExecuteToolCommand:
             mock_execute.return_value = '{"result": "success", "data": "test"}'
 
             result = await execute_tool_command(
-                "git_get_current_branch", {}, "my-repo", "/path/to/repo", mock_symbol_storage
+                "git_get_current_branch",
+                {},
+                "my-repo",
+                "/path/to/repo",
+                mock_symbol_storage,
             )
 
             assert result == {"result": "success", "data": "test"}
