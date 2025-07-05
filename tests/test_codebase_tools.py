@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 import codebase_tools
+from symbol_storage import Symbol
 
 
 @pytest.fixture
@@ -65,13 +66,24 @@ class TestCodebaseTools:
         tools = codebase_tools.get_tools(repo_name, repo_path)
 
         assert isinstance(tools, list)
-        assert len(tools) == 1
+        assert len(tools) == 2
 
+        # Test health check tool
         health_check_tool = tools[0]
         assert health_check_tool["name"] == "codebase_health_check"
         assert repo_path in health_check_tool["description"]
         assert health_check_tool["inputSchema"]["type"] == "object"
         assert health_check_tool["inputSchema"]["required"] == []
+
+        # Test search symbols tool
+        search_symbols_tool = tools[1]
+        assert search_symbols_tool["name"] == "search_symbols"
+        assert repo_name in search_symbols_tool["description"]
+        assert search_symbols_tool["inputSchema"]["type"] == "object"
+        assert search_symbols_tool["inputSchema"]["required"] == ["query"]
+        assert "query" in search_symbols_tool["inputSchema"]["properties"]
+        assert "symbol_kind" in search_symbols_tool["inputSchema"]["properties"]
+        assert "limit" in search_symbols_tool["inputSchema"]["properties"]
 
     @pytest.mark.asyncio
     async def test_health_check_nonexistent_path(self):
@@ -192,6 +204,7 @@ class TestCodebaseTools:
         assert "Unknown tool: invalid_tool" in data["error"]
         assert "available_tools" in data
         assert "codebase_health_check" in data["available_tools"]
+        assert "search_symbols" in data["available_tools"]
 
     @pytest.mark.asyncio
     async def test_execute_tool_exception_handling(self):
@@ -301,6 +314,316 @@ class TestCodebaseTools:
         )
         data = json.loads(result)
         assert data["repo"] == long_name
+
+    @pytest.mark.asyncio
+    async def test_search_symbols_basic(self, mock_symbol_storage):
+        """Test basic search symbols functionality"""
+        # Setup mock storage with test symbols
+        mock_symbol_storage.insert_symbol(
+            Symbol(
+                "test_function",
+                "function",
+                "/test/file.py",
+                10,
+                0,
+                "test-repo",
+                "Test function",
+            )
+        )
+        mock_symbol_storage.insert_symbol(
+            Symbol(
+                "TestClass", "class", "/test/file.py", 20, 0, "test-repo", "Test class"
+            )
+        )
+
+        result = await codebase_tools.execute_search_symbols(
+            "test-repo", "/test/path", "test", symbol_storage=mock_symbol_storage
+        )
+
+        data = json.loads(result)
+        assert data["query"] == "test"
+        assert data["repository"] == "test-repo"
+        assert data["total_results"] == 2
+        assert len(data["symbols"]) == 2
+
+        # Verify symbol structure
+        symbol = data["symbols"][0]
+        assert "name" in symbol
+        assert "kind" in symbol
+        assert "file_path" in symbol
+        assert "line_number" in symbol
+        assert "column_number" in symbol
+        assert "docstring" in symbol
+        assert "repository_id" in symbol
+
+    @pytest.mark.asyncio
+    async def test_search_symbols_with_kind_filter(self, mock_symbol_storage):
+        """Test search symbols with symbol kind filtering"""
+        # Setup mock storage with mixed symbols
+        mock_symbol_storage.insert_symbol(
+            Symbol(
+                "test_function",
+                "function",
+                "/test/file.py",
+                10,
+                0,
+                "test-repo",
+                "Test function",
+            )
+        )
+        mock_symbol_storage.insert_symbol(
+            Symbol(
+                "TestClass", "class", "/test/file.py", 20, 0, "test-repo", "Test class"
+            )
+        )
+        mock_symbol_storage.insert_symbol(
+            Symbol(
+                "test_variable",
+                "variable",
+                "/test/file.py",
+                30,
+                0,
+                "test-repo",
+                "Test variable",
+            )
+        )
+
+        result = await codebase_tools.execute_search_symbols(
+            "test-repo",
+            "/test/path",
+            "test",
+            symbol_kind="function",
+            symbol_storage=mock_symbol_storage,
+        )
+
+        data = json.loads(result)
+        assert data["query"] == "test"
+        assert data["symbol_kind"] == "function"
+        assert data["total_results"] == 1
+        assert data["symbols"][0]["name"] == "test_function"
+        assert data["symbols"][0]["kind"] == "function"
+
+    @pytest.mark.asyncio
+    async def test_search_symbols_with_limit(self, mock_symbol_storage):
+        """Test search symbols with result limit"""
+        # Setup mock storage with multiple symbols
+        for i in range(10):
+            mock_symbol_storage.insert_symbol(
+                Symbol(
+                    f"test_function_{i}",
+                    "function",
+                    "/test/file.py",
+                    10 + i,
+                    0,
+                    "test-repo",
+                    f"Test function {i}",
+                )
+            )
+
+        result = await codebase_tools.execute_search_symbols(
+            "test-repo",
+            "/test/path",
+            "test",
+            limit=3,
+            symbol_storage=mock_symbol_storage,
+        )
+
+        data = json.loads(result)
+        assert data["limit"] == 3
+        assert data["total_results"] == 3
+        assert len(data["symbols"]) == 3
+
+    @pytest.mark.asyncio
+    async def test_search_symbols_no_results(self, mock_symbol_storage):
+        """Test search symbols when no results are found"""
+        result = await codebase_tools.execute_search_symbols(
+            "test-repo", "/test/path", "nonexistent", symbol_storage=mock_symbol_storage
+        )
+
+        data = json.loads(result)
+        assert data["query"] == "nonexistent"
+        assert data["total_results"] == 0
+        assert len(data["symbols"]) == 0
+
+    @pytest.mark.asyncio
+    async def test_search_symbols_invalid_limit(self):
+        """Test search symbols with invalid limit values"""
+        # Test limit too low
+        result = await codebase_tools.execute_search_symbols(
+            "test-repo", "/test/path", "test", limit=0
+        )
+
+        data = json.loads(result)
+        assert "error" in data
+        assert "Limit must be between 1 and 100" in data["error"]
+
+        # Test limit too high
+        result = await codebase_tools.execute_search_symbols(
+            "test-repo", "/test/path", "test", limit=101
+        )
+
+        data = json.loads(result)
+        assert "error" in data
+        assert "Limit must be between 1 and 100" in data["error"]
+
+    @pytest.mark.asyncio
+    async def test_search_symbols_default_parameters(self, mock_symbol_storage):
+        """Test search symbols with default parameters"""
+        mock_symbol_storage.insert_symbol(
+            Symbol(
+                "test_function",
+                "function",
+                "/test/file.py",
+                10,
+                0,
+                "test-repo",
+                "Test function",
+            )
+        )
+
+        result = await codebase_tools.execute_search_symbols(
+            "test-repo", "/test/path", "test", symbol_storage=mock_symbol_storage
+        )
+
+        data = json.loads(result)
+        assert data["symbol_kind"] is None
+        assert data["limit"] == 50
+
+    @pytest.mark.asyncio
+    async def test_search_symbols_exception_handling(self):
+        """Test search symbols exception handling"""
+        # Mock a storage error by using a symbol storage that doesn't exist
+        # This will cause an exception during search
+        result = await codebase_tools.execute_search_symbols(
+            "test-repo", "/test/path", "test"
+        )
+
+        # Should handle exception gracefully and return error response
+        data = json.loads(result)
+        assert "error" in data
+        assert "Symbol search failed" in data["error"]
+        assert data["query"] == "test"
+        assert data["repository"] == "test-repo"
+        assert data["total_results"] == 0
+        assert len(data["symbols"]) == 0
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_search_symbols(self, mock_symbol_storage):
+        """Test execute_tool with search_symbols"""
+        mock_symbol_storage.insert_symbol(
+            Symbol(
+                "test_function",
+                "function",
+                "/test/file.py",
+                10,
+                0,
+                "test-repo",
+                "Test function",
+            )
+        )
+
+        # Temporarily patch the execute_search_symbols function to use our mock
+        original_func = codebase_tools.execute_search_symbols
+
+        async def patched_execute_search_symbols(*args, **kwargs):
+            kwargs["symbol_storage"] = mock_symbol_storage
+            return await original_func(*args, **kwargs)
+
+        codebase_tools.TOOL_HANDLERS["search_symbols"] = patched_execute_search_symbols
+
+        try:
+            result = await codebase_tools.execute_tool(
+                "search_symbols",
+                repo_name="test-repo",
+                repo_path="/test/path",
+                query="test",
+                symbol_kind="function",
+                limit=10,
+            )
+
+            data = json.loads(result)
+            assert data["query"] == "test"
+            assert data["symbol_kind"] == "function"
+            assert data["limit"] == 10
+            assert data["repository"] == "test-repo"
+        finally:
+            # Restore original function
+            codebase_tools.TOOL_HANDLERS["search_symbols"] = original_func
+
+    @pytest.mark.asyncio
+    async def test_search_symbols_json_structure(self, mock_symbol_storage):
+        """Test that search symbols output follows expected JSON structure"""
+        mock_symbol_storage.insert_symbol(
+            Symbol(
+                "test_function",
+                "function",
+                "/test/file.py",
+                10,
+                5,
+                "test-repo",
+                "Test function docstring",
+            )
+        )
+
+        result = await codebase_tools.execute_search_symbols(
+            "test-repo",
+            "/test/path",
+            "test",
+            symbol_kind="function",
+            limit=25,
+            symbol_storage=mock_symbol_storage,
+        )
+
+        data = json.loads(result)
+
+        # Required top-level fields
+        required_fields = [
+            "query",
+            "symbol_kind",
+            "limit",
+            "repository",
+            "total_results",
+            "symbols",
+        ]
+        for field in required_fields:
+            assert field in data
+
+        # Check data types and values
+        assert isinstance(data["query"], str)
+        assert isinstance(data["symbol_kind"], str)
+        assert isinstance(data["limit"], int)
+        assert isinstance(data["repository"], str)
+        assert isinstance(data["total_results"], int)
+        assert isinstance(data["symbols"], list)
+
+        # Values should match input
+        assert data["query"] == "test"
+        assert data["symbol_kind"] == "function"
+        assert data["limit"] == 25
+        assert data["repository"] == "test-repo"
+
+        # Verify symbol structure
+        if data["symbols"]:
+            symbol = data["symbols"][0]
+            symbol_fields = [
+                "name",
+                "kind",
+                "file_path",
+                "line_number",
+                "column_number",
+                "docstring",
+                "repository_id",
+            ]
+            for field in symbol_fields:
+                assert field in symbol
+
+            assert symbol["name"] == "test_function"
+            assert symbol["kind"] == "function"
+            assert symbol["file_path"] == "/test/file.py"
+            assert symbol["line_number"] == 10
+            assert symbol["column_number"] == 5
+            assert symbol["docstring"] == "Test function docstring"
+            assert symbol["repository_id"] == "test-repo"
 
 
 if __name__ == "__main__":

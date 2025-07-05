@@ -32,7 +32,6 @@ from fastapi.responses import StreamingResponse
 
 import codebase_tools
 import github_tools
-from codebase_tools import execute_codebase_health_check
 from github_tools import (
     GitHubAPIContext,
     execute_find_pr_for_branch,
@@ -42,13 +41,15 @@ from github_tools import (
     execute_get_pr_comments,
     execute_github_check_ci_build_and_test_errors_not_local,
     execute_github_check_ci_lint_errors_not_local,
-    execute_post_pr_reply,
 )
 
 # Import shared functionality
 from repository_manager import RepositoryConfig, RepositoryManager
 from shutdown_simple import SimpleShutdownCoordinator
 from system_utils import MicrosecondFormatter, log_system_state
+
+# Tool modules for dynamic dispatch
+TOOL_MODULES = [github_tools, codebase_tools]
 
 
 class MCPWorker:
@@ -380,15 +381,12 @@ class MCPWorker:
                     return {"status": "ok"}
 
                 elif body.get("method") == "tools/list":
-                    # Return combined GitHub and codebase tools for this repository
-                    github_tool_list = github_tools.get_tools(
-                        self.repo_name, self.repo_path
-                    )
-                    codebase_tool_list = codebase_tools.get_tools(
-                        self.repo_name, self.repo_path
-                    )
-
-                    all_tools = github_tool_list + codebase_tool_list
+                    # Dynamically collect tools from all registered modules
+                    all_tools = []
+                    for module in TOOL_MODULES:
+                        all_tools.extend(
+                            module.get_tools(self.repo_name, self.repo_path)
+                        )
 
                     response = {
                         "jsonrpc": "2.0",
@@ -405,7 +403,9 @@ class MCPWorker:
 
                     self.logger.info(f"Tool call '{tool_name}' with args: {tool_args}")
 
-                    # Execute GitHub tools
+                    result = None
+
+                    # Handle special cases that need custom parameter processing
                     if tool_name == "github_find_pr_for_branch":
                         branch_name = tool_args.get("branch_name")
                         if not branch_name:
@@ -466,39 +466,6 @@ class MCPWorker:
                                 self.repo_name, pr_number
                             )
 
-                    elif tool_name == "github_post_pr_reply":
-                        comment_id = tool_args.get("comment_id")
-                        message = tool_args.get("message")
-                        if not comment_id or not message:
-                            result = json.dumps(
-                                {"error": "Both comment_id and message are required"}
-                            )
-                        else:
-                            result = await execute_post_pr_reply(
-                                self.repo_name, comment_id, message
-                            )
-
-                    elif tool_name == "git_get_current_branch":
-                        result = await execute_get_current_branch(self.repo_name)
-
-                    elif tool_name == "git_get_current_commit":
-                        result = await execute_get_current_commit(self.repo_name)
-
-                    elif tool_name == "github_check_ci_lint_errors_not_local":
-                        build_id = tool_args.get("build_id")
-                        self.logger.info(
-                            f"Calling lint errors with language: {self.language}"
-                        )
-                        result = await execute_github_check_ci_lint_errors_not_local(
-                            self.repo_name, self.language, build_id
-                        )
-
-                    elif tool_name == "github_check_ci_build_and_test_errors_not_local":
-                        build_id = tool_args.get("build_id")
-                        result = await execute_github_check_ci_build_and_test_errors_not_local(
-                            self.repo_name, self.language, build_id
-                        )
-
                     elif tool_name == "github_get_build_status":
                         commit_sha = tool_args.get("commit_sha")
                         if not commit_sha:
@@ -523,16 +490,72 @@ class MCPWorker:
                                 self.repo_name, commit_sha
                             )
 
-                    # Execute codebase tools
-                    elif tool_name == "codebase_health_check":
-                        result = await execute_codebase_health_check(
-                            self.repo_name, self.repo_path
+                    elif tool_name == "github_check_ci_lint_errors_not_local":
+                        build_id = tool_args.get("build_id")
+                        self.logger.info(
+                            f"Calling lint errors with language: {self.language}"
+                        )
+                        result = await execute_github_check_ci_lint_errors_not_local(
+                            self.repo_name, self.language, build_id
                         )
 
-                    else:
-                        result = json.dumps(
-                            {"error": f"Tool '{tool_name}' not implemented"}
+                    elif tool_name == "github_check_ci_build_and_test_errors_not_local":
+                        build_id = tool_args.get("build_id")
+                        result = await execute_github_check_ci_build_and_test_errors_not_local(
+                            self.repo_name, self.language, build_id
                         )
+
+                    elif tool_name == "search_symbols":
+                        query = tool_args.get("query")
+                        symbol_kind = tool_args.get("symbol_kind")
+                        limit = tool_args.get("limit", 50)
+
+                        if not query:
+                            result = json.dumps(
+                                {
+                                    "error": "Query parameter is required for symbol search"
+                                }
+                            )
+                        else:
+                            result = await codebase_tools.execute_tool(
+                                tool_name,
+                                repo_name=self.repo_name,
+                                repo_path=self.repo_path,
+                                query=query,
+                                symbol_kind=symbol_kind,
+                                limit=limit,
+                            )
+
+                    # If no special handling was needed, use module dispatch
+                    if result is None:
+                        # Try to find the tool in any of the registered modules
+                        for module in TOOL_MODULES:
+                            if tool_name in module.TOOL_HANDLERS:
+                                # Standard tools that just need repo_name and repo_path
+                                if tool_name in [
+                                    "git_get_current_branch",
+                                    "git_get_current_commit",
+                                    "github_post_pr_reply",
+                                    "codebase_health_check",
+                                ]:
+                                    result = await module.execute_tool(
+                                        tool_name,
+                                        repo_name=self.repo_name,
+                                        repo_path=self.repo_path,
+                                        **tool_args,
+                                    )
+                                else:
+                                    # For other tools, pass all args as-is
+                                    result = await module.execute_tool(
+                                        tool_name, **tool_args
+                                    )
+                                break
+
+                        # If tool not found in any module
+                        if result is None:
+                            result = json.dumps(
+                                {"error": f"Tool '{tool_name}' not implemented"}
+                            )
 
                     response = {
                         "jsonrpc": "2.0",

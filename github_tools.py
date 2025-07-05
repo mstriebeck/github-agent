@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import zipfile
+from collections.abc import Awaitable, Callable
 from typing import cast
 
 import requests
@@ -1959,3 +1960,42 @@ async def execute_github_check_ci_build_and_test_errors_not_local(
         return json.dumps(
             {"error": f"Failed to read build logs for {repo_name}: {e!s}"}
         )
+
+
+# Tool execution mapping
+TOOL_HANDLERS: dict[str, Callable[..., Awaitable[str]]] = {
+    "git_get_current_branch": execute_get_current_branch,
+    "git_get_current_commit": execute_get_current_commit,
+    "github_find_pr_for_branch": execute_find_pr_for_branch,
+    "github_get_pr_comments": execute_get_pr_comments,
+    "github_post_pr_reply": execute_post_pr_reply,
+    "github_get_build_status": execute_get_build_status,
+    "github_check_ci_lint_errors_not_local": execute_github_check_ci_lint_errors_not_local,
+    "github_check_ci_build_and_test_errors_not_local": execute_github_check_ci_build_and_test_errors_not_local,
+}
+
+
+async def execute_tool(tool_name: str, **kwargs) -> str:
+    """Execute a GitHub tool by name
+
+    Args:
+        tool_name: Name of the tool to execute
+        **kwargs: Tool-specific arguments
+
+    Returns:
+        Tool execution result as JSON string
+    """
+    if tool_name not in TOOL_HANDLERS:
+        return json.dumps(
+            {
+                "error": f"Unknown tool: {tool_name}",
+                "available_tools": list(TOOL_HANDLERS.keys()),
+            }
+        )
+
+    handler = TOOL_HANDLERS[tool_name]
+    try:
+        return await handler(**kwargs)
+    except Exception as e:
+        logger.exception(f"Error executing tool {tool_name}")
+        return json.dumps({"error": f"Tool execution failed: {e!s}", "tool": tool_name})
