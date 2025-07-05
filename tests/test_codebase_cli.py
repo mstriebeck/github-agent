@@ -13,6 +13,7 @@ import pytest
 
 from codebase_cli import OutputFormatter, execute_cli, execute_tool_command
 from repository_manager import AbstractRepositoryManager
+from symbol_storage import AbstractSymbolStorage, Symbol
 
 
 class MockRepositoryManager(AbstractRepositoryManager):
@@ -40,6 +41,69 @@ class MockRepositoryManager(AbstractRepositoryManager):
     def set_fail_load(self, should_fail: bool) -> None:
         """Set whether load_configuration should fail."""
         self._should_fail_load = should_fail
+
+
+class MockSymbolStorage(AbstractSymbolStorage):
+    """Mock symbol storage for testing."""
+
+    def __init__(self):
+        self._symbols: list[Symbol] = []
+
+    def create_schema(self) -> None:
+        """Mock schema creation."""
+        pass
+
+    def insert_symbol(self, symbol: Symbol) -> None:
+        """Insert a symbol into mock storage."""
+        self._symbols.append(symbol)
+
+    def insert_symbols(self, symbols: list[Symbol]) -> None:
+        """Insert multiple symbols into mock storage."""
+        self._symbols.extend(symbols)
+
+    def update_symbol(self, symbol: Symbol) -> None:
+        """Mock symbol update."""
+        pass
+
+    def delete_symbol(self, symbol_id: int) -> None:
+        """Mock symbol deletion."""
+        pass
+
+    def delete_symbols_by_repository(self, repository_id: str) -> None:
+        """Delete all symbols for a repository."""
+        self._symbols = [s for s in self._symbols if s.repository_id != repository_id]
+
+    def search_symbols(
+        self,
+        query: str,
+        repository_id: str | None = None,
+        symbol_kind: str | None = None,
+        limit: int = 50,
+    ) -> list[Symbol]:
+        """Search for symbols in mock storage."""
+        results = []
+        for symbol in self._symbols:
+            if repository_id and symbol.repository_id != repository_id:
+                continue
+            if symbol_kind and symbol.kind != symbol_kind:
+                continue
+            if query.lower() in symbol.name.lower():
+                results.append(symbol)
+            if len(results) >= limit:
+                break
+        return results
+
+    def get_symbol_by_id(self, symbol_id: int) -> Symbol | None:
+        """Mock get symbol by ID."""
+        return None
+
+    def get_symbols_by_file(self, file_path: str, repository_id: str) -> list[Symbol]:
+        """Get symbols from a file."""
+        return [
+            s
+            for s in self._symbols
+            if s.file_path == file_path and s.repository_id == repository_id
+        ]
 
 
 class TestOutputFormatter:
@@ -194,9 +258,14 @@ class TestExecuteToolCommand:
         """Test successful execution of a codebase tool."""
         with patch("codebase_tools.execute_tool") as mock_execute:
             mock_execute.return_value = '{"result": "success", "data": "test"}'
+            symbol_storage = MockSymbolStorage()
 
             result = await execute_tool_command(
-                "search_symbols", {"query": "test"}, "my-repo", "/path/to/repo"
+                "search_symbols",
+                {"query": "test"},
+                "my-repo",
+                "/path/to/repo",
+                symbol_storage,
             )
 
             assert result == {"result": "success", "data": "test"}
@@ -205,6 +274,7 @@ class TestExecuteToolCommand:
                 repo_name="my-repo",
                 repo_path="/path/to/repo",
                 query="test",
+                symbol_storage=symbol_storage,
             )
 
     @pytest.mark.asyncio
@@ -212,9 +282,10 @@ class TestExecuteToolCommand:
         """Test successful execution of a github tool."""
         with patch("github_tools.execute_tool") as mock_execute:
             mock_execute.return_value = '{"result": "success", "data": "test"}'
+            symbol_storage = MockSymbolStorage()
 
             result = await execute_tool_command(
-                "git_get_current_branch", {}, "my-repo", "/path/to/repo"
+                "git_get_current_branch", {}, "my-repo", "/path/to/repo", symbol_storage
             )
 
             assert result == {"result": "success", "data": "test"}
@@ -225,8 +296,9 @@ class TestExecuteToolCommand:
     @pytest.mark.asyncio
     async def test_execute_unknown_tool(self):
         """Test execution of an unknown tool."""
+        symbol_storage = MockSymbolStorage()
         result = await execute_tool_command(
-            "unknown_tool", {}, "my-repo", "/path/to/repo"
+            "unknown_tool", {}, "my-repo", "/path/to/repo", symbol_storage
         )
 
         assert "error" in result
@@ -238,9 +310,14 @@ class TestExecuteToolCommand:
         """Test handling of invalid JSON response."""
         with patch("codebase_tools.execute_tool") as mock_execute:
             mock_execute.return_value = "invalid json"
+            symbol_storage = MockSymbolStorage()
 
             result = await execute_tool_command(
-                "search_symbols", {"query": "test"}, "my-repo", "/path/to/repo"
+                "search_symbols",
+                {"query": "test"},
+                "my-repo",
+                "/path/to/repo",
+                symbol_storage,
             )
 
             assert "error" in result
@@ -251,9 +328,14 @@ class TestExecuteToolCommand:
         """Test handling of tool execution exception."""
         with patch("codebase_tools.execute_tool") as mock_execute:
             mock_execute.side_effect = Exception("Tool failed")
+            symbol_storage = MockSymbolStorage()
 
             result = await execute_tool_command(
-                "search_symbols", {"query": "test"}, "my-repo", "/path/to/repo"
+                "search_symbols",
+                {"query": "test"},
+                "my-repo",
+                "/path/to/repo",
+                symbol_storage,
             )
 
             assert "error" in result
@@ -280,8 +362,9 @@ class TestExecuteCLI:
         mock_repo_manager = MockRepositoryManager()
         mock_repo_manager.add_repository("test-repo", {"path": "/path/to/repo"})
 
-        # Setup formatter
+        # Setup formatter and symbol storage
         formatter = OutputFormatter()
+        symbol_storage = MockSymbolStorage()
 
         mock_result = {"symbols": [], "total_results": 0}
 
@@ -292,7 +375,9 @@ class TestExecuteCLI:
                     mock_execute.return_value = mock_result
 
                     # Execute CLI
-                    await execute_cli(args, mock_repo_manager, formatter)
+                    await execute_cli(
+                        args, mock_repo_manager, formatter, symbol_storage
+                    )
 
                     # Verify execution
                     mock_execute.assert_called_once_with(
@@ -300,6 +385,7 @@ class TestExecuteCLI:
                         {"query": "test_func", "limit": 50},
                         "test-repo",
                         "/path/to/repo",
+                        symbol_storage,
                     )
 
                     # Verify output
@@ -319,8 +405,9 @@ class TestExecuteCLI:
         mock_repo_manager = MockRepositoryManager()
         mock_repo_manager.add_repository("test-repo", {"path": "/path/to/repo"})
 
-        # Setup formatter
+        # Setup formatter and symbol storage
         formatter = OutputFormatter()
+        symbol_storage = MockSymbolStorage()
 
         mock_result = {
             "repo": "test-repo",
@@ -335,7 +422,9 @@ class TestExecuteCLI:
                     mock_execute.return_value = mock_result
 
                     # Execute CLI
-                    await execute_cli(args, mock_repo_manager, formatter)
+                    await execute_cli(
+                        args, mock_repo_manager, formatter, symbol_storage
+                    )
 
                     # Verify execution
                     mock_execute.assert_called_once_with(
@@ -343,6 +432,7 @@ class TestExecuteCLI:
                         {},
                         "test-repo",
                         "/path/to/repo",
+                        symbol_storage,
                     )
 
                     # Verify output
@@ -366,6 +456,7 @@ class TestExecuteCLI:
         # Setup empty mock repository manager
         mock_repo_manager = MockRepositoryManager()
         formatter = OutputFormatter()
+        symbol_storage = MockSymbolStorage()
 
         with patch("sys.exit") as mock_exit:
             with patch("builtins.print") as mock_print:
@@ -373,7 +464,9 @@ class TestExecuteCLI:
                 mock_exit.side_effect = SystemExit(1)
 
                 with pytest.raises(SystemExit):
-                    await execute_cli(args, mock_repo_manager, formatter)
+                    await execute_cli(
+                        args, mock_repo_manager, formatter, symbol_storage
+                    )
 
                 # Should exit with error
                 mock_exit.assert_called_with(1)
@@ -400,6 +493,7 @@ class TestExecuteCLI:
         mock_repo_manager = MockRepositoryManager()
         mock_repo_manager.add_repository("test-repo", {"path": "/path/to/repo"})
         formatter = OutputFormatter()
+        symbol_storage = MockSymbolStorage()
 
         mock_result = {"error": "Tool failed"}
 
@@ -410,7 +504,9 @@ class TestExecuteCLI:
                         # Setup mocks
                         mock_execute.return_value = mock_result
 
-                        await execute_cli(args, mock_repo_manager, formatter)
+                        await execute_cli(
+                            args, mock_repo_manager, formatter, symbol_storage
+                        )
 
                         # Should exit with error code
                         mock_exit.assert_called_once_with(1)

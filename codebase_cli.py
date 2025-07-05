@@ -20,6 +20,7 @@ from repository_manager import (
     RepositoryConfig,
     RepositoryManager,
 )
+from symbol_storage import AbstractSymbolStorage, SQLiteSymbolStorage
 
 
 class OutputFormatter:
@@ -142,12 +143,19 @@ class OutputFormatter:
 
 
 async def execute_tool_command(
-    tool_name: str, tool_args: dict[str, Any], repo_name: str, repo_path: str
+    tool_name: str,
+    tool_args: dict[str, Any],
+    repo_name: str,
+    repo_path: str,
+    symbol_storage: AbstractSymbolStorage,
 ) -> dict[str, Any]:
     """Execute a tool command and return the results."""
     try:
         # Route to appropriate tool module
         if tool_name in codebase_tools.TOOL_HANDLERS:
+            # Add symbol_storage to tool_args for search_symbols
+            if tool_name == "search_symbols":
+                tool_args["symbol_storage"] = symbol_storage
             result = await codebase_tools.execute_tool(
                 tool_name, repo_name=repo_name, repo_path=repo_path, **tool_args
             )
@@ -175,6 +183,7 @@ async def execute_cli(
     args: argparse.Namespace,
     repo_manager: AbstractRepositoryManager,
     formatter: OutputFormatter,
+    symbol_storage: AbstractSymbolStorage,
 ) -> None:
     """Execute CLI functionality with dependency injection.
 
@@ -182,6 +191,7 @@ async def execute_cli(
         args: Parsed command-line arguments
         repo_manager: Repository manager instance
         formatter: Output formatter instance
+        symbol_storage: Symbol storage instance for search operations (required)
     """
     # Load repository configuration
     try:
@@ -222,7 +232,9 @@ async def execute_cli(
 
     # Execute tool
     try:
-        result = await execute_tool_command(args.tool, tool_args, args.repo, repo_path)
+        result = await execute_tool_command(
+            args.tool, tool_args, args.repo, repo_path, symbol_storage
+        )
 
         # Format and display output
         if args.format == "json":
@@ -307,9 +319,10 @@ Examples:
     # Create production objects
     repo_manager = RepositoryManager()
     formatter = OutputFormatter()
+    symbol_storage = SQLiteSymbolStorage(":memory:")  # Default in-memory storage
 
     # Execute CLI functionality
-    asyncio.run(execute_cli(args, repo_manager, formatter))
+    asyncio.run(execute_cli(args, repo_manager, formatter, symbol_storage))
 
 
 if __name__ == "__main__":
