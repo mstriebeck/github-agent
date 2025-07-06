@@ -79,7 +79,9 @@ class TestSQLiteSymbolStorage:
         """Create a temporary SQLite storage for testing."""
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "test_symbols.db"
-            yield SQLiteSymbolStorage(db_path)
+            storage = SQLiteSymbolStorage(db_path)
+            yield storage
+            storage.close()
 
     @pytest.fixture
     def sample_symbols(self):
@@ -397,10 +399,9 @@ class TestSQLiteSymbolStorage:
         assert len(results) == 1
         assert results[0].repository_id == "repo2"
 
-    def test_abstract_base_class_interface(self):
+    def test_abstract_base_class_interface(self, storage):
         """Test that SQLiteSymbolStorage implements all abstract methods."""
         # This ensures we haven't missed any required methods
-        storage = SQLiteSymbolStorage(":memory:")
         assert isinstance(storage, AbstractSymbolStorage)
 
         # Check that all abstract methods are implemented

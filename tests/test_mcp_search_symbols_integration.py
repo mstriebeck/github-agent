@@ -136,7 +136,6 @@ class TestSearchSymbolsMCPIntegration:
         assert "symbols" in data
         assert "total_results" in data
 
-    @pytest.mark.skip(reason="Integration test needs further refinement")
     @pytest.mark.asyncio
     async def test_search_symbols_with_all_parameters(self, mock_symbol_storage):
         """Test search_symbols tool with all parameter combinations"""
@@ -188,8 +187,8 @@ class TestSearchSymbolsMCPIntegration:
         assert data["limit"] == 50  # Default limit
 
         # Test with query and symbol_kind filter
-        result = await codebase_tools.execute_tool(
-            "search_symbols",
+        result = await self.execute_search_with_mock(
+            mock_symbol_storage,
             repo_name="test-repo",
             repo_path="/test/path",
             query="search",
@@ -200,8 +199,8 @@ class TestSearchSymbolsMCPIntegration:
         assert data["symbol_kind"] == "function"
 
         # Test with query and custom limit
-        result = await codebase_tools.execute_tool(
-            "search_symbols",
+        result = await self.execute_search_with_mock(
+            mock_symbol_storage,
             repo_name="test-repo",
             repo_path="/test/path",
             query="search",
@@ -212,8 +211,8 @@ class TestSearchSymbolsMCPIntegration:
         assert data["limit"] == 10
 
         # Test with all parameters
-        result = await codebase_tools.execute_tool(
-            "search_symbols",
+        result = await self.execute_search_with_mock(
+            mock_symbol_storage,
             repo_name="test-repo",
             repo_path="/test/path",
             query="search",

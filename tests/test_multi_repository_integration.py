@@ -121,33 +121,6 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
         self.assertTrue(info_a["exists"], "Repository should exist")
         self.assertEqual(info_a["name"], "project-a")
 
-    @unittest.skip("Fallback mode removed in US001-2")
-    def test_single_repo_fallback_workflow(self):
-        """Test fallback to single repository mode"""
-        with patch.dict(os.environ, {"LOCAL_REPO_PATH": str(self.repo1_path)}):
-            # Use non-existent config file to trigger fallback
-            manager = RepositoryManager(config_path="/non/existent/config.json")
-
-            # Load configuration (should fall back to single repo)
-            result = manager.load_configuration()
-            self.assertTrue(result, "Should successfully load fallback configuration")
-
-            # Check single repo mode
-            self.assertFalse(
-                manager.is_multi_repo_mode(), "Should be in single-repo mode"
-            )
-
-            # List repositories (should have 'default')
-            repos = manager.list_repositories()
-            self.assertEqual(repos, ["default"], "Should have default repository")
-
-            # Get default repository
-            default_repo = manager.get_repository("default")
-            self.assertIsNotNone(default_repo, "Should find default repository")
-            assert default_repo
-            self.assertEqual(default_repo.path, str(self.repo1_path))
-            self.assertEqual(default_repo.name, "default")
-
     def test_url_routing_extraction(self):
         """Test URL routing repository name extraction"""
         test_cases = [

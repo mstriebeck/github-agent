@@ -555,6 +555,7 @@ class MCPMaster:
             return True
 
         # Phase 1: Request graceful shutdown via HTTP
+        shutdown_request_sent = False
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
@@ -563,6 +564,7 @@ class MCPMaster:
                 ) as response:
                     if response.status == 200:
                         logger.info(f"Sent shutdown request to {worker.repo_name}")
+                        shutdown_request_sent = True
                     else:
                         logger.warning(
                             f"Shutdown request failed for {worker.repo_name}: {response.status}"
@@ -572,20 +574,26 @@ class MCPMaster:
                 f"Failed to send shutdown request to {worker.repo_name}: {e}"
             )
 
-        # Phase 2: Wait for graceful exit (2 minutes)
-        logger.info(f"Waiting for {worker.repo_name} to shut down gracefully...")
-        start_time = time.time()
-        timeout = 120  # 2 minutes
+        # Skip graceful wait if shutdown request couldn't be sent
+        if not shutdown_request_sent:
+            logger.info(
+                f"Skipping graceful wait for {worker.repo_name} since shutdown request failed"
+            )
+        else:
+            # Phase 2: Wait for graceful exit (2 minutes)
+            logger.info(f"Waiting for {worker.repo_name} to shut down gracefully...")
+            start_time = time.time()
+            timeout = 120  # 2 minutes
 
-        while time.time() - start_time < timeout:
-            # Check if process has exited
-            if worker.process.poll() is not None:
-                # Verify port is released
-                if is_port_free(worker.port):
-                    logger.info(f"✓ Worker {worker.repo_name} shut down gracefully")
-                    worker.process = None
-                    return True
-            await asyncio.sleep(1)
+            while time.time() - start_time < timeout:
+                # Check if process has exited
+                if worker.process.poll() is not None:
+                    # Verify port is released
+                    if is_port_free(worker.port):
+                        logger.info(f"✓ Worker {worker.repo_name} shut down gracefully")
+                        worker.process = None
+                        return True
+                await asyncio.sleep(1)
 
         # Phase 3: SIGTERM escalation (only after timeout)
         logger.warning(

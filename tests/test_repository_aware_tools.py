@@ -266,26 +266,6 @@ class TestRepositoryAwareTools(unittest.TestCase):
         self.assertEqual(params[0], "repo_name")
         self.assertEqual(params[1], "branch_name")
 
-    @unittest.skip("Fallback mode removed in US001-2")
-    def test_backward_compatibility_single_repo_mode(self):
-        """Test that single repository fallback mode still works"""
-        with patch.dict(os.environ, {"LOCAL_REPO_PATH": str(self.repo1_path)}):
-            # Create manager with no config file (should fall back)
-            manager = RepositoryManager(config_path="/nonexistent/config.json")
-            result = manager.load_configuration()
-
-            self.assertTrue(result, "Should load fallback configuration")
-            self.assertFalse(
-                manager.is_multi_repo_mode(), "Should be in single-repo mode"
-            )
-            self.assertEqual(manager.list_repositories(), ["default"])
-
-            # Test that tools can work with default repository
-            default_repo = manager.get_repository("default")
-            self.assertIsNotNone(default_repo)
-            assert default_repo
-            self.assertEqual(default_repo.path, str(self.repo1_path))
-
 
 if __name__ == "__main__":
     unittest.main()
