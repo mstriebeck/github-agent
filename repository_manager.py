@@ -390,11 +390,14 @@ class RepositoryConfig:
         Returns:
             RepositoryConfig instance created from the arguments
         """
+        # Convert string language to enum
+        language_enum = Language(args.language)
+
         return cls.create_repository_config(
             name=args.repo_name,
             path=args.repo_path,
             description=args.description,
-            language=args.language,
+            language=language_enum,
             port=args.port,
             python_path=args.python_path,
         )
