@@ -106,7 +106,7 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
         """
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._connection = None
+        self._connection: sqlite3.Connection | None = None
         self.create_schema()
 
     def _get_connection(self) -> sqlite3.Connection:
