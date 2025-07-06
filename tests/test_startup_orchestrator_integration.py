@@ -11,8 +11,11 @@ from pathlib import Path
 import pytest
 
 from constants import Language
+from python_symbol_extractor import PythonSymbolExtractor
+from repository_indexer import PythonRepositoryIndexer
 from repository_manager import RepositoryConfig
-from startup_orchestrator import CodebaseStartupOrchestrator
+from startup_orchestrator import CodebaseStartupOrchestrator, IndexingStatusEnum
+from symbol_storage import SQLiteSymbolStorage
 
 
 class TestStartupOrchestratorIntegration:
@@ -85,7 +88,12 @@ class DataProcessor:
             """
             )
 
-            orchestrator = CodebaseStartupOrchestrator(data_dir)
+            # Create orchestrator with dependency injection
+            db_path = data_dir / "symbols.db"
+            storage = SQLiteSymbolStorage(str(db_path))
+            extractor = PythonSymbolExtractor()
+            indexer = PythonRepositoryIndexer(extractor, storage)
+            orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
 
             # Create repository config
             python_repo = RepositoryConfig(
@@ -116,7 +124,7 @@ class DataProcessor:
 
             status = result.indexing_statuses[0]
             assert status.repository_id == "test-repo"
-            assert status.status == "completed"
+            assert status.status == IndexingStatusEnum.COMPLETED
             assert status.result is not None
             assert (
                 status.result.total_symbols >= 6
@@ -176,7 +184,12 @@ class SwiftClass {
             """
             )
 
-            orchestrator = CodebaseStartupOrchestrator(data_dir)
+            # Create orchestrator with dependency injection
+            db_path = data_dir / "symbols.db"
+            storage = SQLiteSymbolStorage(str(db_path))
+            extractor = PythonSymbolExtractor()
+            indexer = PythonRepositoryIndexer(extractor, storage)
+            orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
 
             # Create repository configs
             python_repo1 = RepositoryConfig(
@@ -235,11 +248,11 @@ class SwiftClass {
                 if s.repository_id == "python-repo-2"
             )
 
-            assert status1.status == "completed"
+            assert status1.status == IndexingStatusEnum.COMPLETED
             assert status1.result is not None
             assert status1.result.total_symbols >= 2  # function1, Class1
 
-            assert status2.status == "completed"
+            assert status2.status == IndexingStatusEnum.COMPLETED
             assert status2.result is not None
             assert status2.result.total_symbols >= 2  # function2, Class2
 
@@ -260,7 +273,12 @@ def working_function():
             """
             )
 
-            orchestrator = CodebaseStartupOrchestrator(data_dir)
+            # Create orchestrator with dependency injection
+            db_path = data_dir / "symbols.db"
+            storage = SQLiteSymbolStorage(str(db_path))
+            extractor = PythonSymbolExtractor()
+            indexer = PythonRepositoryIndexer(extractor, storage)
+            orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
 
             # Create mixed repository configs
             good_repo = RepositoryConfig(
@@ -304,11 +322,11 @@ def working_function():
                 s for s in result.indexing_statuses if s.repository_id == "bad-repo"
             )
 
-            assert good_status.status == "completed"
+            assert good_status.status == IndexingStatusEnum.COMPLETED
             assert good_status.result is not None
             assert good_status.result.total_symbols >= 1
 
-            assert bad_status.status == "failed"
+            assert bad_status.status == IndexingStatusEnum.FAILED
             assert bad_status.error_message is not None
             assert (
                 "does not exist" in bad_status.error_message.lower()
@@ -345,7 +363,12 @@ class Class_{i}_{j}:
 
                 (repo_dir / f"module_{i}.py").write_text(content)
 
-            orchestrator = CodebaseStartupOrchestrator(data_dir)
+            # Create orchestrator with dependency injection
+            db_path = data_dir / "symbols.db"
+            storage = SQLiteSymbolStorage(str(db_path))
+            extractor = PythonSymbolExtractor()
+            indexer = PythonRepositoryIndexer(extractor, storage)
+            orchestrator = CodebaseStartupOrchestrator(storage, extractor, indexer)
 
             # Create repository config
             large_repo = RepositoryConfig(
@@ -371,7 +394,7 @@ class Class_{i}_{j}:
             assert len(result.indexing_statuses) == 1
 
             status = result.indexing_statuses[0]
-            assert status.status == "completed"
+            assert status.status == IndexingStatusEnum.COMPLETED
             assert status.result is not None
 
             # Should have processed all files
@@ -418,7 +441,11 @@ class PersistentClass:
             )
 
             # First run
-            orchestrator1 = CodebaseStartupOrchestrator(data_dir)
+            db_path = data_dir / "symbols.db"
+            storage1 = SQLiteSymbolStorage(str(db_path))
+            extractor1 = PythonSymbolExtractor()
+            indexer1 = PythonRepositoryIndexer(extractor1, storage1)
+            orchestrator1 = CodebaseStartupOrchestrator(storage1, extractor1, indexer1)
 
             repo_config = RepositoryConfig(
                 name="persistent-repo",
@@ -438,7 +465,10 @@ class PersistentClass:
             first_run_symbols = result1.indexing_statuses[0].result.total_symbols
 
             # Second run with new orchestrator instance
-            orchestrator2 = CodebaseStartupOrchestrator(data_dir)
+            storage2 = SQLiteSymbolStorage(str(db_path))
+            extractor2 = PythonSymbolExtractor()
+            indexer2 = PythonRepositoryIndexer(extractor2, storage2)
+            orchestrator2 = CodebaseStartupOrchestrator(storage2, extractor2, indexer2)
             result2 = await orchestrator2.initialize_repositories([repo_config])
 
             assert result2.indexed_repositories == 1

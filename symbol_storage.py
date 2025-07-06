@@ -370,3 +370,15 @@ class ProductionSymbolStorage(SQLiteSymbolStorage):
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         db_path = DATA_DIR / "symbols.db"
         super().__init__(str(db_path))
+
+    @classmethod
+    def create_with_schema(cls) -> "ProductionSymbolStorage":
+        """
+        Factory method to create ProductionSymbolStorage with initialized schema.
+
+        Returns:
+            ProductionSymbolStorage instance with schema already created
+        """
+        storage = cls()
+        storage.create_schema()
+        return storage

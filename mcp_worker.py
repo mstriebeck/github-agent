@@ -67,9 +67,10 @@ class MCPWorker:
     shutdown_coordinator: SimpleShutdownCoordinator
     symbol_storage: SQLiteSymbolStorage | None
 
-    def __init__(self, repository_config: RepositoryConfig):
+    def __init__(self, repository_config: RepositoryConfig, db_path: str | None = None):
         # Store repository configuration
         self.repo_config = repository_config
+        self.db_path = db_path
 
         # Initialize logger first
         self.logger = logging.getLogger(f"worker-{repository_config.name}")
@@ -206,11 +207,16 @@ class MCPWorker:
     def _initialize_symbol_storage(self) -> None:
         """Initialize symbol storage for codebase tools."""
         try:
-            # Use production storage class - connects to the database created by master
-            self.symbol_storage = ProductionSymbolStorage()
+            # Use the provided database path or default to production storage
+            if self.db_path:
+                self.symbol_storage = SQLiteSymbolStorage(self.db_path)
+            else:
+                self.symbol_storage = ProductionSymbolStorage()
             # Don't create schema here - master already did that
 
-            self.logger.info("Symbol storage connected to production database")
+            self.logger.info(
+                f"Symbol storage connected to database: {getattr(self.symbol_storage, 'db_path', 'production')}"
+            )
 
         except Exception as e:
             self.logger.error(f"Failed to initialize symbol storage: {e}")

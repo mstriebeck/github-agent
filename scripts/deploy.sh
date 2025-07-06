@@ -247,6 +247,9 @@ deploy_file "exit_codes.py"
 deploy_file "health_monitor.py"
 deploy_file "system_utils.py"
 deploy_file "symbol_storage.py"
+deploy_file "python_symbol_extractor.py"
+deploy_file "repository_indexer.py"
+deploy_file "startup_orchestrator.py"
 
 # Update dependencies if requirements changed
 echo "Updating Python dependencies..."

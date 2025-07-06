@@ -63,10 +63,8 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
         """Test that a valid configuration loads successfully"""
         self._write_config_file(self.valid_config)
 
-        master = MCPMaster(config_path=str(self.config_file))
-        result = master.load_configuration()
+        master = MCPMaster.create_for_testing(config_path=str(self.config_file))
 
-        self.assertTrue(result, "Valid configuration should load successfully")
         self.assertEqual(len(master.workers), 1)
         self.assertIn("test-repo", master.workers)
 
