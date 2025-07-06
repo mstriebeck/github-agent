@@ -27,7 +27,9 @@ from typing import Any
 
 import aiohttp
 
-from constants import LOGS_DIR, Language
+from constants import DATA_DIR, LOGS_DIR, Language
+from python_symbol_extractor import PythonSymbolExtractor
+from repository_indexer import PythonRepositoryIndexer
 from repository_manager import RepositoryConfig, RepositoryManager
 
 # Import shutdown coordination components
@@ -36,6 +38,7 @@ from shutdown_simple import (
     SimpleShutdownCoordinator,
 )
 from startup_orchestrator import CodebaseStartupOrchestrator
+from symbol_storage import SQLiteSymbolStorage
 from system_utils import MicrosecondFormatter, log_system_state
 
 # Configure logging with enhanced microsecond precision
@@ -190,8 +193,9 @@ class MCPMaster:
         # Initialize repository manager with comprehensive validation
         self.repository_manager = RepositoryManager(config_path)
 
-        # Initialize startup orchestrator for codebase indexing
-        self.startup_orchestrator = CodebaseStartupOrchestrator()
+        # Initialize startup orchestrator components (will be created in load_configuration)
+        self.startup_orchestrator: CodebaseStartupOrchestrator | None = None
+        self.symbol_storage: SQLiteSymbolStorage | None = None
 
         # Initialize simple shutdown coordination
         self.shutdown_coordinator = SimpleShutdownCoordinator(logger)
@@ -224,6 +228,38 @@ class MCPMaster:
             logger.info(
                 f"✅ Successfully loaded and validated {len(self.workers)} repositories"
             )
+
+            # Create startup orchestrator with dependency injection
+            try:
+                logger.info("Creating startup orchestrator components...")
+
+                # Create database directory
+                DATA_DIR.mkdir(parents=True, exist_ok=True)
+                db_path = DATA_DIR / "symbols.db"
+
+                # Create components
+                symbol_storage = SQLiteSymbolStorage(str(db_path))
+                symbol_extractor = PythonSymbolExtractor()
+                indexer = PythonRepositoryIndexer(symbol_extractor, symbol_storage)
+
+                # Create orchestrator with dependency injection
+                self.startup_orchestrator = CodebaseStartupOrchestrator(
+                    symbol_storage=symbol_storage,
+                    symbol_extractor=symbol_extractor,
+                    indexer=indexer,
+                )
+
+                logger.info("✅ Startup orchestrator created successfully")
+
+                # Store the symbol storage for cleanup later
+                self.symbol_storage = symbol_storage
+
+            except Exception as e:
+                logger.error(f"❌ Failed to create startup orchestrator: {e}")
+                # Don't fail completely - continue without orchestrator
+                self.startup_orchestrator = None
+                self.symbol_storage = None
+
             return True
 
         except Exception as e:
@@ -232,6 +268,12 @@ class MCPMaster:
 
     async def initialize_repository_indexes(self) -> None:
         """Initialize repository indexes using the startup orchestrator."""
+        if self.startup_orchestrator is None:
+            logger.warning(
+                "No startup orchestrator available - skipping repository indexing"
+            )
+            return
+
         try:
             logger.info("Initializing repository indexes...")
 
@@ -590,6 +632,17 @@ class MCPMaster:
         logger.info(
             f"Worker shutdown complete: {success_count}/{total_count} successful"
         )
+
+        # Clean up symbol storage after all workers are shutdown
+        if self.symbol_storage:
+            try:
+                logger.info("Closing master symbol storage...")
+                self.symbol_storage.close()
+                self.symbol_storage = None
+                logger.info("✓ Symbol storage closed successfully")
+            except Exception as e:
+                logger.error(f"Error closing symbol storage: {e}")
+
         return success_count == total_count
 
     async def shutdown_worker(self, worker: WorkerProcess) -> bool:

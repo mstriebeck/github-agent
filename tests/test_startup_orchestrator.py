@@ -12,12 +12,15 @@ from pathlib import Path
 import pytest
 
 from constants import Language
+from python_symbol_extractor import PythonSymbolExtractor
 from repository_manager import RepositoryConfig
 from startup_orchestrator import (
     CodebaseStartupOrchestrator,
     IndexingStatus,
+    IndexingStatusEnum,
     StartupResult,
 )
+from symbol_storage import SQLiteSymbolStorage
 
 
 class TestIndexingStatus:
@@ -28,12 +31,12 @@ class TestIndexingStatus:
         status = IndexingStatus(
             repository_id="test-repo",
             repository_path="/path/to/repo",
-            status="pending",
+            status=IndexingStatusEnum.PENDING,
         )
 
         assert status.repository_id == "test-repo"
         assert status.repository_path == "/path/to/repo"
-        assert status.status == "pending"
+        assert status.status == IndexingStatusEnum.PENDING
         assert status.start_time is None
         assert status.end_time is None
         assert status.result is None
@@ -44,7 +47,7 @@ class TestIndexingStatus:
         status = IndexingStatus(
             repository_id="test-repo",
             repository_path="/path/to/repo",
-            status="pending",
+            status=IndexingStatusEnum.PENDING,
         )
 
         # No start time
@@ -67,8 +70,8 @@ class TestStartupResult:
     def test_startup_result_initialization(self):
         """Test StartupResult initialization."""
         statuses = [
-            IndexingStatus("repo1", "/path1", "completed"),
-            IndexingStatus("repo2", "/path2", "failed"),
+            IndexingStatus("repo1", "/path1", IndexingStatusEnum.COMPLETED),
+            IndexingStatus("repo2", "/path2", IndexingStatusEnum.FAILED),
         ]
 
         result = StartupResult(
@@ -112,24 +115,34 @@ class TestCodebaseStartupOrchestrator:
     def test_initialization(self):
         """Test orchestrator initialization."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            data_dir = Path(temp_dir)
-            orchestrator = CodebaseStartupOrchestrator(data_dir)
+            db_path = Path(temp_dir) / "test.db"
+            storage = SQLiteSymbolStorage(str(db_path))
+            extractor = PythonSymbolExtractor()
 
-            assert orchestrator.data_dir == data_dir
-            assert orchestrator.db_path == data_dir / "symbols.db"
-            assert data_dir.exists()
+            orchestrator = CodebaseStartupOrchestrator(storage, extractor)
+
+            assert orchestrator.symbol_storage == storage
+            assert orchestrator.symbol_extractor == extractor
+            assert orchestrator.indexer is not None
+
+            storage.close()
 
     @pytest.mark.asyncio
     async def test_initialize_database(self):
         """Test database initialization."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            data_dir = Path(temp_dir)
-            orchestrator = CodebaseStartupOrchestrator(data_dir)
+            db_path = Path(temp_dir) / "test.db"
+            storage = SQLiteSymbolStorage(str(db_path))
+            extractor = PythonSymbolExtractor()
+
+            orchestrator = CodebaseStartupOrchestrator(storage, extractor)
 
             await orchestrator.initialize_database()
 
             # Database file should exist
-            assert orchestrator.db_path.exists()
+            assert db_path.exists()
+
+            storage.close()
 
     @pytest.mark.asyncio
     async def test_initialize_database_failure(self):

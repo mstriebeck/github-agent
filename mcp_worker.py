@@ -178,7 +178,7 @@ class MCPWorker:
         self.server: uvicorn.Server | None = None
         self.shutdown_event = asyncio.Event()
 
-        # Initialize symbol storage for codebase tools
+        # Initialize symbol storage for Python repositories
         self.symbol_storage = None
         if self.language == Language.PYTHON:
             self.logger.debug("Initializing symbol storage for Python repository...")
@@ -206,14 +206,13 @@ class MCPWorker:
     def _initialize_symbol_storage(self) -> None:
         """Initialize symbol storage for codebase tools."""
         try:
-            # Create symbol storage
+            # Create symbol storage - connects to the database created by master
             db_path = DATA_DIR / "symbols.db"
-            DATA_DIR.mkdir(parents=True, exist_ok=True)
 
             self.symbol_storage = SQLiteSymbolStorage(str(db_path))
-            self.symbol_storage.create_schema()
+            # Don't create schema here - master already did that
 
-            self.logger.info(f"Symbol storage initialized at {db_path}")
+            self.logger.info(f"Symbol storage connected to {db_path}")
 
         except Exception as e:
             self.logger.error(f"Failed to initialize symbol storage: {e}")
@@ -737,7 +736,7 @@ class MCPWorker:
 
             # 4. Clean up any resources
             if self.symbol_storage:
-                self.logger.info("Closing symbol storage...")
+                self.logger.info("Closing worker symbol storage connection...")
                 self.symbol_storage.close()
                 self.symbol_storage = None
 

@@ -11,15 +11,28 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from pathlib import Path
+from enum import Enum
 
-from constants import DATA_DIR, Language
-from python_symbol_extractor import PythonSymbolExtractor
-from repository_indexer import IndexingResult, PythonRepositoryIndexer
+from constants import Language
+from python_symbol_extractor import AbstractSymbolExtractor
+from repository_indexer import (
+    AbstractRepositoryIndexer,
+    IndexingResult,
+    PythonRepositoryIndexer,
+)
 from repository_manager import RepositoryConfig
-from symbol_storage import SQLiteSymbolStorage
+from symbol_storage import AbstractSymbolStorage
 
 logger = logging.getLogger(__name__)
+
+
+class IndexingStatusEnum(Enum):
+    """Enumeration for indexing status values."""
+
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
 
 
 @dataclass
@@ -28,7 +41,7 @@ class IndexingStatus:
 
     repository_id: str
     repository_path: str
-    status: str  # "pending", "in_progress", "completed", "failed"
+    status: IndexingStatusEnum
     start_time: float | None = None
     end_time: float | None = None
     result: IndexingResult | None = None
@@ -82,32 +95,39 @@ class AbstractStartupOrchestrator(ABC):
 class CodebaseStartupOrchestrator(AbstractStartupOrchestrator):
     """Startup orchestrator for the codebase server."""
 
-    def __init__(self, data_dir: Path = DATA_DIR):
+    def __init__(
+        self,
+        symbol_storage: AbstractSymbolStorage,
+        symbol_extractor: AbstractSymbolExtractor,
+        indexer: AbstractRepositoryIndexer | None = None,
+    ):
         """Initialize the startup orchestrator.
 
         Args:
-            data_dir: Directory for storing data files
+            symbol_storage: Symbol storage backend for database operations
+            symbol_extractor: Symbol extractor for parsing code files
+            indexer: Repository indexer (optional, will create PythonRepositoryIndexer if not provided)
         """
-        self.data_dir = data_dir
-        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.symbol_storage = symbol_storage
+        self.symbol_extractor = symbol_extractor
+        self.indexer = indexer or PythonRepositoryIndexer(
+            symbol_extractor, symbol_storage
+        )
 
-        # Initialize database path
-        self.db_path = self.data_dir / "symbols.db"
-
-        logger.info(f"Initialized startup orchestrator with data dir: {self.data_dir}")
-        logger.info(f"Database path: {self.db_path}")
+        logger.info(
+            f"Initialized startup orchestrator with storage: {type(symbol_storage).__name__}"
+        )
+        logger.info(f"Using extractor: {type(symbol_extractor).__name__}")
+        logger.info(f"Using indexer: {type(self.indexer).__name__}")
 
     async def initialize_database(self) -> None:
         """Initialize the symbol database."""
         logger.info("Initializing symbol database")
 
         try:
-            # Create symbol storage and initialize schema
-            storage = SQLiteSymbolStorage(str(self.db_path))
-            storage.create_schema()
-            storage.close()
-
-            logger.info(f"Database initialized successfully at {self.db_path}")
+            # Initialize schema using the injected storage
+            self.symbol_storage.create_schema()
+            logger.info("Database schema initialized successfully")
 
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
@@ -145,7 +165,9 @@ class CodebaseStartupOrchestrator(AbstractStartupOrchestrator):
 
         for repo in python_repos:
             status = IndexingStatus(
-                repository_id=repo.name, repository_path=repo.path, status="pending"
+                repository_id=repo.name,
+                repository_path=repo.path,
+                status=IndexingStatusEnum.PENDING,
             )
             indexing_statuses.append(status)
 
@@ -160,14 +182,14 @@ class CodebaseStartupOrchestrator(AbstractStartupOrchestrator):
                 )
                 await self._index_repository(repo_config, status)
 
-                if status.status == "completed":
+                if status.status == IndexingStatusEnum.COMPLETED:
                     indexed_count += 1
                 else:
                     failed_count += 1
 
             except Exception as e:
                 logger.error(f"Unexpected error indexing {status.repository_id}: {e}")
-                status.status = "failed"
+                status.status = IndexingStatusEnum.FAILED
                 status.error_message = str(e)
                 status.end_time = time.time()
                 failed_count += 1
@@ -205,30 +227,22 @@ class CodebaseStartupOrchestrator(AbstractStartupOrchestrator):
         """
         logger.info(f"Starting indexing for repository: {repo_config.name}")
 
-        status.status = "in_progress"
+        status.status = IndexingStatusEnum.IN_PROGRESS
         status.start_time = time.time()
 
         try:
-            # Create storage and indexer
-            storage = SQLiteSymbolStorage(str(self.db_path))
-            extractor = PythonSymbolExtractor()
-            indexer = PythonRepositoryIndexer(extractor, storage)
-
             # Clear existing data for this repository
             logger.debug(f"Clearing existing index for {repo_config.name}")
-            indexer.clear_repository_index(repo_config.name)
+            self.indexer.clear_repository_index(repo_config.name)
 
             # Index the repository
             logger.debug(f"Indexing repository at {repo_config.path}")
-            result = indexer.index_repository(repo_config.path, repo_config.name)
+            result = self.indexer.index_repository(repo_config.path, repo_config.name)
 
             # Update status
-            status.status = "completed"
+            status.status = IndexingStatusEnum.COMPLETED
             status.end_time = time.time()
             status.result = result
-
-            # Close storage
-            storage.close()
 
             logger.info(
                 f"Completed indexing {repo_config.name}: "
@@ -239,16 +253,9 @@ class CodebaseStartupOrchestrator(AbstractStartupOrchestrator):
 
         except Exception as e:
             logger.error(f"Failed to index repository {repo_config.name}: {e}")
-            status.status = "failed"
+            status.status = IndexingStatusEnum.FAILED
             status.end_time = time.time()
             status.error_message = str(e)
-
-            # Still close storage if it was created
-            try:
-                if "storage" in locals():
-                    storage.close()
-            except Exception:
-                pass
 
     def get_indexing_status(
         self, repository_id: str, statuses: list[IndexingStatus]
