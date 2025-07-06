@@ -106,72 +106,80 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
         """
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._connection = None
         self.create_schema()
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get a database connection."""
-        conn = sqlite3.connect(str(self.db_path))
-        conn.row_factory = sqlite3.Row
-        return conn
+        if self._connection is None:
+            self._connection = sqlite3.connect(str(self.db_path))
+            self._connection.row_factory = sqlite3.Row
+        return self._connection
+
+    def close(self) -> None:
+        """Close any persistent database connections."""
+        if self._connection:
+            self._connection.close()
+            self._connection = None
 
     def create_schema(self) -> None:
         """Create the database schema for symbol storage."""
-        with self._get_connection() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS symbols (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    kind TEXT NOT NULL,
-                    file_path TEXT NOT NULL,
-                    line_number INTEGER NOT NULL,
-                    column_number INTEGER NOT NULL,
-                    repository_id TEXT NOT NULL,
-                    docstring TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+        conn = self._get_connection()
+        conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS symbols (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                line_number INTEGER NOT NULL,
+                column_number INTEGER NOT NULL,
+                repository_id TEXT NOT NULL,
+                docstring TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
+        """
+        )
 
-            # Create indexes for common query patterns
-            conn.execute(
-                """
-            CREATE INDEX IF NOT EXISTS idx_symbols_name
-            ON symbols(name)
+        # Create indexes for common query patterns
+        conn.execute(
             """
-            )
+        CREATE INDEX IF NOT EXISTS idx_symbols_name
+        ON symbols(name)
+        """
+        )
 
-            conn.execute(
-                """
-            CREATE INDEX IF NOT EXISTS idx_symbols_repository_id
-            ON symbols(repository_id)
+        conn.execute(
             """
-            )
+        CREATE INDEX IF NOT EXISTS idx_symbols_repository_id
+        ON symbols(repository_id)
+        """
+        )
 
-            conn.execute(
-                """
-            CREATE INDEX IF NOT EXISTS idx_symbols_kind
-            ON symbols(kind)
+        conn.execute(
             """
-            )
+        CREATE INDEX IF NOT EXISTS idx_symbols_kind
+        ON symbols(kind)
+        """
+        )
 
-            conn.execute(
-                """
-            CREATE INDEX IF NOT EXISTS idx_symbols_file_path
-            ON symbols(file_path, repository_id)
+        conn.execute(
             """
-            )
+        CREATE INDEX IF NOT EXISTS idx_symbols_file_path
+        ON symbols(file_path, repository_id)
+        """
+        )
 
-            conn.execute(
-                """
-            CREATE INDEX IF NOT EXISTS idx_symbols_name_repo
-            ON symbols(name, repository_id)
+        conn.execute(
             """
-            )
+        CREATE INDEX IF NOT EXISTS idx_symbols_name_repo
+        ON symbols(name, repository_id)
+        """
+        )
 
-            conn.commit()
-            logger.info(f"Created symbol storage schema in {self.db_path}")
+        conn.commit()
+        logger.info(f"Created symbol storage schema in {self.db_path}")
 
     def insert_symbol(self, symbol: Symbol) -> None:
         """Insert a symbol into the database."""

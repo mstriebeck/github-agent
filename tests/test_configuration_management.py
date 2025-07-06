@@ -63,195 +63,17 @@ class TestRepositoryCLI(unittest.TestCase):
         except Exception as e:
             return 1, "", str(e)
 
-    @unittest.skip("CLI removed in US001-2")
-    def test_cli_init_example(self):
-        """Test CLI init with example configuration"""
-        returncode, stdout, stderr = self._run_cli_command(["init", "--example"])
 
-        self.assertEqual(returncode, 0, f"CLI failed: {stderr}")
-        self.assertIn("Created example configuration", stdout)
-        self.assertTrue(self.config_file.exists())
 
-        # Verify configuration content
-        with open(self.config_file) as f:
-            config = json.load(f)
 
-        self.assertIn("repositories", config)
-        self.assertIsInstance(config["repositories"], dict)
 
-    @unittest.skip("CLI removed in US001-2")
-    def test_cli_add_repository(self):
-        """Test CLI add repository command"""
-        # Initialize empty config first
-        returncode, _, _ = self._run_cli_command(["init"])
-        self.assertEqual(returncode, 0)
 
-        # Add repository
-        returncode, stdout, stderr = self._run_cli_command(
-            [
-                "add",
-                "test-repo",
-                str(self.repo1_path),
-                "--description",
-                "Test repository",
-            ]
-        )
 
-        self.assertEqual(returncode, 0, f"CLI failed: {stderr}")
-        self.assertIn("Added repository 'test-repo'", stdout)
 
-        # Verify configuration was updated
-        with open(self.config_file) as f:
-            config = json.load(f)
 
-        self.assertIn("test-repo", config["repositories"])
 
-        # Handle macOS symlink resolution where /var may become /private/var
-        expected_path = str(self.repo1_path)
-        actual_path = config["repositories"]["test-repo"]["path"]
 
-        # Check if paths match either as-is or with /private prefix resolved
-        paths_match = (
-            actual_path == expected_path
-            or actual_path == expected_path.replace("/var/", "/private/var/")
-            or expected_path == actual_path.replace("/var/", "/private/var/")
-        )
 
-        self.assertTrue(
-            paths_match,
-            f"Path mismatch: expected '{expected_path}', got '{actual_path}'",
-        )
-
-        self.assertEqual(
-            config["repositories"]["test-repo"]["description"], "Test repository"
-        )
-
-    @unittest.skip("CLI removed in US001-2")
-    def test_cli_list_repositories(self):
-        """Test CLI list repositories command"""
-        # Create test configuration
-        config = {
-            "repositories": {
-                "repo1": {
-                    "path": str(self.repo1_path),
-                    "description": "Repository 1",
-                    "language": "python",
-                    "port": 8081,
-                    "python_path": "/usr/bin/python3",
-                    "github_owner": "test-owner",
-                    "github_repo": "repo1",
-                },
-                "repo2": {
-                    "path": str(self.repo2_path),
-                    "description": "Repository 2",
-                    "language": "swift",
-                    "port": 8082,
-                    "python_path": "/usr/bin/python3",
-                    "github_owner": "test-owner",
-                    "github_repo": "repo2",
-                },
-            }
-        }
-
-        with open(self.config_file, "w") as f:
-            json.dump(config, f)
-
-        # List repositories
-        returncode, stdout, stderr = self._run_cli_command(["list"])
-
-        self.assertEqual(returncode, 0, f"CLI failed: {stderr}")
-        self.assertIn("repo1", stdout)
-        self.assertIn("repo2", stdout)
-        # Check that each repository has its own port and URL
-        self.assertIn("Port:", stdout)
-        self.assertIn("URL: http://localhost:", stdout)
-        self.assertIn("/mcp/", stdout)
-
-    @unittest.skip("CLI removed in US001-2")
-    def test_cli_remove_repository(self):
-        """Test CLI remove repository command"""
-        # Create test configuration
-        config = {
-            "repositories": {
-                "repo1": {
-                    "path": str(self.repo1_path),
-                    "description": "Repository 1",
-                    "language": "python",
-                    "port": 8081,
-                    "python_path": "/usr/bin/python3",
-                    "github_owner": "test-owner",
-                    "github_repo": "repo1",
-                },
-                "repo2": {
-                    "path": str(self.repo2_path),
-                    "description": "Repository 2",
-                    "language": "swift",
-                    "port": 8082,
-                    "python_path": "/usr/bin/python3",
-                    "github_owner": "test-owner",
-                    "github_repo": "repo2",
-                },
-            }
-        }
-
-        with open(self.config_file, "w") as f:
-            json.dump(config, f)
-
-        # Remove repository using --yes flag to skip confirmation
-        returncode, stdout, stderr = self._run_cli_command(["remove", "repo1", "--yes"])
-
-        self.assertEqual(returncode, 0, f"CLI failed: {stderr}")
-        self.assertIn("Removed repository 'repo1'", stdout)
-
-        # Verify configuration was updated
-        with open(self.config_file) as f:
-            config = json.load(f)
-
-        self.assertNotIn("repo1", config["repositories"])
-        self.assertIn("repo2", config["repositories"])
-
-    @unittest.skip("CLI removed in US001-2")
-    def test_cli_validate_configuration(self):
-        """Test CLI validate configuration command"""
-        # Create valid configuration
-        config = {
-            "repositories": {
-                "repo1": {
-                    "path": str(self.repo1_path),
-                    "description": "Repository 1",
-                    "language": "python",
-                    "port": 8086,
-                    "python_path": "/usr/bin/python3",
-                    "github_owner": "test-owner",
-                    "github_repo": "repo1",
-                }
-            }
-        }
-
-        with open(self.config_file, "w") as f:
-            json.dump(config, f)
-
-        # Validate configuration
-        returncode, stdout, stderr = self._run_cli_command(["validate"])
-
-        self.assertEqual(returncode, 0, f"CLI failed: {stderr}")
-        self.assertIn("Configuration loaded successfully", stdout)
-        self.assertIn("All repositories are valid", stdout)
-
-    @unittest.skip("CLI removed in US001-2")
-    def test_cli_error_handling(self):
-        """Test CLI error handling for invalid operations"""
-        # Test adding repository with invalid name
-        returncode, stdout, stderr = self._run_cli_command(
-            ["add", "invalid name with spaces", str(self.repo1_path)]
-        )
-
-        self.assertNotEqual(returncode, 0)
-
-        # Test removing non-existent repository
-        returncode, stdout, stderr = self._run_cli_command(["remove", "nonexistent"])
-
-        self.assertNotEqual(returncode, 0)
 
 
 class TestConfigurationHotReload(unittest.TestCase):
@@ -492,14 +314,7 @@ class TestSetupScript(unittest.TestCase):
             os.access(setup_script, os.X_OK), "Setup script should be executable"
         )
 
-    @unittest.skip("CLI removed in US001-2")
-    def test_repository_cli_exists_and_executable(self):
-        """Test that repository CLI exists and is executable"""
-        cli_script = Path(__file__).parent.parent / "repository_cli.py"
-        self.assertTrue(cli_script.exists(), "Repository CLI should exist")
-        self.assertTrue(
-            os.access(cli_script, os.X_OK), "Repository CLI should be executable"
-        )
+
 
 
 if __name__ == "__main__":

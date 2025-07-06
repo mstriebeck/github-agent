@@ -338,7 +338,9 @@ def mock_symbol_storage():
 @pytest.fixture
 def in_memory_symbol_storage():
     """Create an in-memory SQLite symbol storage for integration testing."""
-    return SQLiteSymbolStorage(":memory:")
+    storage = SQLiteSymbolStorage(":memory:")
+    yield storage
+    storage.close()
 
 
 @pytest.fixture
@@ -363,6 +365,7 @@ def temp_database():
     yield storage
 
     # Cleanup
+    storage.close()
     try:
         os.unlink(db_path)
     except OSError:
