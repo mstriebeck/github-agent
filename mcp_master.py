@@ -35,6 +35,7 @@ from shutdown_simple import (
     SimpleHealthMonitor,
     SimpleShutdownCoordinator,
 )
+from startup_orchestrator import CodebaseStartupOrchestrator
 from system_utils import MicrosecondFormatter, log_system_state
 
 # Configure logging with enhanced microsecond precision
@@ -189,6 +190,9 @@ class MCPMaster:
         # Initialize repository manager with comprehensive validation
         self.repository_manager = RepositoryManager(config_path)
 
+        # Initialize startup orchestrator for codebase indexing
+        self.startup_orchestrator = CodebaseStartupOrchestrator()
+
         # Initialize simple shutdown coordination
         self.shutdown_coordinator = SimpleShutdownCoordinator(logger)
 
@@ -225,6 +229,45 @@ class MCPMaster:
         except Exception as e:
             logger.error(f"❌ Failed to load configuration: {e}")
             return False
+
+    async def initialize_repository_indexes(self) -> None:
+        """Initialize repository indexes using the startup orchestrator."""
+        try:
+            logger.info("Initializing repository indexes...")
+
+            # Get list of repository configurations
+            repositories = list(self.repository_manager.repositories.values())
+
+            # Run startup orchestration
+            result = await self.startup_orchestrator.initialize_repositories(
+                repositories
+            )
+
+            # Log detailed results
+            logger.info("Repository indexing completed:")
+            logger.info(f"  - Total repositories: {result.total_repositories}")
+            logger.info(f"  - Successfully indexed: {result.indexed_repositories}")
+            logger.info(f"  - Failed to index: {result.failed_repositories}")
+            logger.info(f"  - Skipped (non-Python): {result.skipped_repositories}")
+            logger.info(f"  - Success rate: {result.success_rate:.1%}")
+            logger.info(f"  - Total time: {result.startup_duration:.2f}s")
+
+            # Log detailed status for each repository
+            for status in result.indexing_statuses:
+                if status.status == "completed" and status.result:
+                    logger.info(
+                        f"  - {status.repository_id}: {status.result.total_symbols} symbols, "
+                        f"{len(status.result.processed_files)} files, "
+                        f"{status.duration:.2f}s"
+                    )
+                elif status.status == "failed":
+                    logger.warning(
+                        f"  - {status.repository_id}: FAILED - {status.error_message}"
+                    )
+
+        except Exception as e:
+            logger.error(f"Failed to initialize repository indexes: {e}")
+            # Don't fail the entire startup - continue without indexing
 
     def start_worker(self, worker: WorkerProcess) -> bool:
         """Start a worker process for a repository"""
@@ -451,6 +494,9 @@ class MCPMaster:
         if not self.load_configuration():
             logger.error("Failed to load configuration, exiting")
             return False
+
+        # Initialize repository indexes
+        await self.initialize_repository_indexes()
 
         # Set up signal handlers
         signal.signal(signal.SIGTERM, self.signal_handler)

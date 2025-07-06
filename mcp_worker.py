@@ -46,6 +46,7 @@ from github_tools import (
 # Import shared functionality
 from repository_manager import RepositoryConfig, RepositoryManager
 from shutdown_simple import SimpleShutdownCoordinator
+from symbol_storage import SQLiteSymbolStorage
 from system_utils import MicrosecondFormatter, log_system_state
 
 # Tool modules for dynamic dispatch
@@ -64,6 +65,7 @@ class MCPWorker:
     logger: logging.Logger
     app: FastAPI
     shutdown_coordinator: SimpleShutdownCoordinator
+    symbol_storage: SQLiteSymbolStorage | None
 
     def __init__(self, repository_config: RepositoryConfig):
         # Store repository configuration
@@ -176,6 +178,18 @@ class MCPWorker:
         self.server: uvicorn.Server | None = None
         self.shutdown_event = asyncio.Event()
 
+        # Initialize symbol storage for codebase tools
+        self.symbol_storage = None
+        if self.language == Language.PYTHON:
+            self.logger.debug("Initializing symbol storage for Python repository...")
+            try:
+                self._initialize_symbol_storage()
+                self.logger.debug("Symbol storage initialized successfully")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize symbol storage: {e}")
+                # Don't raise - continue without symbol storage
+                self.symbol_storage = None
+
         self.logger.debug("Creating FastAPI app...")
         try:
             # Create FastAPI app
@@ -188,6 +202,22 @@ class MCPWorker:
         self.logger.info(
             f"Worker initialization complete for {self.repo_name} on port {self.port}"
         )
+
+    def _initialize_symbol_storage(self) -> None:
+        """Initialize symbol storage for codebase tools."""
+        try:
+            # Create symbol storage
+            db_path = DATA_DIR / "symbols.db"
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+            self.symbol_storage = SQLiteSymbolStorage(str(db_path))
+            self.symbol_storage.create_schema()
+
+            self.logger.info(f"Symbol storage initialized at {db_path}")
+
+        except Exception as e:
+            self.logger.error(f"Failed to initialize symbol storage: {e}")
+            raise
 
     def _setup_repository_manager(self) -> None:
         """Set up a temporary repository manager for this worker's repository"""
@@ -516,6 +546,12 @@ class MCPWorker:
                                     "error": "Query parameter is required for symbol search"
                                 }
                             )
+                        elif not self.symbol_storage:
+                            result = json.dumps(
+                                {
+                                    "error": "Symbol storage not available for this repository"
+                                }
+                            )
                         else:
                             result = await codebase_tools.execute_tool(
                                 tool_name,
@@ -524,6 +560,7 @@ class MCPWorker:
                                 query=query,
                                 symbol_kind=symbol_kind,
                                 limit=limit,
+                                symbol_storage=self.symbol_storage,
                             )
 
                     # If no special handling was needed, use module dispatch
@@ -699,7 +736,10 @@ class MCPWorker:
                 self.logger.info("Closing server...")
 
             # 4. Clean up any resources
-            # (Add any cleanup code here)
+            if self.symbol_storage:
+                self.logger.info("Closing symbol storage...")
+                self.symbol_storage.close()
+                self.symbol_storage = None
 
             self.logger.info("✓ Graceful shutdown complete")
 
