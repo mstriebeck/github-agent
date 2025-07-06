@@ -64,7 +64,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
                 "project-a": {
                     "path": str(self.repo1_path),
                     "description": "Project A repository",
-                    "language": Language.PYTHON,
+                    "language": Language.PYTHON.value,
                     "port": 8081,
                     "python_path": "/usr/bin/python3",
                     "github_owner": "test-owner",
@@ -73,7 +73,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
                 "project-b": {
                     "path": str(self.repo2_path),
                     "description": "Project B repository",
-                    "language": Language.SWIFT,
+                    "language": Language.SWIFT.value,
                     "port": 8082,
                     "python_path": "/usr/bin/python3",
                     "github_owner": "test-owner",
