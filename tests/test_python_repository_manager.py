@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Unit tests for codebase repository configuration integration.
+Unit tests for Python repository manager.
 """
 
 import os
@@ -10,22 +10,22 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from codebase_repository_config import (
-    CodebaseRepositoryConfigManager,
-    create_codebase_repository_config_manager,
-)
 from constants import Language
+from python_repository_manager import (
+    PythonRepositoryManager,
+    create_python_repository_manager,
+)
 from repository_manager import RepositoryConfig, RepositoryManager
 
-# Note: CodebaseRepositoryConfig class has been removed - we now use RepositoryConfig directly
+# Note: Now using PythonRepositoryManager with RepositoryConfig directly
 
 
-class TestCodebaseRepositoryConfigManager:
-    """Test the CodebaseRepositoryConfigManager class."""
+class TestPythonRepositoryManager:
+    """Test the PythonRepositoryManager class."""
 
     def test_initialization(self, mock_repository_manager):
         """Test manager initialization."""
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
 
         assert manager.repository_manager == mock_repository_manager
         assert manager.logger is not None
@@ -33,7 +33,7 @@ class TestCodebaseRepositoryConfigManager:
     def test_get_python_repositories_empty(self, mock_repository_manager):
         """Test getting Python repositories when none are configured."""
         # MockRepositoryManager starts empty
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
         python_repos = manager.get_python_repositories()
 
         assert python_repos == []
@@ -54,13 +54,13 @@ class TestCodebaseRepositoryConfigManager:
 
         mock_repository_manager.add_repository("swift-repo", swift_repo_config)
 
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
         python_repos = manager.get_python_repositories()
 
         assert python_repos == []
 
     @patch(
-        "codebase_repository_config.CodebaseRepositoryConfigManager._validate_python_repository"
+        "python_repository_manager.PythonRepositoryManager._validate_python_repository"
     )
     def test_get_python_repositories_valid(
         self, mock_validate, mock_repository_manager
@@ -80,7 +80,7 @@ class TestCodebaseRepositoryConfigManager:
 
         mock_repository_manager.add_repository("python-repo", python_repo_config)
 
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
 
         python_repos = manager.get_python_repositories()
 
@@ -106,7 +106,7 @@ class TestCodebaseRepositoryConfigManager:
 
         mock_repository_manager.add_repository("python-repo", python_repo_config)
 
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
 
         # Mock the validation method to fail using patch context manager
         with patch.object(
@@ -124,7 +124,7 @@ class TestCodebaseRepositoryConfigManager:
 
     def test_validate_python_repository_no_python_files(self, mock_repository_manager):
         """Test validation fails when directory contains no Python files."""
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Create a non-Python file
@@ -136,7 +136,7 @@ class TestCodebaseRepositoryConfigManager:
 
     def test_validate_python_repository_success(self, mock_repository_manager):
         """Test successful validation with Python files."""
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Create a Python file
@@ -148,7 +148,7 @@ class TestCodebaseRepositoryConfigManager:
 
     def test_has_python_files_py_extension(self, mock_repository_manager):
         """Test detection of .py files."""
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Create a Python file
@@ -159,7 +159,7 @@ class TestCodebaseRepositoryConfigManager:
 
     def test_has_python_files_pyi_extension(self, mock_repository_manager):
         """Test detection of .pyi files."""
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Create a Python stub file
@@ -170,7 +170,7 @@ class TestCodebaseRepositoryConfigManager:
 
     def test_has_python_files_nested_directory(self, mock_repository_manager):
         """Test detection of Python files in nested directories."""
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Create nested directory structure
@@ -185,7 +185,7 @@ class TestCodebaseRepositoryConfigManager:
 
     def test_has_python_files_no_python_files(self, mock_repository_manager):
         """Test no Python files detected."""
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Create non-Python files
@@ -199,7 +199,7 @@ class TestCodebaseRepositoryConfigManager:
     def test_get_repository_by_name_not_found(self, mock_repository_manager):
         """Test getting repository by name when it doesn't exist."""
         # MockRepositoryManager returns None for non-existent repositories
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
         result = manager.get_repository_by_name("non-existent")
 
         assert result is None
@@ -219,7 +219,7 @@ class TestCodebaseRepositoryConfigManager:
         )
 
         mock_repository_manager.add_repository("swift-repo", swift_repo_config)
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
         result = manager.get_repository_by_name("swift-repo")
 
         assert result is None
@@ -239,7 +239,7 @@ class TestCodebaseRepositoryConfigManager:
         )
 
         mock_repository_manager.add_repository("python-repo", python_repo_config)
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
 
         # Mock validation to fail
         with patch.object(
@@ -266,7 +266,7 @@ class TestCodebaseRepositoryConfigManager:
         )
 
         mock_repository_manager.add_repository("python-repo", python_repo_config)
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
 
         # Mock validation to succeed
         with patch.object(manager, "_validate_python_repository"):
@@ -282,7 +282,7 @@ class TestCodebaseRepositoryConfigManager:
         self, mock_repository_manager
     ):
         """Test configuration validation when no Python repositories exist."""
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
 
         # Mock get_python_repositories to return empty list
         with patch.object(manager, "get_python_repositories", return_value=[]):
@@ -294,7 +294,7 @@ class TestCodebaseRepositoryConfigManager:
         self, mock_repository_manager
     ):
         """Test successful configuration validation with Python repositories."""
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
 
         # Create proper RepositoryConfig object
         python_repo_config = RepositoryConfig(
@@ -316,7 +316,7 @@ class TestCodebaseRepositoryConfigManager:
 
     def test_validate_repository_configuration_exception(self, mock_repository_manager):
         """Test configuration validation when an exception occurs."""
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
+        manager = PythonRepositoryManager(mock_repository_manager)
 
         # Mock get_python_repositories to raise exception
         with patch.object(
@@ -327,24 +327,24 @@ class TestCodebaseRepositoryConfigManager:
             assert result is False
 
 
-class TestCreateCodebaseRepositoryConfigManager:
-    """Test the factory function for creating CodebaseRepositoryConfigManager."""
+class TestCreatePythonRepositoryManager:
+    """Test the factory function for creating PythonRepositoryManager."""
 
-    @patch("codebase_repository_config.RepositoryManager")
+    @patch("python_repository_manager.RepositoryManager")
     def test_create_manager_success(self, mock_repo_manager_class):
         """Test successful manager creation."""
         mock_repo_manager = Mock(spec=RepositoryManager)
         mock_repo_manager.load_configuration.return_value = True
         mock_repo_manager_class.return_value = mock_repo_manager
 
-        manager = create_codebase_repository_config_manager("/tmp/config.json")
+        manager = create_python_repository_manager("/tmp/config.json")
 
-        assert isinstance(manager, CodebaseRepositoryConfigManager)
+        assert isinstance(manager, PythonRepositoryManager)
         assert manager.repository_manager == mock_repo_manager
         mock_repo_manager_class.assert_called_once_with("/tmp/config.json")
         mock_repo_manager.load_configuration.assert_called_once()
 
-    @patch("codebase_repository_config.RepositoryManager")
+    @patch("python_repository_manager.RepositoryManager")
     def test_create_manager_load_failure(self, mock_repo_manager_class):
         """Test manager creation when configuration load fails."""
         mock_repo_manager = Mock(spec=RepositoryManager)
@@ -354,16 +354,16 @@ class TestCreateCodebaseRepositoryConfigManager:
         with pytest.raises(
             RuntimeError, match="Failed to load repository configuration"
         ):
-            create_codebase_repository_config_manager("/tmp/config.json")
+            create_python_repository_manager("/tmp/config.json")
 
-    @patch("codebase_repository_config.RepositoryManager")
+    @patch("python_repository_manager.RepositoryManager")
     def test_create_manager_default_config_path(self, mock_repo_manager_class):
         """Test manager creation with default config path."""
         mock_repo_manager = Mock(spec=RepositoryManager)
         mock_repo_manager.load_configuration.return_value = True
         mock_repo_manager_class.return_value = mock_repo_manager
 
-        manager = create_codebase_repository_config_manager()
+        manager = create_python_repository_manager()
 
-        assert isinstance(manager, CodebaseRepositoryConfigManager)
+        assert isinstance(manager, PythonRepositoryManager)
         mock_repo_manager_class.assert_called_once_with(None)

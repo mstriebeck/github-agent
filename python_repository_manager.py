@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 """
-Repository Configuration Integration for MCP Codebase Server
+Python Repository Manager for MCP Codebase Server
 
-Integrates with existing repositories.json configuration to identify Python repositories
-for indexing and provides validation for repository paths and Python file existence.
+Manages Python repository configurations for codebase indexing by filtering and validating
+Python repositories from the main repository configuration.
 """
 
 import glob
@@ -14,11 +14,11 @@ import os
 from constants import Language
 from repository_manager import RepositoryConfig, RepositoryManager
 
-# CodebaseRepositoryConfig has been removed - we now use RepositoryConfig directly
+# Dedicated Python repository manager using composition with RepositoryManager
 
 
-class CodebaseRepositoryConfigManager:
-    """Manages repository configuration for codebase indexing."""
+class PythonRepositoryManager:
+    """Manages Python repository configurations for codebase indexing."""
 
     def __init__(self, repository_manager: RepositoryManager):
         """Initialize with existing repository manager.
@@ -147,20 +147,20 @@ class CodebaseRepositoryConfigManager:
             return False
 
 
-def create_codebase_repository_config_manager(
+def create_python_repository_manager(
     config_path: str | None = None,
-) -> CodebaseRepositoryConfigManager:
-    """Create a CodebaseRepositoryConfigManager instance.
+) -> PythonRepositoryManager:
+    """Create a PythonRepositoryManager instance.
 
     Args:
         config_path: Optional path to repositories.json file
 
     Returns:
-        CodebaseRepositoryConfigManager instance
+        PythonRepositoryManager instance
     """
     repository_manager = RepositoryManager(config_path)
 
     if not repository_manager.load_configuration():
         raise RuntimeError("Failed to load repository configuration")
 
-    return CodebaseRepositoryConfigManager(repository_manager)
+    return PythonRepositoryManager(repository_manager)

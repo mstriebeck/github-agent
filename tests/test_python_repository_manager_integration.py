@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Integration tests for codebase repository configuration.
+Integration tests for Python repository manager.
 """
 
 import json
@@ -9,9 +9,9 @@ import os
 import subprocess
 import tempfile
 
-from codebase_repository_config import (
-    CodebaseRepositoryConfigManager,
-    create_codebase_repository_config_manager,
+from python_repository_manager import (
+    PythonRepositoryManager,
+    create_python_repository_manager,
 )
 from repository_manager import RepositoryManager
 
@@ -28,7 +28,7 @@ def create_git_repo(repo_path: str) -> None:
     )
 
 
-class TestCodebaseRepositoryConfigIntegration:
+class TestPythonRepositoryManagerIntegration:
     """Integration tests for repository configuration with real files."""
 
     def test_integration_with_real_repositories_json(self):
@@ -80,7 +80,7 @@ class TestCodebaseRepositoryConfigIntegration:
                 assert repo_manager.load_configuration() is True
 
                 # Create codebase repository config manager
-                codebase_manager = CodebaseRepositoryConfigManager(repo_manager)
+                codebase_manager = PythonRepositoryManager(repo_manager)
 
                 # Get Python repositories
                 python_repos = codebase_manager.get_python_repositories()
@@ -142,7 +142,7 @@ class TestCodebaseRepositoryConfigIntegration:
                 assert repo_manager.load_configuration() is True
 
                 # Create codebase repository config manager
-                codebase_manager = CodebaseRepositoryConfigManager(repo_manager)
+                codebase_manager = PythonRepositoryManager(repo_manager)
 
                 # Get Python repositories
                 python_repos = codebase_manager.get_python_repositories()
@@ -193,7 +193,7 @@ class TestCodebaseRepositoryConfigIntegration:
                 assert repo_manager.load_configuration() is True
 
                 # Create codebase repository config manager
-                codebase_manager = CodebaseRepositoryConfigManager(repo_manager)
+                codebase_manager = PythonRepositoryManager(repo_manager)
 
                 # Get Python repositories
                 python_repos = codebase_manager.get_python_repositories()
@@ -247,7 +247,7 @@ class TestCodebaseRepositoryConfigIntegration:
                 assert repo_manager.load_configuration() is True
 
                 # Create codebase repository config manager
-                codebase_manager = CodebaseRepositoryConfigManager(repo_manager)
+                codebase_manager = PythonRepositoryManager(repo_manager)
 
                 # Get Python repositories - should be empty due to validation failure
                 python_repos = codebase_manager.get_python_repositories()
@@ -308,7 +308,7 @@ class TestCodebaseRepositoryConfigIntegration:
                 assert repo_manager.load_configuration() is True
 
                 # Create codebase repository config manager
-                codebase_manager = CodebaseRepositoryConfigManager(repo_manager)
+                codebase_manager = PythonRepositoryManager(repo_manager)
 
                 # Get specific repository by name
                 repo1_config = codebase_manager.get_repository_by_name("repo1")
@@ -400,7 +400,7 @@ class TestCodebaseRepositoryConfigIntegration:
                 assert repo_manager.load_configuration() is True
 
                 # Create codebase repository config manager
-                codebase_manager = CodebaseRepositoryConfigManager(repo_manager)
+                codebase_manager = PythonRepositoryManager(repo_manager)
 
                 # Validate configuration
                 is_valid = codebase_manager.validate_repository_configuration()
@@ -454,10 +454,10 @@ class TestCodebaseRepositoryConfigIntegration:
                     f.write("print('factory test')")
 
                 # Create manager using factory function
-                manager = create_codebase_repository_config_manager(config_path)
+                manager = create_python_repository_manager(config_path)
 
                 # Test that it works
-                assert isinstance(manager, CodebaseRepositoryConfigManager)
+                assert isinstance(manager, PythonRepositoryManager)
 
                 python_repos = manager.get_python_repositories()
                 assert len(python_repos) == 1
