@@ -576,7 +576,9 @@ class MCPMaster:
 
         # Skip graceful wait if shutdown request couldn't be sent
         if not shutdown_request_sent:
-            logger.info(f"Skipping graceful wait for {worker.repo_name} since shutdown request failed")
+            logger.info(
+                f"Skipping graceful wait for {worker.repo_name} since shutdown request failed"
+            )
         else:
             # Phase 2: Wait for graceful exit (2 minutes)
             logger.info(f"Waiting for {worker.repo_name} to shut down gracefully...")
