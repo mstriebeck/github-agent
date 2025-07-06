@@ -12,6 +12,7 @@ import unittest
 from typing import cast
 from unittest.mock import Mock, patch
 
+from constants import Language
 from github_tools import get_linter_errors
 from repository_manager import AbstractRepositoryManager, RepositoryConfig
 from tests.test_fixtures import MockRepositoryManager
@@ -26,7 +27,7 @@ class TestGetLinterErrors(unittest.TestCase):
             "name": "test-repo",
             "path": "/path/to/repo",
             "description": "Test repository",
-            "language": "python",
+            "language": Language.PYTHON,
             "port": 8081,
             "python_path": "/usr/bin/python3",
         }
@@ -35,7 +36,7 @@ class TestGetLinterErrors(unittest.TestCase):
             name=str(defaults["name"]),
             path=str(defaults["path"]),
             description=str(defaults["description"]),
-            language=str(defaults["language"]),
+            language=cast(Language, defaults["language"]),
             port=cast(int, defaults["port"]),
             python_path=str(defaults["python_path"])
             if defaults.get("python_path")
@@ -62,7 +63,7 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
             name="python-repo",
             path="/path/to/python/repo",
             description="Python repository",
-            language="python",
+            language=Language.PYTHON,
             port=8081,
             github_repo="python-repo",
         )
@@ -71,7 +72,7 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
             name="swift-repo",
             path="/path/to/swift/repo",
             description="Swift repository",
-            language="swift",
+            language=Language.SWIFT,
             port=8082,
             github_repo="swift-repo",
         )

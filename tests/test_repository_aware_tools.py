@@ -14,6 +14,7 @@ from typing import cast
 from unittest.mock import MagicMock, patch
 
 import github_tools  # noqa: F401
+from constants import Language
 from repository_manager import RepositoryConfig, RepositoryManager
 
 
@@ -26,7 +27,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
             "name": "test-repo",
             "path": "/path/to/repo",
             "description": "Test repository",
-            "language": "swift",
+            "language": Language.SWIFT,
             "port": 8081,
             "python_path": "/usr/bin/python3",
         }
@@ -35,7 +36,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
             name=str(defaults["name"]),
             path=str(defaults["path"]),
             description=str(defaults["description"]),
-            language=str(defaults["language"]),
+            language=cast(Language, defaults["language"]),
             port=cast(int, defaults["port"]),
             python_path=str(defaults["python_path"])
             if defaults.get("python_path")
@@ -63,7 +64,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
                 "project-a": {
                     "path": str(self.repo1_path),
                     "description": "Project A repository",
-                    "language": "python",
+                    "language": Language.PYTHON.value,
                     "port": 8081,
                     "python_path": "/usr/bin/python3",
                     "github_owner": "test-owner",
@@ -72,7 +73,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
                 "project-b": {
                     "path": str(self.repo2_path),
                     "description": "Project B repository",
-                    "language": "swift",
+                    "language": Language.SWIFT.value,
                     "port": 8082,
                     "python_path": "/usr/bin/python3",
                     "github_owner": "test-owner",
@@ -116,7 +117,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
             name="project-a",
             path=str(self.repo1_path),
             description="Test repository",
-            language="swift",
+            language=Language.SWIFT,
             port=8081,
             github_repo="project-a",
         )
@@ -156,7 +157,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
             name="project-a",
             path=str(self.repo1_path),
             description="Project A",
-            language="swift",
+            language=Language.SWIFT,
             port=8081,
             github_repo="project-a",
         )
@@ -165,7 +166,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
             name="project-b",
             path=str(self.repo2_path),
             description="Project B",
-            language="swift",
+            language=Language.SWIFT,
             port=8082,
             github_repo="project-b",
         )

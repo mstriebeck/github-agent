@@ -28,7 +28,7 @@ from constants import (
     MINIMUM_PYTHON_MAJOR,
     MINIMUM_PYTHON_MINOR,
     MINIMUM_PYTHON_VERSION,
-    SUPPORTED_LANGUAGES,
+    Language,
 )
 
 
@@ -68,7 +68,7 @@ class RepositoryConfig:
     name: str
     path: str
     description: str
-    language: str
+    language: Language
     port: int
     python_path: str
     github_owner: str
@@ -85,12 +85,7 @@ class RepositoryConfig:
         if not self.path:
             raise ValueError("Repository path cannot be empty")
 
-        # Validate language
-        if self.language not in SUPPORTED_LANGUAGES:
-            raise ValueError(
-                f"Unsupported language '{self.language}' for repository '{self.name}'. "
-                f"Supported languages: {', '.join(sorted(SUPPORTED_LANGUAGES))}"
-            )
+        # Language validation is handled by the Language enum type
 
         # Require absolute paths
         if not os.path.isabs(self.path):
@@ -109,7 +104,7 @@ class RepositoryConfig:
         name: str,
         path: str,
         description: str,
-        language: str,
+        language: Language,
         port: int,
         python_path: str | None = None,
     ) -> "RepositoryConfig":
@@ -149,7 +144,7 @@ class RepositoryConfig:
         # Validate and get Python path
         if python_path is None:
             logger.debug(f"Auto-detecting Python path for repository '{name}'")
-            if language == "python":
+            if language == Language.PYTHON:
                 # For Python repos, try to find a suitable Python executable
                 python_path = cls._find_python_executable(normalized_path, logger)
             else:
@@ -380,7 +375,7 @@ class RepositoryConfig:
             "--description",
             self.description,
             "--language",
-            self.language,
+            self.language.value,
             "--python-path",
             self.python_path,
         ]
@@ -509,11 +504,20 @@ class RepositoryManager(AbstractRepositoryManager):
                 f"Creating repository config for '{name}' from parsed data"
             )
 
+            # Convert string language to enum
+            try:
+                language_enum = Language(repo_data["language"])
+            except ValueError as e:
+                raise ValueError(
+                    f"Unsupported language '{repo_data['language']}' for repository '{name}'. "
+                    f"Supported languages: {[lang.value for lang in Language]}"
+                ) from e
+
             repo_config = RepositoryConfig.create_repository_config(
                 name=name,
                 path=repo_data["path"],
                 description=repo_data.get("description", ""),
-                language=repo_data["language"],
+                language=language_enum,
                 port=repo_data["port"],
                 python_path=repo_data.get("python_path"),
             )
@@ -537,6 +541,12 @@ class RepositoryManager(AbstractRepositoryManager):
                 if not os.path.exists(repo_config.path):
                     raise ValueError(
                         f"Repository path does not exist: {repo_config.path}"
+                    )
+
+                # Check if it's a directory
+                if not os.path.isdir(repo_config.path):
+                    raise ValueError(
+                        f"Repository path is not a directory: {repo_config.path}"
                     )
 
                 # Check if it's a git repository

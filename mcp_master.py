@@ -27,7 +27,7 @@ from typing import Any
 
 import aiohttp
 
-from constants import LOGS_DIR
+from constants import LOGS_DIR, Language
 from repository_manager import RepositoryConfig, RepositoryManager
 
 # Import shutdown coordination components
@@ -122,7 +122,7 @@ class WorkerProcess:
         return self.repository_config.description
 
     @property
-    def language(self) -> str:
+    def language(self) -> Language:
         return self.repository_config.language
 
     @property
