@@ -28,7 +28,8 @@ class TestStartupOrchestratorIntegration:
 
             # Create multiple Python files with various symbols
             (repo_dir / "__init__.py").write_text("")
-            (repo_dir / "main.py").write_text("""
+            (repo_dir / "main.py").write_text(
+                """
 \"\"\"Main module for testing.\"\"\"
 
 def main():
@@ -46,9 +47,11 @@ class Application:
         pass
 
 CONSTANT = "value"
-            """)
+            """
+            )
 
-            (repo_dir / "utils.py").write_text("""
+            (repo_dir / "utils.py").write_text(
+                """
 \"\"\"Utility functions.\"\"\"
 
 def helper_function(x, y):
@@ -62,13 +65,15 @@ class Helper:
     def static_method():
         \"\"\"Static method.\"\"\"
         return True
-            """)
+            """
+            )
 
             # Create subdirectory with more files
             sub_dir = repo_dir / "submodule"
             sub_dir.mkdir()
             (sub_dir / "__init__.py").write_text("")
-            (sub_dir / "processor.py").write_text("""
+            (sub_dir / "processor.py").write_text(
+                """
 \"\"\"Data processor.\"\"\"
 
 class DataProcessor:
@@ -77,7 +82,8 @@ class DataProcessor:
     def process(self, data):
         \"\"\"Process the data.\"\"\"
         return data.upper()
-            """)
+            """
+            )
 
             orchestrator = CodebaseStartupOrchestrator(data_dir)
 
@@ -130,7 +136,8 @@ class DataProcessor:
             # Create first Python repository
             repo1_dir = Path(temp_dir) / "repo1"
             repo1_dir.mkdir()
-            (repo1_dir / "module1.py").write_text("""
+            (repo1_dir / "module1.py").write_text(
+                """
 def function1():
     \"\"\"Function 1.\"\"\"
     pass
@@ -138,12 +145,14 @@ def function1():
 class Class1:
     \"\"\"Class 1.\"\"\"
     pass
-            """)
+            """
+            )
 
             # Create second Python repository
             repo2_dir = Path(temp_dir) / "repo2"
             repo2_dir.mkdir()
-            (repo2_dir / "module2.py").write_text("""
+            (repo2_dir / "module2.py").write_text(
+                """
 def function2():
     \"\"\"Function 2.\"\"\"
     pass
@@ -151,18 +160,21 @@ def function2():
 class Class2:
     \"\"\"Class 2.\"\"\"
     pass
-            """)
+            """
+            )
 
             # Create Swift repository (should be skipped)
             repo3_dir = Path(temp_dir) / "repo3"
             repo3_dir.mkdir()
-            (repo3_dir / "main.swift").write_text("""
+            (repo3_dir / "main.swift").write_text(
+                """
 import Foundation
 
 class SwiftClass {
     func method() {}
 }
-            """)
+            """
+            )
 
             orchestrator = CodebaseStartupOrchestrator(data_dir)
 
@@ -240,11 +252,13 @@ class SwiftClass {
             # Create working Python repository
             good_repo_dir = Path(temp_dir) / "good_repo"
             good_repo_dir.mkdir()
-            (good_repo_dir / "module.py").write_text("""
+            (good_repo_dir / "module.py").write_text(
+                """
 def working_function():
     \"\"\"A working function.\"\"\"
     pass
-            """)
+            """
+            )
 
             orchestrator = CodebaseStartupOrchestrator(data_dir)
 
@@ -391,7 +405,8 @@ class Class_{i}_{j}:
             repo_dir = Path(temp_dir) / "test_repo"
             repo_dir.mkdir()
 
-            (repo_dir / "persistent.py").write_text("""
+            (repo_dir / "persistent.py").write_text(
+                """
 def persistent_function():
     \"\"\"A persistent function.\"\"\"
     pass
@@ -399,7 +414,8 @@ def persistent_function():
 class PersistentClass:
     \"\"\"A persistent class.\"\"\"
     pass
-            """)
+            """
+            )
 
             # First run
             orchestrator1 = CodebaseStartupOrchestrator(data_dir)
