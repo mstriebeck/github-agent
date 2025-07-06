@@ -27,7 +27,7 @@ from typing import Any
 
 import aiohttp
 
-from constants import DATA_DIR, LOGS_DIR, Language
+from constants import LOGS_DIR, Language
 from python_symbol_extractor import PythonSymbolExtractor
 from repository_indexer import PythonRepositoryIndexer
 from repository_manager import RepositoryConfig, RepositoryManager
@@ -38,7 +38,7 @@ from shutdown_simple import (
     SimpleShutdownCoordinator,
 )
 from startup_orchestrator import CodebaseStartupOrchestrator
-from symbol_storage import SQLiteSymbolStorage
+from symbol_storage import ProductionSymbolStorage, SQLiteSymbolStorage
 from system_utils import MicrosecondFormatter, log_system_state
 
 # Configure logging with enhanced microsecond precision
@@ -233,12 +233,9 @@ class MCPMaster:
             try:
                 logger.info("Creating startup orchestrator components...")
 
-                # Create database directory
-                DATA_DIR.mkdir(parents=True, exist_ok=True)
-                db_path = DATA_DIR / "symbols.db"
-
-                # Create components
-                symbol_storage = SQLiteSymbolStorage(str(db_path))
+                # Create components using production storage
+                symbol_storage = ProductionSymbolStorage()
+                symbol_storage.create_schema()  # Initialize database schema
                 symbol_extractor = PythonSymbolExtractor()
                 indexer = PythonRepositoryIndexer(symbol_extractor, symbol_storage)
 
@@ -268,11 +265,10 @@ class MCPMaster:
 
     async def initialize_repository_indexes(self) -> None:
         """Initialize repository indexes using the startup orchestrator."""
-        if self.startup_orchestrator is None:
-            logger.warning(
-                "No startup orchestrator available - skipping repository indexing"
-            )
-            return
+        # The orchestrator should always be available at this point since load_configuration() succeeded
+        assert self.startup_orchestrator is not None, (
+            "Startup orchestrator should be initialized by load_configuration()"
+        )
 
         try:
             logger.info("Initializing repository indexes...")

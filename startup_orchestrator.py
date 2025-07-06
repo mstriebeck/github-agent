@@ -18,7 +18,6 @@ from python_symbol_extractor import AbstractSymbolExtractor
 from repository_indexer import (
     AbstractRepositoryIndexer,
     IndexingResult,
-    PythonRepositoryIndexer,
 )
 from repository_manager import RepositoryConfig
 from symbol_storage import AbstractSymbolStorage
@@ -99,20 +98,18 @@ class CodebaseStartupOrchestrator(AbstractStartupOrchestrator):
         self,
         symbol_storage: AbstractSymbolStorage,
         symbol_extractor: AbstractSymbolExtractor,
-        indexer: AbstractRepositoryIndexer | None = None,
+        indexer: AbstractRepositoryIndexer,
     ):
         """Initialize the startup orchestrator.
 
         Args:
             symbol_storage: Symbol storage backend for database operations
             symbol_extractor: Symbol extractor for parsing code files
-            indexer: Repository indexer (optional, will create PythonRepositoryIndexer if not provided)
+            indexer: Repository indexer for processing repositories
         """
         self.symbol_storage = symbol_storage
         self.symbol_extractor = symbol_extractor
-        self.indexer = indexer or PythonRepositoryIndexer(
-            symbol_extractor, symbol_storage
-        )
+        self.indexer = indexer
 
         logger.info(
             f"Initialized startup orchestrator with storage: {type(symbol_storage).__name__}"
@@ -121,7 +118,11 @@ class CodebaseStartupOrchestrator(AbstractStartupOrchestrator):
         logger.info(f"Using indexer: {type(self.indexer).__name__}")
 
     async def initialize_database(self) -> None:
-        """Initialize the symbol database."""
+        """Initialize the symbol database.
+
+        Note: In production, the database is initialized by the master process
+        before creating the orchestrator. This method is mainly for testing.
+        """
         logger.info("Initializing symbol database")
 
         try:
@@ -149,9 +150,6 @@ class CodebaseStartupOrchestrator(AbstractStartupOrchestrator):
         logger.info(
             f"Starting repository initialization for {len(repositories)} repositories"
         )
-
-        # Initialize database first
-        await self.initialize_database()
 
         # Filter Python repositories
         python_repos = [

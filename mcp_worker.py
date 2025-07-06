@@ -46,7 +46,7 @@ from github_tools import (
 # Import shared functionality
 from repository_manager import RepositoryConfig, RepositoryManager
 from shutdown_simple import SimpleShutdownCoordinator
-from symbol_storage import SQLiteSymbolStorage
+from symbol_storage import ProductionSymbolStorage, SQLiteSymbolStorage
 from system_utils import MicrosecondFormatter, log_system_state
 
 # Tool modules for dynamic dispatch
@@ -206,13 +206,11 @@ class MCPWorker:
     def _initialize_symbol_storage(self) -> None:
         """Initialize symbol storage for codebase tools."""
         try:
-            # Create symbol storage - connects to the database created by master
-            db_path = DATA_DIR / "symbols.db"
-
-            self.symbol_storage = SQLiteSymbolStorage(str(db_path))
+            # Use production storage class - connects to the database created by master
+            self.symbol_storage = ProductionSymbolStorage()
             # Don't create schema here - master already did that
 
-            self.logger.info(f"Symbol storage connected to {db_path}")
+            self.logger.info("Symbol storage connected to production database")
 
         except Exception as e:
             self.logger.error(f"Failed to initialize symbol storage: {e}")
