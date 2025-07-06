@@ -127,7 +127,7 @@ def test_config_with_dynamic_port(temp_git_repo):
             "integration-test-repo": {
                 "port": test_port,
                 "path": temp_git_repo,
-                "language": Language.PYTHON,  # Required field
+                "language": Language.PYTHON.value,  # Required field
                 "python_path": "/usr/bin/python3",  # Required field for US001-12
                 "description": "Integration test repository",
                 "github_owner": "test-owner",  # Optional but realistic
@@ -439,7 +439,7 @@ class TestMCPIntegration:
                 "valid-repo": {
                     "port": find_free_port(),
                     "path": temp_git_repo,
-                    "language": Language.PYTHON,
+                    "language": Language.PYTHON.value,
                     "python_path": "/usr/bin/python3",
                 }
             }

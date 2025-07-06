@@ -31,7 +31,7 @@ from fastapi.responses import StreamingResponse
 
 import codebase_tools
 import github_tools
-from constants import DATA_DIR, LOGS_DIR
+from constants import DATA_DIR, LOGS_DIR, Language
 from github_tools import (
     GitHubAPIContext,
     execute_find_pr_for_branch,
@@ -60,7 +60,7 @@ class MCPWorker:
     repo_path: str
     port: int
     description: str
-    language: str
+    language: Language
     logger: logging.Logger
     app: FastAPI
     shutdown_coordinator: SimpleShutdownCoordinator
@@ -98,7 +98,7 @@ class MCPWorker:
         self.repo_path = repository_config.path
         self.port = repository_config.port
         self.description = repository_config.description
-        self.language = repository_config.language.value
+        self.language = repository_config.language
         self.python_path = repository_config.python_path
 
         # Set up enhanced logging for this worker (use system-appropriate location)
@@ -136,7 +136,7 @@ class MCPWorker:
         self.logger.addHandler(file_handler)
 
         self.logger.info(
-            f"Worker initializing for {self.repo_name} ({self.language}) on port {self.port}"
+            f"Worker initializing for {self.repo_name} ({self.language.value}) on port {self.port}"
         )
         self.logger.info(f"Repository path: {self.repo_path}")
         self.logger.info(f"Log directory: {log_dir}")
@@ -493,16 +493,16 @@ class MCPWorker:
                     elif tool_name == "github_check_ci_lint_errors_not_local":
                         build_id = tool_args.get("build_id")
                         self.logger.info(
-                            f"Calling lint errors with language: {self.language}"
+                            f"Calling lint errors with language: {self.language.value}"
                         )
                         result = await execute_github_check_ci_lint_errors_not_local(
-                            self.repo_name, self.language, build_id
+                            self.repo_name, self.language.value, build_id
                         )
 
                     elif tool_name == "github_check_ci_build_and_test_errors_not_local":
                         build_id = tool_args.get("build_id")
                         result = await execute_github_check_ci_build_and_test_errors_not_local(
-                            self.repo_name, self.language, build_id
+                            self.repo_name, self.language.value, build_id
                         )
 
                     elif tool_name == "search_symbols":

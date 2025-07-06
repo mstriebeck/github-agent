@@ -74,7 +74,7 @@ class TestMCPWorker:
             assert worker.repo_path == temp_repo
             assert worker.port == 8080
             assert worker.description == "Test repository"
-            assert worker.language == "python"
+            assert worker.language == Language.PYTHON
 
     def test_worker_invalid_path(self, mock_github_token):
         """Test that worker fails with invalid repository path"""
