@@ -121,8 +121,6 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
         self.assertTrue(info_a["exists"], "Repository should exist")
         self.assertEqual(info_a["name"], "project-a")
 
-
-
     def test_url_routing_extraction(self):
         """Test URL routing repository name extraction"""
         test_cases = [

@@ -64,18 +64,6 @@ class TestRepositoryCLI(unittest.TestCase):
             return 1, "", str(e)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 class TestConfigurationHotReload(unittest.TestCase):
     """Test configuration hot reload functionality"""
 
@@ -313,8 +301,6 @@ class TestSetupScript(unittest.TestCase):
         self.assertTrue(
             os.access(setup_script, os.X_OK), "Setup script should be executable"
         )
-
-
 
 
 if __name__ == "__main__":
