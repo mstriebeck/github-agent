@@ -123,7 +123,7 @@ class WorkerProcess:
 
     @property
     def language(self) -> str:
-        return self.repository_config.language
+        return self.repository_config.language.value
 
     @property
     def python_path(self) -> str:

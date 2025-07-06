@@ -11,72 +11,13 @@ from unittest.mock import Mock, patch
 import pytest
 
 from codebase_repository_config import (
-    CodebaseRepositoryConfig,
     CodebaseRepositoryConfigManager,
     create_codebase_repository_config_manager,
 )
+from constants import Language
 from repository_manager import RepositoryConfig, RepositoryManager
 
-
-class TestCodebaseRepositoryConfig:
-    """Test the CodebaseRepositoryConfig dataclass."""
-
-    def test_valid_config_creation(self):
-        """Test creating a valid repository configuration."""
-        config = CodebaseRepositoryConfig(
-            name="test-repo",
-            path="/tmp/test-repo",
-            description="Test repository",
-            python_path="/usr/bin/python3",
-        )
-
-        assert config.name == "test-repo"
-        assert config.path == "/tmp/test-repo"
-        assert config.description == "Test repository"
-        assert config.python_path == "/usr/bin/python3"
-
-    def test_path_normalization(self):
-        """Test that repository paths are normalized."""
-        config = CodebaseRepositoryConfig(
-            name="test-repo",
-            path="~/test-repo",
-            description="Test repository",
-            python_path="/usr/bin/python3",
-        )
-
-        # Path should be normalized to absolute path
-        assert config.path == os.path.abspath(os.path.expanduser("~/test-repo"))
-
-    def test_empty_name_validation(self):
-        """Test that empty name raises ValueError."""
-        with pytest.raises(ValueError, match="Repository name cannot be empty"):
-            CodebaseRepositoryConfig(
-                name="",
-                path="/tmp/test-repo",
-                description="Test repository",
-                python_path="/usr/bin/python3",
-            )
-
-    def test_empty_path_validation(self):
-        """Test that empty path raises ValueError."""
-        with pytest.raises(ValueError, match="Repository path cannot be empty"):
-            CodebaseRepositoryConfig(
-                name="test-repo",
-                path="",
-                description="Test repository",
-                python_path="/usr/bin/python3",
-            )
-
-    def test_none_python_path(self):
-        """Test that None python_path is allowed."""
-        config = CodebaseRepositoryConfig(
-            name="test-repo",
-            path="/tmp/test-repo",
-            description="Test repository",
-            python_path=None,
-        )
-
-        assert config.python_path is None
+# Note: CodebaseRepositoryConfig class has been removed - we now use RepositoryConfig directly
 
 
 class TestCodebaseRepositoryConfigManager:
@@ -104,7 +45,7 @@ class TestCodebaseRepositoryConfigManager:
             name="swift-repo",
             path="/tmp/test-swift-repo",
             description="Test Swift repository",
-            language="swift",
+            language=Language.SWIFT,
             port=8082,
             python_path="/usr/bin/python3",
             github_owner="test",
@@ -121,18 +62,25 @@ class TestCodebaseRepositoryConfigManager:
     @patch(
         "codebase_repository_config.CodebaseRepositoryConfigManager._validate_python_repository"
     )
-    def test_get_python_repositories_valid(self, mock_validate):
+    def test_get_python_repositories_valid(
+        self, mock_validate, mock_repository_manager
+    ):
         """Test getting Python repositories with valid configuration."""
-        mock_repo_config = Mock(spec=RepositoryConfig)
-        mock_repo_config.language = "python"
-        mock_repo_config.path = "/tmp/test-repo"
-        mock_repo_config.description = "Test Python repository"
-        mock_repo_config.python_path = "/usr/bin/python3"
+        # Create RepositoryConfig directly for testing
+        python_repo_config = RepositoryConfig(
+            name="python-repo",
+            path="/tmp/test-repo",
+            description="Test Python repository",
+            language=Language.PYTHON,
+            port=8081,
+            python_path="/usr/bin/python3",
+            github_owner="test",
+            github_repo="python-repo",
+        )
 
-        mock_repo_manager = Mock(spec=RepositoryManager)
-        mock_repo_manager.repositories = {"python-repo": mock_repo_config}
+        mock_repository_manager.add_repository("python-repo", python_repo_config)
 
-        manager = CodebaseRepositoryConfigManager(mock_repo_manager)
+        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
 
         python_repos = manager.get_python_repositories()
 
@@ -142,18 +90,23 @@ class TestCodebaseRepositoryConfigManager:
         assert python_repos[0].description == "Test Python repository"
         assert python_repos[0].python_path == "/usr/bin/python3"
 
-    def test_get_python_repositories_validation_failure(self):
+    def test_get_python_repositories_validation_failure(self, mock_repository_manager):
         """Test getting Python repositories when validation fails."""
-        mock_repo_config = Mock(spec=RepositoryConfig)
-        mock_repo_config.language = "python"
-        mock_repo_config.path = "/tmp/test-repo"
-        mock_repo_config.description = "Test Python repository"
-        mock_repo_config.python_path = "/usr/bin/python3"
+        # Create RepositoryConfig directly for testing
+        python_repo_config = RepositoryConfig(
+            name="python-repo",
+            path="/tmp/test-repo",
+            description="Test Python repository",
+            language=Language.PYTHON,
+            port=8081,
+            python_path="/usr/bin/python3",
+            github_owner="test",
+            github_repo="python-repo",
+        )
 
-        mock_repo_manager = Mock(spec=RepositoryManager)
-        mock_repo_manager.repositories = {"python-repo": mock_repo_config}
+        mock_repository_manager.add_repository("python-repo", python_repo_config)
 
-        manager = CodebaseRepositoryConfigManager(mock_repo_manager)
+        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
 
         # Mock the validation method to fail using patch context manager
         with patch.object(
@@ -166,24 +119,8 @@ class TestCodebaseRepositoryConfigManager:
             # Should return empty list when validation fails
             assert python_repos == []
 
-    def test_validate_python_repository_non_existent_path(
-        self, mock_repository_manager
-    ):
-        """Test validation fails for non-existent path."""
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
-
-        with pytest.raises(ValueError, match="Repository path is not a directory"):
-            manager._validate_python_repository("/non/existent/path")
-
-    def test_validate_python_repository_file_not_directory(
-        self, mock_repository_manager
-    ):
-        """Test validation fails when path is a file, not directory."""
-        manager = CodebaseRepositoryConfigManager(mock_repository_manager)
-
-        with tempfile.NamedTemporaryFile() as tmp_file:
-            with pytest.raises(ValueError, match="Repository path is not a directory"):
-                manager._validate_python_repository(tmp_file.name)
+    # Note: Path existence and directory validation are now handled by RepositoryManager
+    # These tests are no longer needed as _validate_python_repository only checks for Python files
 
     def test_validate_python_repository_no_python_files(self, mock_repository_manager):
         """Test validation fails when directory contains no Python files."""
@@ -274,7 +211,7 @@ class TestCodebaseRepositoryConfigManager:
             name="swift-repo",
             path="/tmp/test-swift-repo",
             description="Test Swift repository",
-            language="swift",
+            language=Language.SWIFT,
             port=8082,
             python_path="/usr/bin/python3",
             github_owner="test",
@@ -294,7 +231,7 @@ class TestCodebaseRepositoryConfigManager:
             name="python-repo",
             path="/tmp/test-repo",
             description="Test repository",
-            language="python",
+            language=Language.PYTHON,
             port=8081,
             python_path="/usr/bin/python3",
             github_owner="test",
@@ -321,7 +258,7 @@ class TestCodebaseRepositoryConfigManager:
             name="python-repo",
             path="/tmp/test-repo",
             description="Test repository",
-            language="python",
+            language=Language.PYTHON,
             port=8081,
             python_path="/usr/bin/python3",
             github_owner="test",
@@ -359,15 +296,19 @@ class TestCodebaseRepositoryConfigManager:
         """Test successful configuration validation with Python repositories."""
         manager = CodebaseRepositoryConfigManager(mock_repository_manager)
 
-        # Create proper CodebaseRepositoryConfig object
-        codebase_config = CodebaseRepositoryConfig(
+        # Create proper RepositoryConfig object
+        python_repo_config = RepositoryConfig(
             name="test-repo",
             path="/tmp/test-repo",
             description="Test repository",
+            language=Language.PYTHON,
+            port=8081,
             python_path="/usr/bin/python3",
+            github_owner="test",
+            github_repo="test-repo",
         )
         with patch.object(
-            manager, "get_python_repositories", return_value=[codebase_config]
+            manager, "get_python_repositories", return_value=[python_repo_config]
         ):
             result = manager.validate_repository_configuration()
 

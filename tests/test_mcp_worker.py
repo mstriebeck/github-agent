@@ -12,6 +12,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from constants import Language
 from mcp_worker import MCPWorker
 
 
@@ -63,7 +64,7 @@ class TestMCPWorker:
                 name="test-repo",
                 path=temp_repo,
                 description="Test repository",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
                 python_path="/usr/bin/python3",
             )
@@ -84,7 +85,7 @@ class TestMCPWorker:
                 name="test-repo",
                 path="/nonexistent/path",
                 description="Test repository",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
                 python_path="/usr/bin/python3",
             )
@@ -99,7 +100,7 @@ class TestMCPWorker:
                 name="test-repo",
                 path=temp_repo,
                 description="Test repository",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
                 python_path="/usr/bin/python3",
             )
@@ -117,7 +118,7 @@ class TestMCPWorker:
                 name="test-repo",
                 path=temp_repo,
                 description="Test repository",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
                 python_path="/usr/bin/python3",
             )
@@ -144,7 +145,7 @@ class TestMCPWorker:
                 name="test-repo",
                 path=temp_repo,
                 description="Test repository",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
                 python_path="/usr/bin/python3",
             )
@@ -171,7 +172,7 @@ class TestMCPWorker:
                 name="test-repo",
                 path=temp_repo,
                 description="Test repository",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
                 python_path="/usr/bin/python3",
             )
@@ -207,7 +208,7 @@ class TestMCPWorker:
                 name="test-repo",
                 path=temp_repo,
                 description="Test repository",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
                 python_path="/usr/bin/python3",
             )
@@ -260,7 +261,7 @@ class TestMCPWorker:
                 name="test-repo",
                 path=temp_repo,
                 description="Test repository",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
                 python_path="/usr/bin/python3",
             )
@@ -300,7 +301,7 @@ class TestMCPWorker:
                 name="test-repo",
                 path=temp_repo,
                 description="Test repository",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
                 python_path="/usr/bin/python3",
             )
@@ -336,7 +337,7 @@ class TestMCPWorker:
                 name="test-repo",
                 path=temp_repo,
                 description="Test repository",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
                 python_path="/usr/bin/python3",
             )

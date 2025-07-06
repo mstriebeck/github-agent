@@ -11,6 +11,7 @@ import tempfile
 import pytest
 
 import codebase_tools
+from constants import Language
 from repository_manager import RepositoryConfig
 from symbol_storage import Symbol
 
@@ -30,7 +31,7 @@ def mock_repo_config(temp_repo_path):
         path=temp_repo_path,
         port=9999,
         description="Test repository for search_symbols integration tests",
-        language="python",
+        language=Language.PYTHON,
         python_path="/usr/bin/python3",
         github_owner="test-owner",
         github_repo="test-repo",

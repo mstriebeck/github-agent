@@ -10,30 +10,11 @@ for indexing and provides validation for repository paths and Python file existe
 import glob
 import logging
 import os
-from dataclasses import dataclass
 
 from constants import Language
-from repository_manager import RepositoryManager
+from repository_manager import RepositoryConfig, RepositoryManager
 
-
-@dataclass
-class CodebaseRepositoryConfig:
-    """Configuration for a Python repository to be indexed by the codebase server."""
-
-    name: str
-    path: str
-    description: str
-    python_path: str | None
-
-    def __post_init__(self):
-        """Validate repository configuration after initialization."""
-        if not self.name:
-            raise ValueError("Repository name cannot be empty")
-        if not self.path:
-            raise ValueError("Repository path cannot be empty")
-
-        # Normalize path
-        self.path = os.path.abspath(os.path.expanduser(self.path))
+# CodebaseRepositoryConfig has been removed - we now use RepositoryConfig directly
 
 
 class CodebaseRepositoryConfigManager:
@@ -48,40 +29,25 @@ class CodebaseRepositoryConfigManager:
         self.repository_manager = repository_manager
         self.logger = logging.getLogger(__name__)
 
-    def get_python_repositories(self) -> list[CodebaseRepositoryConfig]:
+    def get_python_repositories(self) -> list[RepositoryConfig]:
         """Get list of Python repositories configured for indexing.
 
         Returns:
-            List of CodebaseRepositoryConfig objects for Python repositories
+            List of RepositoryConfig objects for Python repositories
         """
         python_repos = []
 
         for repo_name, repo_config in self.repository_manager.repositories.items():
-            # Filter for Python repositories
-            try:
-                repo_language = Language(repo_config.language)
-            except ValueError:
-                self.logger.warning(
-                    f"Unsupported language '{repo_config.language}' for repository {repo_name}"
-                )
-                continue
-
-            if repo_language == Language.PYTHON:
+            # Filter for Python repositories (language is already a Language enum)
+            if repo_config.language == Language.PYTHON:
                 self.logger.debug(f"Found Python repository: {repo_name}")
 
                 try:
                     # Validate repository path and Python files
                     self._validate_python_repository(repo_config.path)
 
-                    # Create codebase repository config
-                    codebase_config = CodebaseRepositoryConfig(
-                        name=repo_name,
-                        path=repo_config.path,
-                        description=repo_config.description,
-                        python_path=repo_config.python_path,
-                    )
-
-                    python_repos.append(codebase_config)
+                    # Use the RepositoryConfig directly (already validated and configured)
+                    python_repos.append(repo_config)
                     self.logger.info(
                         f"✅ Added Python repository for indexing: {repo_name}"
                     )
@@ -102,11 +68,7 @@ class CodebaseRepositoryConfigManager:
         Raises:
             ValueError: If repository path is invalid or contains no Python files
         """
-        # Note: Path existence and read permissions are already validated by RepositoryManager
-
-        # Check if it's a directory (RepositoryManager doesn't check this)
-        if not os.path.isdir(repo_path):
-            raise ValueError(f"Repository path is not a directory: {repo_path}")
+        # Note: Path existence, directory check, and read permissions are already validated by RepositoryManager
 
         # Check if repository contains Python files
         if not self._has_python_files(repo_path):
@@ -138,38 +100,26 @@ class CodebaseRepositoryConfigManager:
             self.logger.debug(f"Error checking for Python files in {repo_path}: {e}")
             return False
 
-    def get_repository_by_name(self, name: str) -> CodebaseRepositoryConfig | None:
+    def get_repository_by_name(self, name: str) -> RepositoryConfig | None:
         """Get Python repository configuration by name.
 
         Args:
             name: Repository name
 
         Returns:
-            CodebaseRepositoryConfig if found and is Python repository, None otherwise
+            RepositoryConfig if found and is Python repository, None otherwise
         """
         repo_config = self.repository_manager.get_repository(name)
         if not repo_config:
             return None
 
-        try:
-            repo_language = Language(repo_config.language)
-        except ValueError:
-            self.logger.warning(
-                f"Unsupported language '{repo_config.language}' for repository {name}"
-            )
-            return None
-
-        if repo_language != Language.PYTHON:
+        # Check if it's a Python repository (language is already a Language enum)
+        if repo_config.language != Language.PYTHON:
             return None
 
         try:
             self._validate_python_repository(repo_config.path)
-            return CodebaseRepositoryConfig(
-                name=name,
-                path=repo_config.path,
-                description=repo_config.description,
-                python_path=repo_config.python_path,
-            )
+            return repo_config
         except Exception as e:
             self.logger.warning(f"Repository {name} validation failed: {e}")
             return None

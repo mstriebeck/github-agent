@@ -23,7 +23,7 @@ class Language(Enum):
     SWIFT = "swift"
 
 
-SUPPORTED_LANGUAGES = {"python", "swift"}
+SUPPORTED_LANGUAGES = set(Language)
 
 # Port ranges for MCP servers
 MCP_PORT_RANGE_START = 8080

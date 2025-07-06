@@ -31,6 +31,7 @@ import pytest
 import codebase_tools
 import github_tools
 import mcp_master
+from constants import Language
 from repository_manager import RepositoryManager
 
 
@@ -126,7 +127,7 @@ def test_config_with_dynamic_port(temp_git_repo):
             "integration-test-repo": {
                 "port": test_port,
                 "path": temp_git_repo,
-                "language": "python",  # Required field
+                "language": Language.PYTHON,  # Required field
                 "python_path": "/usr/bin/python3",  # Required field for US001-12
                 "description": "Integration test repository",
                 "github_owner": "test-owner",  # Optional but realistic
@@ -230,7 +231,7 @@ class TestMCPIntegration:
                 name=repo_name,
                 path=repo_path,
                 description="Integration test repo",
-                language="python",
+                language=Language.PYTHON,
                 port=test_port,
                 python_path="/usr/bin/python3",
                 github_owner="test-owner",
@@ -390,7 +391,7 @@ class TestMCPIntegration:
             # Verify all required fields are present
             assert loaded_config.port == test_port
             assert loaded_config.path == repo_config["path"]
-            assert loaded_config.language == "python"
+            assert loaded_config.language == Language.PYTHON
             assert loaded_config.python_path == "/usr/bin/python3"
 
             # Repository loading success indicates validation passed
@@ -438,7 +439,7 @@ class TestMCPIntegration:
                 "valid-repo": {
                     "port": find_free_port(),
                     "path": temp_git_repo,
-                    "language": "python",
+                    "language": Language.PYTHON,
                     "python_path": "/usr/bin/python3",
                 }
             }

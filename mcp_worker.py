@@ -98,7 +98,7 @@ class MCPWorker:
         self.repo_path = repository_config.path
         self.port = repository_config.port
         self.description = repository_config.description
-        self.language = repository_config.language
+        self.language = repository_config.language.value
         self.python_path = repository_config.python_path
 
         # Set up enhanced logging for this worker (use system-appropriate location)

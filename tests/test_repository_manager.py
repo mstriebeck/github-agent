@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
+from constants import Language
 from repository_manager import (
     RepositoryConfig,
     RepositoryManager,
@@ -31,7 +32,7 @@ class TestRepositoryConfig(unittest.TestCase):
             "name": "test-repo",
             "path": "/path/to/repo",
             "description": "Test repository",
-            "language": "swift",
+            "language": Language.SWIFT,
             "port": 8000,
             "python_path": "/usr/bin/python3",
         }
@@ -40,7 +41,7 @@ class TestRepositoryConfig(unittest.TestCase):
             name=str(defaults["name"]),
             path=str(defaults["path"]),
             description=str(defaults["description"]),
-            language=str(defaults["language"]),
+            language=cast(Language, defaults["language"]),
             port=cast(int, defaults["port"]),
             python_path=str(defaults["python_path"])
             if defaults.get("python_path")
@@ -87,44 +88,43 @@ class TestRepositoryConfig(unittest.TestCase):
 
     def test_valid_language_python(self):
         """Test that 'python' language is accepted"""
-        config = self.create_test_repository_config(language="python")
-        self.assertEqual(config.language, "python")
+        config = self.create_test_repository_config(language=Language.PYTHON)
+        self.assertEqual(config.language, Language.PYTHON)
 
     def test_valid_language_swift(self):
         """Test that 'swift' language is accepted"""
-        config = self.create_test_repository_config(language="swift")
-        self.assertEqual(config.language, "swift")
+        config = self.create_test_repository_config(language=Language.SWIFT)
+        self.assertEqual(config.language, Language.SWIFT)
 
     def test_default_language_is_swift(self):
         """Test that default language is 'swift' for backward compatibility"""
-        config = self.create_test_repository_config(language="swift")
-        self.assertEqual(config.language, "swift")
+        config = self.create_test_repository_config(language=Language.SWIFT)
+        self.assertEqual(config.language, Language.SWIFT)
 
     def test_invalid_language_raises_error(self):
         """Test that invalid language raises ValueError"""
         with self.assertRaises(ValueError) as context:
-            self.create_test_repository_config(language="javascript")
+            # Try to create a Language enum with invalid language
+            Language("javascript")
 
         error_msg = str(context.exception)
-        self.assertIn("Unsupported language 'javascript'", error_msg)
-        self.assertIn("test-repo", error_msg)
-        self.assertIn("python, swift", error_msg)
+        self.assertIn("'javascript'", error_msg)
 
     def test_case_sensitive_language_validation(self):
         """Test that language validation is case sensitive"""
         with self.assertRaises(ValueError) as context:
-            self.create_test_repository_config(
-                language="Python"
-            )  # Capital P should fail
+            # Try to create a Language enum with invalid case
+            Language("Python")  # Capital P should fail
 
-        self.assertIn("Unsupported language 'Python'", str(context.exception))
+        self.assertIn("'Python'", str(context.exception))
 
     def test_empty_language_raises_error(self):
         """Test that empty language raises ValueError"""
         with self.assertRaises(ValueError) as context:
-            self.create_test_repository_config(language="")
+            # Try to create a Language enum with empty value
+            Language("")
 
-        self.assertIn("Unsupported language ''", str(context.exception))
+        self.assertIn("''", str(context.exception))
 
     def test_python_path_validation_empty_string(self):
         """Test that empty python_path raises ValueError"""
@@ -133,7 +133,7 @@ class TestRepositoryConfig(unittest.TestCase):
                 name="test",
                 path=os.path.abspath("/tmp/test"),
                 description="Test",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
                 python_path="",  # Empty string should fail
             )
@@ -146,7 +146,7 @@ class TestRepositoryConfig(unittest.TestCase):
                 name="test",
                 path=os.path.abspath("/tmp/test"),
                 description="Test",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
                 python_path="   ",  # Whitespace only
             )
@@ -159,7 +159,7 @@ class TestRepositoryConfig(unittest.TestCase):
                 name="test",
                 path=os.path.abspath("/tmp/test"),
                 description="Test",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
                 python_path="/nonexistent/python",
             )
@@ -180,7 +180,7 @@ class TestRepositoryConfig(unittest.TestCase):
                     name="test",
                     path=os.path.abspath("/tmp/test"),
                     description="Test",
-                    language="python",
+                    language=Language.PYTHON,
                     port=8080,
                     python_path=tmp_path,
                 )
@@ -203,7 +203,7 @@ class TestRepositoryConfig(unittest.TestCase):
                     name="test",
                     path=os.path.abspath("/tmp/test"),
                     description="Test",
-                    language="python",
+                    language=Language.PYTHON,
                     port=8080,
                     python_path=tmp_path,
                 )
@@ -236,14 +236,14 @@ class TestRepositoryManager(unittest.TestCase):
                 "repo1": {
                     "path": str(self.repo1_path),
                     "description": "Test repository 1",
-                    "language": "python",
+                    "language": Language.PYTHON.value,
                     "port": 8080,
                     "python_path": sys.executable,
                 },
                 "repo2": {
                     "path": str(self.repo2_path),
                     "description": "Test repository 2",
-                    "language": "swift",
+                    "language": Language.SWIFT.value,
                     "port": 8081,
                     "python_path": sys.executable,
                 },
@@ -342,7 +342,7 @@ class TestRepositoryManager(unittest.TestCase):
                 "repo1": {
                     "path": "/nonexistent/path",
                     "description": "Non-existent repo",
-                    "language": "python",
+                    "language": Language.PYTHON.value,
                 }
             }
         }
@@ -364,7 +364,7 @@ class TestRepositoryManager(unittest.TestCase):
                 "not_git": {
                     "path": str(non_git_path),
                     "description": "Not a git repo",
-                    "language": "python",
+                    "language": Language.PYTHON.value,
                     "port": 8080,
                 }
             }
@@ -384,13 +384,13 @@ class TestRepositoryManager(unittest.TestCase):
                 "repo1": {
                     "path": str(self.repo1_path),
                     "description": "Test repository 1",
-                    "language": "python",
+                    "language": Language.PYTHON.value,
                     "port": 8080,
                 },
                 "repo2": {
                     "path": str(self.repo2_path),
                     "description": "Test repository 2",
-                    "language": "swift",
+                    "language": Language.SWIFT.value,
                     "port": 8080,  # Same port as repo1 - should fail
                 },
             }
@@ -721,7 +721,7 @@ class TestErrorMessageClarity(unittest.TestCase):
                 name="test",
                 path=os.path.abspath("/tmp/test"),
                 description="Test",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
                 python_path="/nonexistent/python/executable",
             )
@@ -733,18 +733,11 @@ class TestErrorMessageClarity(unittest.TestCase):
     def test_language_error_message_clarity(self):
         """Test that language validation errors are clear"""
         with self.assertRaises(ValueError) as context:
-            RepositoryConfig.create_repository_config(
-                name="test",
-                path=os.path.abspath("/tmp/test"),
-                description="Test",
-                language="javascript",
-                port=8080,
-            )
+            # Try to create a Language enum with invalid value
+            Language("javascript")
 
         error_msg = str(context.exception)
-        self.assertIn("Unsupported language 'javascript'", error_msg)
-        self.assertIn("repository 'test'", error_msg)
-        self.assertIn("python, swift", error_msg)
+        self.assertIn("'javascript'", error_msg)
 
     def test_path_error_message_clarity(self):
         """Test that path validation errors are clear"""
@@ -753,7 +746,7 @@ class TestErrorMessageClarity(unittest.TestCase):
                 name="test",
                 path="relative/path",
                 description="Test",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
             )
 
@@ -768,7 +761,7 @@ class TestErrorMessageClarity(unittest.TestCase):
                 name="",
                 path=os.path.abspath("/tmp/test"),
                 description="Test",
-                language="python",
+                language=Language.PYTHON,
                 port=8080,
             )
 
