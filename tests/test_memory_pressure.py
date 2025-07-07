@@ -145,7 +145,8 @@ class TestMemoryPressureScenarios(unittest.TestCase):
         file_count = 1000
         for i in range(file_count):
             file_path = repo_dir / f"file_{i}.py"
-            file_path.write_text(f"""
+            file_path.write_text(
+                f"""
 def function_{i}():
     '''Function {i} docstring'''
     return {i}
@@ -154,7 +155,8 @@ class Class_{i}:
     '''Class {i} docstring'''
     def method_{i}(self):
         return {i}
-""")
+"""
+            )
 
         # Create storage and indexer
         storage = SQLiteSymbolStorage(self.db_path)
