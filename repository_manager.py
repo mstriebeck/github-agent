@@ -440,6 +440,27 @@ class RepositoryManager(AbstractRepositoryManager):
         self._last_modified: float | None = None
         self._reload_callbacks: list[Callable[[], None]] = []
 
+    @classmethod
+    def create_from_config(cls, config_path: str) -> "RepositoryManager":
+        """
+        Factory method to create a RepositoryManager with loaded configuration.
+
+        Args:
+            config_path: Path to repositories.json config file.
+
+        Returns:
+            RepositoryManager instance with loaded configuration
+
+        Raises:
+            RuntimeError: If configuration fails to load
+        """
+        manager = cls(config_path)
+        if not manager.load_configuration():
+            raise RuntimeError(
+                f"Failed to load repository configuration from {manager.config_path}"
+            )
+        return manager
+
     @property
     def repositories(self) -> dict[str, RepositoryConfig]:
         """Get dictionary of repositories."""

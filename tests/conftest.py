@@ -11,9 +11,22 @@ from typing import Any
 
 import pytest
 
-from python_symbol_extractor import AbstractSymbolExtractor
-from repository_indexer import AbstractRepositoryIndexer, IndexingResult
-from symbol_storage import AbstractSymbolStorage, SQLiteSymbolStorage, Symbol
+import mcp_master
+from python_symbol_extractor import AbstractSymbolExtractor, PythonSymbolExtractor
+from repository_indexer import (
+    AbstractRepositoryIndexer,
+    IndexingResult,
+    PythonRepositoryIndexer,
+)
+from repository_manager import RepositoryManager
+from shutdown_simple import SimpleHealthMonitor, SimpleShutdownCoordinator
+from startup_orchestrator import CodebaseStartupOrchestrator
+from symbol_storage import (
+    AbstractSymbolStorage,
+    ProductionSymbolStorage,
+    SQLiteSymbolStorage,
+    Symbol,
+)
 from tests.test_fixtures import MockRepositoryManager
 
 
@@ -370,3 +383,49 @@ def temp_database():
         os.unlink(db_path)
     except OSError:
         pass
+
+
+@pytest.fixture
+def mcp_master_factory():
+    """
+    Factory fixture for creating MCPMaster instances with all required dependencies.
+
+    This fixture returns a function that creates MCPMaster instances with proper
+    dependency injection, using the same pattern as the main() function.
+    """
+
+    def create_mcp_master(config_file_path: str) -> mcp_master.MCPMaster:
+        # Create repository manager from configuration
+        repository_manager = RepositoryManager.create_from_config(config_file_path)
+
+        # Create worker managers (empty for testing)
+        workers: dict[str, mcp_master.WorkerProcess] = {}
+
+        # Create startup orchestrator components
+        symbol_storage = ProductionSymbolStorage.create_with_schema()
+        symbol_extractor = PythonSymbolExtractor()
+        indexer = PythonRepositoryIndexer(symbol_extractor, symbol_storage)
+
+        startup_orchestrator = CodebaseStartupOrchestrator(
+            symbol_storage=symbol_storage,
+            symbol_extractor=symbol_extractor,
+            indexer=indexer,
+        )
+
+        # Create shutdown and health monitoring components
+        import logging
+
+        test_logger = logging.getLogger("test_mcp_master")
+        shutdown_coordinator = SimpleShutdownCoordinator(test_logger)
+        health_monitor = SimpleHealthMonitor(test_logger)
+
+        return mcp_master.MCPMaster(
+            repository_manager=repository_manager,
+            workers=workers,
+            startup_orchestrator=startup_orchestrator,
+            symbol_storage=symbol_storage,
+            shutdown_coordinator=shutdown_coordinator,
+            health_monitor=health_monitor,
+        )
+
+    return create_mcp_master

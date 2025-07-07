@@ -171,7 +171,10 @@ class TestRepositoryAwareTools(unittest.TestCase):
             github_repo="project-b",
         )
 
-        with patch("github_tools.Github") as mock_github_class:
+        with (
+            patch("github_tools.Github") as mock_github_class,
+            patch.dict(os.environ, {"GITHUB_TOKEN": "test-token"}),
+        ):
             mock_github = MagicMock()
             mock_github_class.return_value = mock_github
 

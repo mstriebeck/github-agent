@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from constants import DATA_DIR
+
 logger = logging.getLogger(__name__)
 
 
@@ -358,3 +360,25 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
                 )
                 for row in rows
             ]
+
+
+class ProductionSymbolStorage(SQLiteSymbolStorage):
+    """Production symbol storage that uses standard data directory and database name."""
+
+    def __init__(self):
+        """Initialize with standard production database path."""
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        db_path = DATA_DIR / "symbols.db"
+        super().__init__(str(db_path))
+
+    @classmethod
+    def create_with_schema(cls) -> "ProductionSymbolStorage":
+        """
+        Factory method to create ProductionSymbolStorage with initialized schema.
+
+        Returns:
+            ProductionSymbolStorage instance with schema already created
+        """
+        storage = cls()
+        storage.create_schema()
+        return storage

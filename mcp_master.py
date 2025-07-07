@@ -28,6 +28,8 @@ from typing import Any
 import aiohttp
 
 from constants import LOGS_DIR, Language
+from python_symbol_extractor import PythonSymbolExtractor
+from repository_indexer import PythonRepositoryIndexer
 from repository_manager import RepositoryConfig, RepositoryManager
 
 # Import shutdown coordination components
@@ -35,6 +37,8 @@ from shutdown_simple import (
     SimpleHealthMonitor,
     SimpleShutdownCoordinator,
 )
+from startup_orchestrator import CodebaseStartupOrchestrator
+from symbol_storage import ProductionSymbolStorage, SQLiteSymbolStorage
 from system_utils import MicrosecondFormatter, log_system_state
 
 # Configure logging with enhanced microsecond precision
@@ -181,50 +185,66 @@ async def wait_for_port_free(port: int, timeout: int = 30) -> bool:
 class MCPMaster:
     """Master process for managing multiple MCP worker processes"""
 
-    def __init__(self, config_path: str = "repositories.json"):
-        self.config_path = config_path
-        self.workers: dict[str, WorkerProcess] = {}
+    def __init__(
+        self,
+        repository_manager: RepositoryManager,
+        workers: dict[str, WorkerProcess],
+        startup_orchestrator: CodebaseStartupOrchestrator,
+        symbol_storage: SQLiteSymbolStorage,
+        shutdown_coordinator: SimpleShutdownCoordinator,
+        health_monitor: SimpleHealthMonitor,
+    ):
+        self.repository_manager = repository_manager
+        self.workers = workers
+        self.startup_orchestrator = startup_orchestrator
+        self.symbol_storage = symbol_storage
+        self.shutdown_coordinator = shutdown_coordinator
+        self.health_monitor = health_monitor
         self.running = False
-
-        # Initialize repository manager with comprehensive validation
-        self.repository_manager = RepositoryManager(config_path)
-
-        # Initialize simple shutdown coordination
-        self.shutdown_coordinator = SimpleShutdownCoordinator(logger)
-
-        # Start simple health monitoring
-        self.health_monitor = SimpleHealthMonitor(logger)
-        self.health_monitor.start_monitoring()
 
         # Use system-appropriate log location
         self.log_dir = LOGS_DIR
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
-    def load_configuration(self) -> bool:
-        """Load repository configuration using RepositoryManager"""
+    async def initialize_repository_indexes(self) -> None:
+        """Initialize repository indexes using the startup orchestrator."""
+
         try:
-            logger.info("Loading repository configuration...")
+            logger.info("Initializing repository indexes...")
 
-            # Use RepositoryManager to load and validate configuration
-            if not self.repository_manager.load_configuration():
-                logger.error("❌ Repository configuration loading failed")
-                return False
+            # Get list of repository configurations
+            repositories = list(self.repository_manager.repositories.values())
 
-            # Convert validated repository configs to worker processes
-            self.workers = {}
-            for repo_name, repo_config in self.repository_manager.repositories.items():
-                worker = WorkerProcess(repository_config=repo_config)
-                self.workers[repo_name] = worker
-                logger.debug(f"✅ Created worker for repository: {repo_name}")
-
-            logger.info(
-                f"✅ Successfully loaded and validated {len(self.workers)} repositories"
+            # Run startup orchestration
+            result = await self.startup_orchestrator.initialize_repositories(
+                repositories
             )
-            return True
+
+            # Log detailed results
+            logger.info("Repository indexing completed:")
+            logger.info(f"  - Total repositories: {result.total_repositories}")
+            logger.info(f"  - Successfully indexed: {result.indexed_repositories}")
+            logger.info(f"  - Failed to index: {result.failed_repositories}")
+            logger.info(f"  - Skipped (non-Python): {result.skipped_repositories}")
+            logger.info(f"  - Success rate: {result.success_rate:.1%}")
+            logger.info(f"  - Total time: {result.startup_duration:.2f}s")
+
+            # Log detailed status for each repository
+            for status in result.indexing_statuses:
+                if status.status == "completed" and status.result:
+                    logger.info(
+                        f"  - {status.repository_id}: {status.result.total_symbols} symbols, "
+                        f"{len(status.result.processed_files)} files, "
+                        f"{status.duration:.2f}s"
+                    )
+                elif status.status == "failed":
+                    logger.warning(
+                        f"  - {status.repository_id}: FAILED - {status.error_message}"
+                    )
 
         except Exception as e:
-            logger.error(f"❌ Failed to load configuration: {e}")
-            return False
+            logger.error(f"Failed to initialize repository indexes: {e}")
+            # Don't fail the entire startup - continue without indexing
 
     def start_worker(self, worker: WorkerProcess) -> bool:
         """Start a worker process for a repository"""
@@ -447,10 +467,8 @@ class MCPMaster:
         # Store loop reference for signal handler
         self.loop = asyncio.get_running_loop()
 
-        # Load configuration
-        if not self.load_configuration():
-            logger.error("Failed to load configuration, exiting")
-            return False
+        # Initialize repository indexes
+        await self.initialize_repository_indexes()
 
         # Set up signal handlers
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -544,6 +562,15 @@ class MCPMaster:
         logger.info(
             f"Worker shutdown complete: {success_count}/{total_count} successful"
         )
+
+        # Clean up symbol storage after all workers are shutdown
+        try:
+            logger.info("Closing master symbol storage...")
+            self.symbol_storage.close()
+            logger.info("✓ Symbol storage closed successfully")
+        except Exception as e:
+            logger.error(f"Error closing symbol storage: {e}")
+
         return success_count == total_count
 
     async def shutdown_worker(self, worker: WorkerProcess) -> bool:
@@ -641,7 +668,7 @@ class MCPMaster:
             "master": {
                 "running": self.running,
                 "workers_count": len(self.workers),
-                "config_path": self.config_path,
+                "config_path": "repositories.json",  # Default config path
             },
             "workers": {},
         }
@@ -664,22 +691,102 @@ class MCPMaster:
 
 async def main() -> None:
     """Main entry point"""
-    master = MCPMaster()
+    config_path = "repositories.json"
 
     # Handle command line arguments
     if len(sys.argv) > 1:
         if sys.argv[1] == "status":
             # Show status and exit
-            if master.load_configuration():
+            try:
+                # Create all components for status check
+                repository_manager = RepositoryManager.create_from_config(config_path)
+
+                workers = {}
+                for repo_name, repo_config in repository_manager.repositories.items():
+                    worker = WorkerProcess(repository_config=repo_config)
+                    workers[repo_name] = worker
+
+                symbol_storage = ProductionSymbolStorage.create_with_schema()
+                symbol_extractor = PythonSymbolExtractor()
+                indexer = PythonRepositoryIndexer(symbol_extractor, symbol_storage)
+                startup_orchestrator = CodebaseStartupOrchestrator(
+                    symbol_storage=symbol_storage,
+                    symbol_extractor=symbol_extractor,
+                    indexer=indexer,
+                )
+
+                # Create shutdown and health monitoring components
+                shutdown_coordinator = SimpleShutdownCoordinator(logger)
+                health_monitor = SimpleHealthMonitor(logger)
+                health_monitor.start_monitoring()
+
+                master = MCPMaster(
+                    repository_manager=repository_manager,
+                    workers=workers,
+                    startup_orchestrator=startup_orchestrator,
+                    symbol_storage=symbol_storage,
+                    shutdown_coordinator=shutdown_coordinator,
+                    health_monitor=health_monitor,
+                )
+
                 status = master.status()
                 print(json.dumps(status, indent=2))
-            else:
+            except Exception as e:
+                logger.error(f"Failed to create master: {e}")
                 print("Failed to load configuration")
             return
         elif sys.argv[1] == "stop":
             # Stop all workers (TODO: implement proper shutdown)
             logger.info("Stop command not implemented yet")
             return
+
+    # Create all MCP Master components
+    try:
+        logger.info("Creating MCP Master components...")
+
+        # Create and configure repository manager
+        repository_manager = RepositoryManager.create_from_config(config_path)
+
+        logger.info(f"✅ Loaded {len(repository_manager.repositories)} repositories")
+
+        # Create worker processes from repository configs
+        workers = {}
+        for repo_name, repo_config in repository_manager.repositories.items():
+            worker = WorkerProcess(repository_config=repo_config)
+            workers[repo_name] = worker
+            logger.debug(f"✅ Created worker for repository: {repo_name}")
+
+        # Create startup orchestrator components
+        logger.info("Creating startup orchestrator components...")
+        symbol_storage = ProductionSymbolStorage.create_with_schema()
+        symbol_extractor = PythonSymbolExtractor()
+        indexer = PythonRepositoryIndexer(symbol_extractor, symbol_storage)
+
+        startup_orchestrator = CodebaseStartupOrchestrator(
+            symbol_storage=symbol_storage,
+            symbol_extractor=symbol_extractor,
+            indexer=indexer,
+        )
+
+        # Create shutdown and health monitoring components
+        shutdown_coordinator = SimpleShutdownCoordinator(logger)
+        health_monitor = SimpleHealthMonitor(logger)
+        health_monitor.start_monitoring()
+
+        logger.info("✅ All components created successfully")
+
+        master = MCPMaster(
+            repository_manager=repository_manager,
+            workers=workers,
+            startup_orchestrator=startup_orchestrator,
+            symbol_storage=symbol_storage,
+            shutdown_coordinator=shutdown_coordinator,
+            health_monitor=health_monitor,
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to create MCP Master: {e}")
+        sys.exit(1)
 
     # Start master process
     try:
