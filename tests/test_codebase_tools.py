@@ -479,7 +479,7 @@ class TestCodebaseTools:
         # Should handle exception gracefully and return error response
         data = json.loads(result)
         assert "error" in data
-        assert "Symbol search failed" in data["error"]
+        assert "Database search failed" in data["error"]
         assert data["query"] == "test"
         assert data["repository"] == "test-repo"
         assert data["total_results"] == 0
