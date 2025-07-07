@@ -441,13 +441,12 @@ class RepositoryManager(AbstractRepositoryManager):
         self._reload_callbacks: list[Callable[[], None]] = []
 
     @classmethod
-    def create_from_config(cls, config_path: str | None = None) -> "RepositoryManager":
+    def create_from_config(cls, config_path: str) -> "RepositoryManager":
         """
         Factory method to create a RepositoryManager with loaded configuration.
 
         Args:
             config_path: Path to repositories.json config file.
-                        Defaults to ~/.local/share/github-agent/repositories.json
 
         Returns:
             RepositoryManager instance with loaded configuration
