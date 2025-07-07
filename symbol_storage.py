@@ -11,6 +11,7 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -19,12 +20,28 @@ from constants import DATA_DIR
 logger = logging.getLogger(__name__)
 
 
+class SymbolKind(Enum):
+    """Enumeration of Python symbol types."""
+
+    CLASS = "class"
+    FUNCTION = "function"
+    METHOD = "method"
+    PROPERTY = "property"
+    CLASSMETHOD = "classmethod"
+    STATICMETHOD = "staticmethod"
+    SETTER = "setter"
+    DELETER = "deleter"
+    VARIABLE = "variable"
+    CONSTANT = "constant"
+    MODULE = "module"
+
+
 @dataclass
 class Symbol:
     """Represents a Python symbol with its location and metadata."""
 
     name: str
-    kind: str  # class, function, method, variable, constant, module
+    kind: SymbolKind
     file_path: str
     line_number: int
     column_number: int
@@ -35,7 +52,7 @@ class Symbol:
         """Convert symbol to dictionary representation."""
         return {
             "name": self.name,
-            "kind": self.kind,
+            "kind": self.kind.value,
             "file_path": self.file_path,
             "line_number": self.line_number,
             "column_number": self.column_number,
@@ -298,7 +315,7 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
                 """,
                     (
                         symbol.name,
-                        symbol.kind,
+                        symbol.kind.value,
                         symbol.file_path,
                         symbol.line_number,
                         symbol.column_number,
@@ -376,7 +393,7 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
             """,
                 (
                     symbol.name,
-                    symbol.kind,
+                    symbol.kind.value,
                     symbol.file_path,
                     symbol.line_number,
                     symbol.column_number,
@@ -410,7 +427,7 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
         self,
         query: str,
         repository_id: str | None = None,
-        symbol_kind: str | None = None,
+        symbol_kind: SymbolKind | str | None = None,
         limit: int = 50,
     ) -> list[Symbol]:
         """Search for symbols by name."""
@@ -426,7 +443,13 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
 
                 if symbol_kind:
                     sql += " AND kind = ?"
-                    params.append(symbol_kind)
+                    # Convert enum to string value if needed
+                    kind_value = (
+                        symbol_kind.value
+                        if isinstance(symbol_kind, SymbolKind)
+                        else symbol_kind
+                    )
+                    params.append(kind_value)
 
                 # Order by exact match first, then by name
                 sql += " ORDER BY (CASE WHEN name = ? THEN 0 ELSE 1 END), name LIMIT ?"
@@ -438,7 +461,7 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
                 return [
                     Symbol(
                         name=row["name"],
-                        kind=row["kind"],
+                        kind=SymbolKind(row["kind"]),
                         file_path=row["file_path"],
                         line_number=row["line_number"],
                         column_number=row["column_number"],
@@ -462,7 +485,7 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
 
             return Symbol(
                 name=row["name"],
-                kind=row["kind"],
+                kind=SymbolKind(row["kind"]),
                 file_path=row["file_path"],
                 line_number=row["line_number"],
                 column_number=row["column_number"],
@@ -485,7 +508,7 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
             return [
                 Symbol(
                     name=row["name"],
-                    kind=row["kind"],
+                    kind=SymbolKind(row["kind"]),
                     file_path=row["file_path"],
                     line_number=row["line_number"],
                     column_number=row["column_number"],

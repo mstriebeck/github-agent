@@ -7,7 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from symbol_storage import AbstractSymbolStorage, SQLiteSymbolStorage, Symbol
+from symbol_storage import (
+    AbstractSymbolStorage,
+    SQLiteSymbolStorage,
+    Symbol,
+    SymbolKind,
+)
 
 
 class TestSymbol:
@@ -17,7 +22,7 @@ class TestSymbol:
         """Test creating a Symbol instance."""
         symbol = Symbol(
             name="test_function",
-            kind="function",
+            kind=SymbolKind.FUNCTION,
             file_path="test.py",
             line_number=10,
             column_number=0,
@@ -25,7 +30,7 @@ class TestSymbol:
         )
 
         assert symbol.name == "test_function"
-        assert symbol.kind == "function"
+        assert symbol.kind == SymbolKind.FUNCTION
         assert symbol.file_path == "test.py"
         assert symbol.line_number == 10
         assert symbol.column_number == 0
@@ -36,7 +41,7 @@ class TestSymbol:
         """Test creating a Symbol with docstring."""
         symbol = Symbol(
             name="test_class",
-            kind="class",
+            kind=SymbolKind.CLASS,
             file_path="test.py",
             line_number=1,
             column_number=0,
@@ -50,7 +55,7 @@ class TestSymbol:
         """Test converting Symbol to dictionary."""
         symbol = Symbol(
             name="test_method",
-            kind="method",
+            kind=SymbolKind.METHOD,
             file_path="test.py",
             line_number=5,
             column_number=4,
@@ -122,7 +127,7 @@ class TestSQLiteSymbolStorage:
         """Test inserting a single symbol."""
         symbol = Symbol(
             name="test_function",
-            kind="function",
+            kind=SymbolKind.FUNCTION,
             file_path="test.py",
             line_number=10,
             column_number=0,
@@ -135,7 +140,7 @@ class TestSQLiteSymbolStorage:
         results = storage.search_symbols("test_function", "test-repo")
         assert len(results) == 1
         assert results[0].name == "test_function"
-        assert results[0].kind == "function"
+        assert results[0].kind == SymbolKind.FUNCTION
 
     def test_insert_multiple_symbols(self, storage, sample_symbols):
         """Test inserting multiple symbols."""
@@ -191,14 +196,14 @@ class TestSQLiteSymbolStorage:
         storage.insert_symbols(sample_symbols)
 
         # Search for functions only
-        results = storage.search_symbols("", symbol_kind="function")
+        results = storage.search_symbols("", symbol_kind=SymbolKind.FUNCTION)
         assert len(results) == 2
         function_names = [s.name for s in results]
         assert "test_function" in function_names
         assert "helper_function" in function_names
 
         # Search for classes only
-        results = storage.search_symbols("", symbol_kind="class")
+        results = storage.search_symbols("", symbol_kind=SymbolKind.CLASS)
         assert len(results) == 1
         assert results[0].name == "TestClass"
 
@@ -235,7 +240,7 @@ class TestSQLiteSymbolStorage:
         """Test updating a symbol."""
         symbol = Symbol(
             name="test_function",
-            kind="function",
+            kind=SymbolKind.FUNCTION,
             file_path="test.py",
             line_number=10,
             column_number=0,
@@ -246,7 +251,7 @@ class TestSQLiteSymbolStorage:
         # Update the symbol
         updated_symbol = Symbol(
             name="test_function",
-            kind="function",
+            kind=SymbolKind.FUNCTION,
             file_path="test.py",
             line_number=20,  # Changed line number
             column_number=4,  # Changed column number
@@ -307,7 +312,7 @@ class TestSQLiteSymbolStorage:
         """Test getting a symbol by its ID."""
         symbol = Symbol(
             name="test_function",
-            kind="function",
+            kind=SymbolKind.FUNCTION,
             file_path="test.py",
             line_number=10,
             column_number=0,

@@ -11,6 +11,7 @@ from python_symbol_extractor import (
     AbstractSymbolExtractor,
     PythonSymbolExtractor,
 )
+from symbol_storage import SymbolKind
 
 
 class TestPythonSymbolExtractor:
@@ -31,7 +32,7 @@ def hello_world():
 
         assert len(symbols) == 1
         assert symbols[0].name == "hello_world"
-        assert symbols[0].kind == "function"
+        assert symbols[0].kind == SymbolKind.FUNCTION
         assert symbols[0].line_number == 2
         assert symbols[0].docstring == "Say hello to the world."
 
@@ -48,7 +49,7 @@ class TestClass:
 
         assert len(symbols) == 1
         assert symbols[0].name == "TestClass"
-        assert symbols[0].kind == "class"
+        assert symbols[0].kind == SymbolKind.CLASS
         assert symbols[0].line_number == 2
         assert symbols[0].docstring == "A test class."
 

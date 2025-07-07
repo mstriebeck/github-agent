@@ -9,7 +9,7 @@ import ast
 import logging
 from abc import ABC, abstractmethod
 
-from symbol_storage import Symbol
+from symbol_storage import Symbol, SymbolKind
 
 logger = logging.getLogger(__name__)
 
@@ -215,7 +215,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
 
         symbol = Symbol(
             name=full_name,
-            kind="class",
+            kind=SymbolKind.CLASS,
             file_path=self.current_file_path,
             line_number=node.lineno,
             column_number=node.col_offset,
@@ -238,14 +238,14 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
 
     def _visit_function(self, node: ast.FunctionDef) -> None:
         """Visit a function definition."""
-        self._process_function(node, "function")
+        self._process_function(node, SymbolKind.FUNCTION)
 
     def _visit_async_function(self, node: ast.AsyncFunctionDef) -> None:
         """Visit an async function definition."""
-        self._process_function(node, "function")
+        self._process_function(node, SymbolKind.FUNCTION)
 
     def _process_function(
-        self, node: ast.FunctionDef | ast.AsyncFunctionDef, base_kind: str
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef, base_kind: SymbolKind
     ) -> None:
         """Process function or method definition."""
         func_name = node.name
@@ -296,7 +296,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
 
             symbol = Symbol(
                 name=full_name,
-                kind="module",
+                kind=SymbolKind.MODULE,
                 file_path=self.current_file_path,
                 line_number=node.lineno,
                 column_number=node.col_offset,
@@ -318,7 +318,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
 
             symbol = Symbol(
                 name=full_name,
-                kind="module",
+                kind=SymbolKind.MODULE,
                 file_path=self.current_file_path,
                 line_number=node.lineno,
                 column_number=node.col_offset,
@@ -411,7 +411,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
 
             symbol = Symbol(
                 name=full_name,
-                kind="variable",
+                kind=SymbolKind.VARIABLE,
                 file_path=self.current_file_path,
                 line_number=node.lineno,
                 column_number=node.col_offset,
@@ -498,8 +498,8 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
         return None
 
     def _determine_function_kind(
-        self, node: ast.FunctionDef | ast.AsyncFunctionDef, base_kind: str
-    ) -> str:
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef, base_kind: SymbolKind
+    ) -> SymbolKind:
         """Determine the specific kind of function (method, property, etc.)."""
         # Only consider it a method if we're directly inside a class
         if self.scope_types and self.scope_types[-1] == "class":
@@ -507,30 +507,36 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
             for decorator in node.decorator_list:
                 if isinstance(decorator, ast.Name):
                     if decorator.id == "property":
-                        return "property"
+                        return SymbolKind.PROPERTY
                     elif decorator.id == "classmethod":
-                        return "classmethod"
+                        return SymbolKind.CLASSMETHOD
                     elif decorator.id == "staticmethod":
-                        return "staticmethod"
+                        return SymbolKind.STATICMETHOD
                 elif isinstance(decorator, ast.Attribute):
                     # Handle property setters and deleters like @value.setter
                     if decorator.attr == "setter":
-                        return "setter"
+                        return SymbolKind.SETTER
                     elif decorator.attr == "deleter":
-                        return "deleter"
-                    elif decorator.attr in ["property", "classmethod", "staticmethod"]:
-                        return decorator.attr
+                        return SymbolKind.DELETER
+                    elif decorator.attr == "property":
+                        return SymbolKind.PROPERTY
+                    elif decorator.attr == "classmethod":
+                        return SymbolKind.CLASSMETHOD
+                    elif decorator.attr == "staticmethod":
+                        return SymbolKind.STATICMETHOD
 
             # If directly inside a class but no special decorators, it's a method
-            return "method"
+            return SymbolKind.METHOD
 
         return base_kind
 
-    def _determine_variable_kind(self, var_name: str, node: ast.stmt | ast.expr) -> str:
+    def _determine_variable_kind(
+        self, var_name: str, node: ast.stmt | ast.expr
+    ) -> SymbolKind:
         """Determine if a variable is a constant or regular variable."""
         # Python convention: ALL_CAPS names are constants
         if var_name.isupper() and "_" in var_name:
-            return "constant"
+            return SymbolKind.CONSTANT
         elif var_name.isupper():
-            return "constant"
-        return "variable"
+            return SymbolKind.CONSTANT
+        return SymbolKind.VARIABLE
