@@ -14,7 +14,6 @@ import pytest
 import codebase_tools
 from symbol_storage import Symbol
 
-
 # temp_git_repo fixture now consolidated in conftest.py
 
 

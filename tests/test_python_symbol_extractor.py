@@ -25,7 +25,9 @@ def hello_world():
     """Say hello to the world."""
     print("Hello, World!")
 '''
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         assert len(symbols) == 1
         assert symbols[0].name == "hello_world"
@@ -40,7 +42,9 @@ class TestClass:
     """A test class."""
     pass
 '''
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         assert len(symbols) == 1
         assert symbols[0].name == "TestClass"
@@ -76,7 +80,9 @@ class Calculator:
         """Check if value is a number."""
         return isinstance(value, (int, float))
 '''
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Should find: class, add method, multiply method, name property,
         # create_default classmethod, is_number staticmethod
@@ -130,7 +136,9 @@ class Outer:
         """Outer method."""
         pass
 '''
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         assert len(symbols) == 5
 
@@ -176,7 +184,9 @@ def another_function():
     """Another top-level function."""
     pass
 '''
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         assert len(symbols) == 4
 
@@ -220,7 +230,9 @@ def setup():
     local_var = "local"
     LOCAL_CONSTANT = 123
 '''
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Filter symbols by kind
         constants = [s for s in symbols if s.kind == "constant"]
@@ -258,7 +270,9 @@ from typing import List, Dict
 from collections import defaultdict as dd
 from .local_module import local_function
 """
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         module_symbols = [s for s in symbols if s.kind == "module"]
         assert len(module_symbols) == 7
@@ -293,7 +307,9 @@ async def main():
     handler = AsyncHandler()
     await handler.handle_request()
 '''
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Filter functions
         functions = [s for s in symbols if s.kind in ["function", "method"]]
@@ -358,7 +374,9 @@ def broken_function(
     def test_empty_file(self, python_symbol_extractor):
         """Test extracting from an empty file."""
         source = ""
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
         assert len(symbols) == 0
 
     def test_annotated_assignments(self, python_symbol_extractor):
@@ -373,7 +391,9 @@ class Person:
     age: int = 0
     SPECIES: str = "Homo sapiens"
 """
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Check module-level annotated assignments
         name_var = next(s for s in symbols if s.name == "name")
@@ -433,7 +453,9 @@ def outer_function():
         return re.compile(r"test")
     return inner_function
 """
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         import_symbols = [s for s in symbols if s.kind == "module"]
         import_names = [s.name for s in import_symbols]
@@ -526,7 +548,9 @@ class MyClass:
         """Static method with decorators."""
         return value
 '''
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Should still detect property despite multiple decorators
         prop = next(s for s in symbols if s.name == "MyClass.complex_property")
@@ -561,7 +585,9 @@ class MultipleInheritance(BaseClass, DerivedClass):
     """Multiple inheritance."""
     pass
 '''
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Should extract all classes regardless of inheritance
         base_class = next(s for s in symbols if s.name == "BaseClass")
@@ -589,7 +615,9 @@ class DataProcessor:
     def process_list(self):
         return [x * 2 for x in self.data]
 '''
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Should extract variables and functions correctly
         var_names = [s.name for s in symbols if s.kind == "variable"]
@@ -623,7 +651,9 @@ class PropertyExample:
         """Delete the value."""
         del self._value
 '''
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Find property-related symbols
         prop_getter = next(
@@ -664,7 +694,9 @@ def process_data():
     if (a := 5) > 2 and (b := 10) < 20:
         result = a + b
 """
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         variable_names = [s.name for s in symbols if s.kind == "variable"]
         assert "process_data.n" in variable_names
@@ -696,7 +728,9 @@ async def async_file_operations():
     async with aiofiles.open('async_file.txt') as af:
         async_content = await af.read()
 """
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         variable_names = [s.name for s in symbols if s.kind == "variable"]
 
@@ -734,7 +768,9 @@ class UnpackingInClass:
         # Instance variable unpacking
         self.x, self.y = 10, 20
 """
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         variable_names = [s.name for s in symbols if s.kind == "variable"]
 
@@ -799,7 +835,9 @@ async def async_loop_examples():
     async for name, value in async_pairs():
         await store(name, value)
 """
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         variable_names = [s.name for s in symbols if s.kind == "variable"]
 
@@ -847,7 +885,9 @@ def error_handling():
     except IOError as io:
         handle_io_error(io)
 """
-        symbols = python_symbol_extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         variable_names = [s.name for s in symbols if s.kind == "variable"]
 

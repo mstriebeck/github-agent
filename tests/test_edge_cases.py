@@ -3,7 +3,6 @@ Test edge cases and error conditions for the simplified shutdown architecture.
 """
 
 import logging
-from pathlib import Path
 
 import pytest
 

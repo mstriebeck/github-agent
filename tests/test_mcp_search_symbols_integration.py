@@ -6,7 +6,6 @@ Tests the complete flow from MCP tool definition through execution
 """
 
 import json
-import tempfile
 
 import pytest
 
@@ -14,7 +13,6 @@ import codebase_tools
 from constants import Language
 from repository_manager import RepositoryConfig
 from symbol_storage import Symbol
-
 
 # temp_repo_path fixture now consolidated in conftest.py
 

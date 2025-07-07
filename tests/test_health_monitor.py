@@ -3,7 +3,6 @@ Tests for health monitoring functionality.
 """
 
 import json
-import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path

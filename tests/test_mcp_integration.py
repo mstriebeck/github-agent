@@ -21,7 +21,6 @@ mocking strategy without ensuring it still avoids production conflicts.
 
 import json
 import socket
-import subprocess
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch

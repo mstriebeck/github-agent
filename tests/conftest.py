@@ -2,7 +2,9 @@
 Pytest configuration and shared fixtures for shutdown system tests.
 """
 
+import logging
 import os
+import subprocess
 import tempfile
 import threading
 import time
@@ -28,9 +30,6 @@ from symbol_storage import (
     Symbol,
 )
 from tests.test_fixtures import MockRepositoryManager
-import subprocess
-import logging
-from python_symbol_extractor import PythonSymbolExtractor
 
 
 @pytest.fixture(scope="session")
@@ -390,12 +389,13 @@ def temp_database():
 
 # Consolidated fixtures for common test needs
 
+
 @pytest.fixture
 def test_logger():
     """Create a real logger for testing."""
     logger = logging.getLogger(f"test_logger_{id(object())}")
     logger.setLevel(logging.DEBUG)
-    
+
     # Add console handler if not already present
     if not logger.handlers:
         handler = logging.StreamHandler()
@@ -403,7 +403,7 @@ def test_logger():
             logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
         )
         logger.addHandler(handler)
-    
+
     return logger
 
 
@@ -412,7 +412,7 @@ def temp_git_repo():
     """Create a temporary git repository for testing."""
     with tempfile.TemporaryDirectory() as temp_dir:
         repo_path = Path(temp_dir)
-        
+
         # Initialize as a real git repository
         subprocess.run(["git", "init"], cwd=repo_path, capture_output=True, check=True)
         subprocess.run(
@@ -427,11 +427,11 @@ def temp_git_repo():
             capture_output=True,
             check=True,
         )
-        
+
         # Create test files
         (repo_path / "README.md").write_text("# Test Repository")
         (repo_path / "main.py").write_text("# Main application file")
-        
+
         # Initial commit
         subprocess.run(
             ["git", "add", "."], cwd=repo_path, capture_output=True, check=True
@@ -442,7 +442,7 @@ def temp_git_repo():
             capture_output=True,
             check=True,
         )
-        
+
         yield str(repo_path)
 
 

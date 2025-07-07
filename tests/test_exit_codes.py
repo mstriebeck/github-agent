@@ -2,8 +2,6 @@
 Tests for exit code system functionality.
 """
 
-import logging
-from unittest.mock import Mock
 
 import pytest
 
