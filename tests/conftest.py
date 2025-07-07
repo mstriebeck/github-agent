@@ -28,6 +28,7 @@ from symbol_storage import (
     ProductionSymbolStorage,
     SQLiteSymbolStorage,
     Symbol,
+    SymbolKind,
 )
 from tests.test_fixtures import MockRepositoryManager
 
@@ -285,7 +286,7 @@ class MockSymbolStorage(AbstractSymbolStorage):
         if repository_id:
             results = [s for s in results if s.repository_id == repository_id]
         if symbol_kind:
-            results = [s for s in results if s.kind == symbol_kind]
+            results = [s for s in results if s.kind.value == symbol_kind]
 
         return results[:limit]
 
@@ -465,7 +466,7 @@ def sample_symbols():
     return [
         Symbol(
             name="TestClass",
-            kind="class",
+            kind=SymbolKind.CLASS,
             file_path="test.py",
             line_number=1,
             column_number=0,
@@ -474,7 +475,7 @@ def sample_symbols():
         ),
         Symbol(
             name="test_function",
-            kind="function",
+            kind=SymbolKind.FUNCTION,
             file_path="test.py",
             line_number=10,
             column_number=0,
@@ -482,7 +483,7 @@ def sample_symbols():
         ),
         Symbol(
             name="test_method",
-            kind="method",
+            kind=SymbolKind.METHOD,
             file_path="test.py",
             line_number=15,
             column_number=4,
@@ -490,7 +491,7 @@ def sample_symbols():
         ),
         Symbol(
             name="TEST_CONSTANT",
-            kind="constant",
+            kind=SymbolKind.CONSTANT,
             file_path="constants.py",
             line_number=1,
             column_number=0,
@@ -498,7 +499,7 @@ def sample_symbols():
         ),
         Symbol(
             name="helper_function",
-            kind="function",
+            kind=SymbolKind.FUNCTION,
             file_path="utils.py",
             line_number=5,
             column_number=0,

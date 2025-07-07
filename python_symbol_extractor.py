@@ -9,7 +9,7 @@ import ast
 import logging
 from abc import ABC, abstractmethod
 
-from symbol_storage import Symbol
+from symbol_storage import Symbol, SymbolKind
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
         self.scope_types: list[str] = []  # Track scope types (class/function)
 
     def extract_from_file(self, file_path: str, repository_id: str) -> list[Symbol]:
-        """Extract symbols from a Python file.
+        """Extract symbols from a Python file with enhanced error handling.
 
         Args:
             file_path: Path to the Python file
@@ -55,25 +55,47 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
             FileNotFoundError: If file doesn't exist
             SyntaxError: If file contains invalid Python syntax
             UnicodeDecodeError: If file encoding is unsupported
+            PermissionError: If file is not readable
         """
-        try:
-            with open(file_path, encoding="utf-8") as f:
-                source = f.read()
-            return self.extract_from_source(source, file_path, repository_id)
-        except FileNotFoundError:
-            logger.error(f"File not found: {file_path}")
-            raise
-        except UnicodeDecodeError as e:
-            logger.error(f"Encoding error reading {file_path}: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Error reading file {file_path}: {e}")
-            raise
+        # Try multiple encodings for better robustness
+        encodings = ["utf-8", "utf-8-sig", "latin-1", "cp1252"]
+
+        for encoding in encodings:
+            try:
+                with open(file_path, encoding=encoding) as f:
+                    source = f.read()
+                logger.debug(f"Successfully read {file_path} with encoding {encoding}")
+                return self.extract_from_source(source, file_path, repository_id)
+            except UnicodeDecodeError as e:
+                logger.debug(f"Encoding {encoding} failed for {file_path}: {e}")
+                continue
+            except FileNotFoundError:
+                logger.error(f"File not found: {file_path}")
+                raise
+            except PermissionError as e:
+                logger.error(f"Permission denied reading {file_path}: {e}")
+                raise
+            except OSError as e:
+                logger.error(f"OS error reading {file_path}: {e}")
+                raise
+            except Exception as e:
+                logger.error(f"Error reading file {file_path}: {e}")
+                raise
+
+        # If all encodings failed, raise the encoding error
+        logger.error(f"Could not read {file_path} with any supported encoding")
+        raise UnicodeDecodeError(
+            "unknown",
+            b"",
+            0,
+            0,
+            f"Could not decode {file_path} with any supported encoding",
+        )
 
     def extract_from_source(
         self, source: str, file_path: str, repository_id: str
     ) -> list[Symbol]:
-        """Extract symbols from Python source code.
+        """Extract symbols from Python source code with enhanced error handling.
 
         Args:
             source: Python source code
@@ -93,51 +115,97 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
         self.scope_types = []
 
         try:
+            # Check for obviously corrupted files
+            if len(source) == 0:
+                logger.warning(f"Empty file: {file_path}")
+                return []
+
+            # Check for binary content that might have been incorrectly decoded
+            if "\x00" in source:
+                logger.warning(f"Binary content detected in {file_path}, skipping")
+                return []
+
+            # Check for extremely long lines that might indicate minified/generated code
+            lines = source.split("\n")
+            if any(len(line) > 10000 for line in lines):
+                logger.warning(
+                    f"Extremely long lines detected in {file_path}, possibly minified code"
+                )
+                return []
+
             tree = ast.parse(source, filename=file_path)
             self.visit_node(tree)
             logger.debug(f"Extracted {len(self.symbols)} symbols from {file_path}")
             return self.symbols.copy()
         except SyntaxError as e:
-            logger.error(f"Syntax error in {file_path}: {e}")
+            logger.error(f"Syntax error in {file_path} at line {e.lineno}: {e.msg}")
+            raise
+        except RecursionError:
+            logger.error(
+                f"Recursion error in {file_path}: likely deeply nested code structure"
+            )
+            raise
+        except MemoryError:
+            logger.error(f"Memory error parsing {file_path}: file too large or complex")
             raise
         except Exception as e:
             logger.error(f"Error parsing {file_path}: {e}")
             raise
 
     def visit_node(self, node: ast.AST) -> None:
-        """Visit an AST node and extract symbols."""
-        if isinstance(node, ast.ClassDef):
-            self._visit_class(node)
-        elif isinstance(node, ast.FunctionDef):
-            self._visit_function(node)
-        elif isinstance(node, ast.AsyncFunctionDef):
-            self._visit_async_function(node)
-        elif isinstance(node, ast.Assign):
-            self._visit_assignment(node)
-        elif isinstance(node, ast.AnnAssign):
-            self._visit_annotated_assignment(node)
-        elif isinstance(node, ast.Import):
-            self._visit_import(node)
-        elif isinstance(node, ast.ImportFrom):
-            self._visit_import_from(node)
-        elif isinstance(node, ast.AugAssign):
-            self._visit_augmented_assignment(node)
-        elif isinstance(node, ast.NamedExpr):
-            self._visit_named_expression(node)  # Walrus operator
-        elif isinstance(node, ast.With):
-            self._visit_with_statement(node)  # Context managers
-        elif isinstance(node, ast.AsyncWith):
-            self._visit_async_with_statement(node)  # Async context managers
-        elif isinstance(node, ast.For):
-            self._visit_for_loop(node)  # Iterator variables
-        elif isinstance(node, ast.AsyncFor):
-            self._visit_async_for_loop(node)  # Async iterator variables
-        elif isinstance(node, ast.ExceptHandler):
-            self._visit_except_handler(node)  # Exception variable binding
-        else:
-            # For nodes we don't handle directly, visit children
-            for child in ast.iter_child_nodes(node):
-                self.visit_node(child)
+        """Visit an AST node and extract symbols with error handling."""
+        try:
+            if isinstance(node, ast.ClassDef):
+                self._visit_class(node)
+            elif isinstance(node, ast.FunctionDef):
+                self._visit_function(node)
+            elif isinstance(node, ast.AsyncFunctionDef):
+                self._visit_async_function(node)
+            elif isinstance(node, ast.Assign):
+                self._visit_assignment(node)
+            elif isinstance(node, ast.AnnAssign):
+                self._visit_annotated_assignment(node)
+            elif isinstance(node, ast.Import):
+                self._visit_import(node)
+            elif isinstance(node, ast.ImportFrom):
+                self._visit_import_from(node)
+            elif isinstance(node, ast.AugAssign):
+                self._visit_augmented_assignment(node)
+            elif isinstance(node, ast.NamedExpr):
+                self._visit_named_expression(node)  # Walrus operator
+            elif isinstance(node, ast.With):
+                self._visit_with_statement(node)  # Context managers
+            elif isinstance(node, ast.AsyncWith):
+                self._visit_async_with_statement(node)  # Async context managers
+            elif isinstance(node, ast.For):
+                self._visit_for_loop(node)  # Iterator variables
+            elif isinstance(node, ast.AsyncFor):
+                self._visit_async_for_loop(node)  # Async iterator variables
+            elif isinstance(node, ast.ExceptHandler):
+                self._visit_except_handler(node)  # Exception variable binding
+            else:
+                # For nodes we don't handle directly, visit children
+                for child in ast.iter_child_nodes(node):
+                    self.visit_node(child)
+        except Exception as e:
+            # Log node-specific errors but continue processing
+            node_type = type(node).__name__
+            line_info = (
+                f" at line {getattr(node, 'lineno', 'unknown')}"
+                if hasattr(node, "lineno")
+                else ""
+            )
+            logger.warning(
+                f"Error processing {node_type} node{line_info} in {self.current_file_path}: {e}"
+            )
+            # Continue with child nodes even if current node failed
+            try:
+                for child in ast.iter_child_nodes(node):
+                    self.visit_node(child)
+            except Exception as child_error:
+                logger.debug(
+                    f"Error processing child nodes of {node_type}: {child_error}"
+                )
 
     def _visit_class(self, node: ast.ClassDef) -> None:
         """Visit a class definition."""
@@ -147,7 +215,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
 
         symbol = Symbol(
             name=full_name,
-            kind="class",
+            kind=SymbolKind.CLASS,
             file_path=self.current_file_path,
             line_number=node.lineno,
             column_number=node.col_offset,
@@ -170,14 +238,14 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
 
     def _visit_function(self, node: ast.FunctionDef) -> None:
         """Visit a function definition."""
-        self._process_function(node, "function")
+        self._process_function(node, SymbolKind.FUNCTION)
 
     def _visit_async_function(self, node: ast.AsyncFunctionDef) -> None:
         """Visit an async function definition."""
-        self._process_function(node, "function")
+        self._process_function(node, SymbolKind.FUNCTION)
 
     def _process_function(
-        self, node: ast.FunctionDef | ast.AsyncFunctionDef, base_kind: str
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef, base_kind: SymbolKind
     ) -> None:
         """Process function or method definition."""
         func_name = node.name
@@ -228,7 +296,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
 
             symbol = Symbol(
                 name=full_name,
-                kind="module",
+                kind=SymbolKind.MODULE,
                 file_path=self.current_file_path,
                 line_number=node.lineno,
                 column_number=node.col_offset,
@@ -250,7 +318,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
 
             symbol = Symbol(
                 name=full_name,
-                kind="module",
+                kind=SymbolKind.MODULE,
                 file_path=self.current_file_path,
                 line_number=node.lineno,
                 column_number=node.col_offset,
@@ -343,7 +411,7 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
 
             symbol = Symbol(
                 name=full_name,
-                kind="variable",
+                kind=SymbolKind.VARIABLE,
                 file_path=self.current_file_path,
                 line_number=node.lineno,
                 column_number=node.col_offset,
@@ -430,8 +498,8 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
         return None
 
     def _determine_function_kind(
-        self, node: ast.FunctionDef | ast.AsyncFunctionDef, base_kind: str
-    ) -> str:
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef, base_kind: SymbolKind
+    ) -> SymbolKind:
         """Determine the specific kind of function (method, property, etc.)."""
         # Only consider it a method if we're directly inside a class
         if self.scope_types and self.scope_types[-1] == "class":
@@ -439,30 +507,36 @@ class PythonSymbolExtractor(AbstractSymbolExtractor):
             for decorator in node.decorator_list:
                 if isinstance(decorator, ast.Name):
                     if decorator.id == "property":
-                        return "property"
+                        return SymbolKind.PROPERTY
                     elif decorator.id == "classmethod":
-                        return "classmethod"
+                        return SymbolKind.CLASSMETHOD
                     elif decorator.id == "staticmethod":
-                        return "staticmethod"
+                        return SymbolKind.STATICMETHOD
                 elif isinstance(decorator, ast.Attribute):
                     # Handle property setters and deleters like @value.setter
                     if decorator.attr == "setter":
-                        return "setter"
+                        return SymbolKind.SETTER
                     elif decorator.attr == "deleter":
-                        return "deleter"
-                    elif decorator.attr in ["property", "classmethod", "staticmethod"]:
-                        return decorator.attr
+                        return SymbolKind.DELETER
+                    elif decorator.attr == "property":
+                        return SymbolKind.PROPERTY
+                    elif decorator.attr == "classmethod":
+                        return SymbolKind.CLASSMETHOD
+                    elif decorator.attr == "staticmethod":
+                        return SymbolKind.STATICMETHOD
 
             # If directly inside a class but no special decorators, it's a method
-            return "method"
+            return SymbolKind.METHOD
 
         return base_kind
 
-    def _determine_variable_kind(self, var_name: str, node: ast.stmt | ast.expr) -> str:
+    def _determine_variable_kind(
+        self, var_name: str, node: ast.stmt | ast.expr
+    ) -> SymbolKind:
         """Determine if a variable is a constant or regular variable."""
         # Python convention: ALL_CAPS names are constants
         if var_name.isupper() and "_" in var_name:
-            return "constant"
+            return SymbolKind.CONSTANT
         elif var_name.isupper():
-            return "constant"
-        return "variable"
+            return SymbolKind.CONSTANT
+        return SymbolKind.VARIABLE

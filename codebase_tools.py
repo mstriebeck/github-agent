@@ -197,7 +197,7 @@ async def execute_search_symbols(
     symbol_kind: str | None = None,
     limit: int = 50,
 ) -> str:
-    """Execute symbol search for the repository
+    """Execute symbol search for the repository with enhanced error handling
 
     Args:
         repo_name: Repository name to search
@@ -215,35 +215,96 @@ async def execute_search_symbols(
     )
 
     try:
-        # Validate limit
+        # Validate inputs
+        if not query or not query.strip():
+            return json.dumps(
+                {
+                    "error": "Query cannot be empty",
+                    "query": query,
+                    "repository": repo_name,
+                    "symbols": [],
+                    "total_results": 0,
+                }
+            )
+
         if limit < 1 or limit > 100:
             return json.dumps(
                 {
                     "error": "Limit must be between 1 and 100",
                     "query": query,
                     "repository": repo_name,
+                    "symbols": [],
+                    "total_results": 0,
                 }
             )
 
-        # Execute symbol search
-        symbols = symbol_storage.search_symbols(
-            query=query, repository_id=repo_name, symbol_kind=symbol_kind, limit=limit
-        )
+        # Validate symbol_kind if provided
+        valid_kinds = [
+            "function",
+            "class",
+            "variable",
+            "method",
+            "property",
+            "constant",
+            "module",
+        ]
+        if symbol_kind and symbol_kind not in valid_kinds:
+            return json.dumps(
+                {
+                    "error": f"Invalid symbol kind '{symbol_kind}'. Valid kinds: {valid_kinds}",
+                    "query": query,
+                    "repository": repo_name,
+                    "symbols": [],
+                    "total_results": 0,
+                }
+            )
+
+        # Execute symbol search with timeout and error handling
+        try:
+            symbols = symbol_storage.search_symbols(
+                query=query,
+                repository_id=repo_name,
+                symbol_kind=symbol_kind,
+                limit=limit,
+            )
+        except Exception as search_error:
+            logger.error(f"Database search error for {repo_name}: {search_error}")
+            return json.dumps(
+                {
+                    "error": f"Database search failed: {search_error!s}",
+                    "query": query,
+                    "repository": repo_name,
+                    "symbols": [],
+                    "total_results": 0,
+                    "troubleshooting": {
+                        "suggestions": [
+                            "Check if the repository has been indexed",
+                            "Try a simpler query",
+                            "Check database connectivity",
+                        ]
+                    },
+                }
+            )
 
         # Format results for JSON response
         results = []
         for symbol in symbols:
-            results.append(
-                {
-                    "name": symbol.name,
-                    "kind": symbol.kind,
-                    "file_path": symbol.file_path,
-                    "line_number": symbol.line_number,
-                    "column_number": symbol.column_number,
-                    "docstring": symbol.docstring,
-                    "repository_id": symbol.repository_id,
-                }
-            )
+            try:
+                results.append(
+                    {
+                        "name": symbol.name,
+                        "kind": symbol.kind.value,
+                        "file_path": symbol.file_path,
+                        "line_number": symbol.line_number,
+                        "column_number": symbol.column_number,
+                        "docstring": symbol.docstring,
+                        "repository_id": symbol.repository_id,
+                    }
+                )
+            except Exception as format_error:
+                logger.warning(f"Error formatting symbol result: {format_error}")
+                # Continue with other symbols
+                continue
 
         response = {
             "query": query,
@@ -265,6 +326,14 @@ async def execute_search_symbols(
             "error": f"Symbol search failed: {e!s}",
             "symbols": [],
             "total_results": 0,
+            "troubleshooting": {
+                "error_type": type(e).__name__,
+                "suggestions": [
+                    "Check repository configuration",
+                    "Verify database is accessible",
+                    "Try re-indexing the repository",
+                ],
+            },
         }
         return json.dumps(error_response)
 

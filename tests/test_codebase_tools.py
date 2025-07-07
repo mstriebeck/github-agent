@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 import codebase_tools
-from symbol_storage import Symbol
+from symbol_storage import Symbol, SymbolKind
 
 # temp_git_repo fixture now consolidated in conftest.py
 
@@ -293,7 +293,7 @@ class TestCodebaseTools:
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "test_function",
-                "function",
+                SymbolKind.FUNCTION,
                 "/test/file.py",
                 10,
                 0,
@@ -303,7 +303,13 @@ class TestCodebaseTools:
         )
         mock_symbol_storage.insert_symbol(
             Symbol(
-                "TestClass", "class", "/test/file.py", 20, 0, "test-repo", "Test class"
+                "TestClass",
+                SymbolKind.CLASS,
+                "/test/file.py",
+                20,
+                0,
+                "test-repo",
+                "Test class",
             )
         )
 
@@ -334,7 +340,7 @@ class TestCodebaseTools:
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "test_function",
-                "function",
+                SymbolKind.FUNCTION,
                 "/test/file.py",
                 10,
                 0,
@@ -344,13 +350,19 @@ class TestCodebaseTools:
         )
         mock_symbol_storage.insert_symbol(
             Symbol(
-                "TestClass", "class", "/test/file.py", 20, 0, "test-repo", "Test class"
+                "TestClass",
+                SymbolKind.CLASS,
+                "/test/file.py",
+                20,
+                0,
+                "test-repo",
+                "Test class",
             )
         )
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "test_variable",
-                "variable",
+                SymbolKind.VARIABLE,
                 "/test/file.py",
                 30,
                 0,
@@ -382,7 +394,7 @@ class TestCodebaseTools:
             mock_symbol_storage.insert_symbol(
                 Symbol(
                     f"test_function_{i}",
-                    "function",
+                    SymbolKind.FUNCTION,
                     "/test/file.py",
                     10 + i,
                     0,
@@ -443,7 +455,7 @@ class TestCodebaseTools:
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "test_function",
-                "function",
+                SymbolKind.FUNCTION,
                 "/test/file.py",
                 10,
                 0,
@@ -479,7 +491,7 @@ class TestCodebaseTools:
         # Should handle exception gracefully and return error response
         data = json.loads(result)
         assert "error" in data
-        assert "Symbol search failed" in data["error"]
+        assert "Database search failed" in data["error"]
         assert data["query"] == "test"
         assert data["repository"] == "test-repo"
         assert data["total_results"] == 0
@@ -491,7 +503,7 @@ class TestCodebaseTools:
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "test_function",
-                "function",
+                SymbolKind.FUNCTION,
                 "/test/file.py",
                 10,
                 0,
@@ -534,7 +546,7 @@ class TestCodebaseTools:
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "test_function",
-                "function",
+                SymbolKind.FUNCTION,
                 "/test/file.py",
                 10,
                 5,

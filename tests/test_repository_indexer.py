@@ -13,7 +13,7 @@ from repository_indexer import (
     IndexingResult,
     PythonRepositoryIndexer,
 )
-from symbol_storage import Symbol
+from symbol_storage import Symbol, SymbolKind
 from tests.conftest import MockSymbolExtractor
 
 
@@ -179,8 +179,8 @@ class TestPythonRepositoryIndexer:
         """Test indexing repository with Python files."""
         # Set up mock to return 2 symbols per file
         test_symbols = [
-            Symbol("test_func", "function", "test.py", 1, 0, "test-repo"),
-            Symbol("TestClass", "class", "test.py", 5, 0, "test-repo"),
+            Symbol("test_func", SymbolKind.FUNCTION, "test.py", 1, 0, "test-repo"),
+            Symbol("TestClass", SymbolKind.CLASS, "test.py", 5, 0, "test-repo"),
         ]
         indexer.symbol_extractor.symbols = test_symbols
 
