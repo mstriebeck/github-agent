@@ -15,41 +15,13 @@ class TestHealthMonitoringEdgeCases:
     """Test edge cases for health monitoring."""
 
     @pytest.fixture
-    def logger(self):
-        """Create a real logger for testing."""
-        logger = logging.getLogger(f"test_health_{id(self)}")
-        logger.setLevel(logging.DEBUG)
-
-        # Add console handler if not already present
-        if not logger.handlers:
-            handler = logging.StreamHandler()
-            handler.setFormatter(
-                logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-            )
-            logger.addHandler(handler)
-
-        return logger
-
-    @pytest.fixture
-    def temp_health_file(self, tmp_path):
-        """Create a temporary health file."""
-        return str(tmp_path / "health.json")
-
-    @pytest.fixture(autouse=True)
-    def cleanup_health_file(self, temp_health_file):
-        """Clean up health file after test."""
-        yield
-        # Clean up after test
-        Path(temp_health_file).unlink(missing_ok=True)
-
-    @pytest.fixture
-    def monitor(self, logger):
+    def monitor(self, test_logger):
         """Create a SimpleHealthMonitor."""
-        return SimpleHealthMonitor(logger)
+        return SimpleHealthMonitor(test_logger)
 
-    def test_simple_health_monitor_basic_ops(self, monitor, logger):
+    def test_simple_health_monitor_basic_ops(self, monitor, test_logger):
         """Test basic operations of SimpleHealthMonitor."""
-        logger.info("Testing basic health monitor operations")
+        test_logger.info("Testing basic health monitor operations")
 
         # Test start monitoring
         monitor.start_monitoring()

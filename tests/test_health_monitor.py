@@ -51,26 +51,13 @@ class TestHealthMonitor:
     """Test HealthMonitor class."""
 
     @pytest.fixture
-    def mock_logger(self):
-        """Create a mock logger."""
-        return Mock()
-
-    @pytest.fixture
-    def temp_health_file(self):
-        """Create a temporary health file path."""
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as f:
-            path = f.name
-        yield path
-        Path(path).unlink(missing_ok=True)
-
-    @pytest.fixture
-    def monitor(self, mock_logger, temp_health_file):
+    def monitor(self, test_logger, temp_health_file):
         """Create a HealthMonitor instance."""
-        return HealthMonitor(mock_logger, temp_health_file)
+        return HealthMonitor(test_logger, temp_health_file)
 
-    def test_initialization(self, monitor, mock_logger, temp_health_file):
+    def test_initialization(self, monitor, test_logger, temp_health_file):
         """Test monitor initialization."""
-        assert monitor.logger == mock_logger
+        assert monitor.logger == test_logger
         assert str(monitor.health_file_path) == temp_health_file
         assert monitor._status == ServerStatus.STARTING
         assert monitor._shutdown_phase == ShutdownPhase.NOT_STARTED

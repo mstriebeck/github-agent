@@ -51,18 +51,13 @@ class TestExitCodeManager:
     """Test the ExitCodeManager class."""
 
     @pytest.fixture
-    def mock_logger(self):
-        """Create a mock logger."""
-        return Mock(spec=logging.Logger)
-
-    @pytest.fixture
-    def manager(self, mock_logger):
+    def manager(self, test_logger):
         """Create an ExitCodeManager instance."""
-        return ExitCodeManager(mock_logger)
+        return ExitCodeManager(test_logger)
 
-    def test_initialization(self, manager, mock_logger):
+    def test_initialization(self, manager, test_logger):
         """Test manager initialization."""
-        assert manager.logger == mock_logger
+        assert manager.logger == test_logger
         assert manager._issues == []
         assert manager._forced_actions == []
         assert manager._verification_failures == []

@@ -16,11 +16,7 @@ from repository_manager import RepositoryConfig
 from symbol_storage import Symbol
 
 
-@pytest.fixture
-def temp_repo_path():
-    """Create a temporary repository path for testing"""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        yield str(temp_dir)
+# temp_repo_path fixture now consolidated in conftest.py
 
 
 @pytest.fixture
