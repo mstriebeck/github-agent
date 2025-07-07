@@ -61,9 +61,9 @@ class TestSearchSymbolsMCPIntegration:
                 search_symbols_tool = tool
                 break
 
-        assert (
-            search_symbols_tool is not None
-        ), "search_symbols tool not found in MCP tools"
+        assert search_symbols_tool is not None, (
+            "search_symbols tool not found in MCP tools"
+        )
 
         # Verify tool structure for MCP compatibility
         assert "name" in search_symbols_tool
