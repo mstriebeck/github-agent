@@ -345,7 +345,7 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
                     data = [
                         (
                             s.name,
-                            s.kind,
+                            s.kind.value,
                             s.file_path,
                             s.line_number,
                             s.column_number,
