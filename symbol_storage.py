@@ -152,6 +152,9 @@ class SQLiteSymbolStorage(AbstractSymbolStorage):
                 logger.error(f"Unexpected error creating database connection: {e}")
                 raise
 
+        # This should never be reached due to the raise in the else block above
+        raise RuntimeError("Failed to create database connection after all retries")
+
     def close(self) -> None:
         """Close any persistent database connections."""
         with self._connection_lock:
