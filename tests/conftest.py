@@ -286,7 +286,7 @@ class MockSymbolStorage(AbstractSymbolStorage):
         if repository_id:
             results = [s for s in results if s.repository_id == repository_id]
         if symbol_kind:
-            results = [s for s in results if s.kind == symbol_kind]
+            results = [s for s in results if s.kind.value == symbol_kind]
 
         return results[:limit]
 

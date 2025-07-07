@@ -222,9 +222,9 @@ class TestSQLiteSymbolStorage:
     def test_search_symbols_ordering(self, storage):
         """Test that search results are ordered with exact matches first."""
         symbols = [
-            Symbol("test", "function", "test.py", 1, 0, "repo"),
-            Symbol("test_helper", "function", "test.py", 2, 0, "repo"),
-            Symbol("other_test", "function", "test.py", 3, 0, "repo"),
+            Symbol("test", SymbolKind.FUNCTION, "test.py", 1, 0, "repo"),
+            Symbol("test_helper", SymbolKind.FUNCTION, "test.py", 2, 0, "repo"),
+            Symbol("other_test", SymbolKind.FUNCTION, "test.py", 3, 0, "repo"),
         ]
         storage.insert_symbols(symbols)
 
@@ -333,15 +333,15 @@ class TestSQLiteSymbolStorage:
     def test_multiple_repositories(self, storage):
         """Test operations with multiple repositories."""
         repo1_symbols = [
-            Symbol("func1", "function", "file1.py", 1, 0, "repo1"),
-            Symbol("class1", "class", "file1.py", 10, 0, "repo1"),
+            Symbol("func1", SymbolKind.FUNCTION, "file1.py", 1, 0, "repo1"),
+            Symbol("class1", SymbolKind.CLASS, "file1.py", 10, 0, "repo1"),
         ]
 
         repo2_symbols = [
             Symbol(
-                "func1", "function", "file1.py", 1, 0, "repo2"
+                "func1", SymbolKind.FUNCTION, "file1.py", 1, 0, "repo2"
             ),  # Same name, different repo
-            Symbol("func2", "function", "file2.py", 5, 0, "repo2"),
+            Symbol("func2", SymbolKind.FUNCTION, "file2.py", 5, 0, "repo2"),
         ]
 
         storage.insert_symbols(repo1_symbols + repo2_symbols)

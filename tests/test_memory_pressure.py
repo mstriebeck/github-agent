@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 from python_symbol_extractor import PythonSymbolExtractor
 from repository_indexer import PythonRepositoryIndexer
-from symbol_storage import SQLiteSymbolStorage, Symbol
+from symbol_storage import SQLiteSymbolStorage, Symbol, SymbolKind
 
 
 class TestMemoryPressureScenarios(unittest.TestCase):
@@ -44,7 +44,7 @@ class TestMemoryPressureScenarios(unittest.TestCase):
             symbols.append(
                 Symbol(
                     name=f"memory_test_symbol_{i}",
-                    kind="function",
+                    kind=SymbolKind.FUNCTION,
                     file_path=f"/memory/test/file_{i % 100}.py",
                     line_number=i % 1000,
                     column_number=0,
@@ -197,7 +197,7 @@ class Class_{i}:
             symbols.append(
                 Symbol(
                     name=f"query_test_symbol_{i}",
-                    kind="function",
+                    kind=SymbolKind.FUNCTION,
                     file_path=f"/query/test/file_{i % 50}.py",
                     line_number=i % 100,
                     column_number=0,
@@ -246,7 +246,7 @@ class Class_{i}:
             # Try to perform database operations under memory pressure
             symbol = Symbol(
                 name="pressure_test",
-                kind="function",
+                kind=SymbolKind.FUNCTION,
                 file_path="/pressure/test.py",
                 line_number=1,
                 column_number=0,
@@ -269,7 +269,7 @@ class Class_{i}:
         # System should still be functional after memory pressure
         another_symbol = Symbol(
             name="after_pressure_test",
-            kind="function",
+            kind=SymbolKind.FUNCTION,
             file_path="/after/pressure.py",
             line_number=1,
             column_number=0,

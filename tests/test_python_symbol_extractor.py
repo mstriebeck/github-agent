@@ -91,30 +91,30 @@ class Calculator:
 
         class_symbol = symbols[0]
         assert class_symbol.name == "Calculator"
-        assert class_symbol.kind == "class"
+        assert class_symbol.kind == SymbolKind.CLASS
         assert class_symbol.docstring == "A simple calculator."
 
         add_method = symbols[1]
         assert add_method.name == "Calculator.add"
-        assert add_method.kind == "method"
+        assert add_method.kind == SymbolKind.METHOD
         assert add_method.docstring == "Add two numbers."
 
         multiply_method = symbols[2]
         assert multiply_method.name == "Calculator.multiply"
-        assert multiply_method.kind == "method"
+        assert multiply_method.kind == SymbolKind.METHOD
 
         property_symbol = symbols[3]
         assert property_symbol.name == "Calculator.name"
-        assert property_symbol.kind == "property"
+        assert property_symbol.kind == SymbolKind.PROPERTY
         assert property_symbol.docstring == "Get calculator name."
 
         classmethod_symbol = symbols[4]
         assert classmethod_symbol.name == "Calculator.create_default"
-        assert classmethod_symbol.kind == "classmethod"
+        assert classmethod_symbol.kind == SymbolKind.CLASSMETHOD
 
         staticmethod_symbol = symbols[5]
         assert staticmethod_symbol.name == "Calculator.is_number"
-        assert staticmethod_symbol.kind == "staticmethod"
+        assert staticmethod_symbol.kind == SymbolKind.STATICMETHOD
 
     def test_extract_nested_classes(self, python_symbol_extractor):
         """Test extracting nested classes."""
@@ -146,7 +146,7 @@ class Outer:
         # Check nested naming
         outer_class = symbols[0]
         assert outer_class.name == "Outer"
-        assert outer_class.kind == "class"
+        assert outer_class.kind == SymbolKind.CLASS
 
         inner_class = symbols[1]
         assert inner_class.name == "Outer.Inner"
@@ -313,7 +313,9 @@ async def main():
         )
 
         # Filter functions
-        functions = [s for s in symbols if s.kind in ["function", "method"]]
+        functions = [
+            s for s in symbols if s.kind in [SymbolKind.FUNCTION, SymbolKind.METHOD]
+        ]
 
         # Should find: handle_request (method), process_data (method), main (function)
         # Plus the import and class
@@ -350,7 +352,7 @@ class TestClass:
 
             function_symbol = symbols[0]
             assert function_symbol.name == "test_function"
-            assert function_symbol.kind == "function"
+            assert function_symbol.kind == SymbolKind.FUNCTION
             assert function_symbol.file_path == temp_path
             assert function_symbol.repository_id == "test-repo"
 
@@ -490,8 +492,8 @@ def outer_function():
 
         # Set up test data explicitly in the test
         test_symbols = [
-            Symbol("test_function", "function", "test.py", 1, 0, "test-repo"),
-            Symbol("TestClass", "class", "test.py", 5, 0, "test-repo"),
+            Symbol("test_function", SymbolKind.FUNCTION, "test.py", 1, 0, "test-repo"),
+            Symbol("TestClass", SymbolKind.CLASS, "test.py", 5, 0, "test-repo"),
         ]
         mock_symbol_extractor.symbols = test_symbols
 

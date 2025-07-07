@@ -14,7 +14,7 @@ from unittest.mock import Mock, patch
 
 from python_symbol_extractor import PythonSymbolExtractor
 from repository_indexer import PythonRepositoryIndexer
-from symbol_storage import SQLiteSymbolStorage, Symbol
+from symbol_storage import SQLiteSymbolStorage, Symbol, SymbolKind
 
 
 class TestDatabaseErrorHandling(unittest.TestCase):
@@ -85,7 +85,7 @@ class TestDatabaseErrorHandling(unittest.TestCase):
             symbols.append(
                 Symbol(
                     name=f"symbol_{i}",
-                    kind="function",
+                    kind=SymbolKind.FUNCTION,
                     file_path=f"/test/file_{i % 10}.py",
                     line_number=i,
                     column_number=0,
@@ -113,7 +113,7 @@ class TestDatabaseErrorHandling(unittest.TestCase):
         # Test a simple database operation that should work
         symbol = Symbol(
             name="test_symbol",
-            kind="function",
+            kind=SymbolKind.FUNCTION,
             file_path="/test/file.py",
             line_number=1,
             column_number=0,
@@ -139,7 +139,7 @@ class TestDatabaseErrorHandling(unittest.TestCase):
             symbols.append(
                 Symbol(
                     name=f"large_symbol_{i}",
-                    kind="variable",
+                    kind=SymbolKind.VARIABLE,
                     file_path=f"/large/file_{i % 100}.py",
                     line_number=i % 1000,
                     column_number=0,
@@ -311,7 +311,9 @@ class TestRepositoryIndexerErrorHandling(unittest.TestCase):
         def mock_extract(file_path, repo_id):
             if "bad.py" in file_path:
                 raise SyntaxError("Invalid syntax")
-            return [Symbol("good_function", "function", file_path, 1, 0, repo_id)]
+            return [
+                Symbol("good_function", SymbolKind.FUNCTION, file_path, 1, 0, repo_id)
+            ]
 
         self.mock_extractor.extract_from_file.side_effect = mock_extract
 

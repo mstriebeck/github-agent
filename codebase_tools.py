@@ -293,7 +293,7 @@ async def execute_search_symbols(
                 results.append(
                     {
                         "name": symbol.name,
-                        "kind": symbol.kind,
+                        "kind": symbol.kind.value,
                         "file_path": symbol.file_path,
                         "line_number": symbol.line_number,
                         "column_number": symbol.column_number,

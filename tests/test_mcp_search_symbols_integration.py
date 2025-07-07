@@ -12,7 +12,7 @@ import pytest
 import codebase_tools
 from constants import Language
 from repository_manager import RepositoryConfig
-from symbol_storage import Symbol
+from symbol_storage import Symbol, SymbolKind
 
 # temp_repo_path fixture now consolidated in conftest.py
 
@@ -99,7 +99,7 @@ class TestSearchSymbolsMCPIntegration:
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "test_function",
-                "function",
+                SymbolKind.FUNCTION,
                 "/test/file.py",
                 10,
                 0,
@@ -109,7 +109,13 @@ class TestSearchSymbolsMCPIntegration:
         )
         mock_symbol_storage.insert_symbol(
             Symbol(
-                "TestClass", "class", "/test/class.py", 5, 0, "test-repo", "Test class"
+                "TestClass",
+                SymbolKind.CLASS,
+                "/test/class.py",
+                5,
+                0,
+                "test-repo",
+                "Test class",
             )
         )
 
@@ -137,7 +143,7 @@ class TestSearchSymbolsMCPIntegration:
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "search_test",
-                "function",
+                SymbolKind.FUNCTION,
                 "/test/file.py",
                 10,
                 0,
@@ -148,7 +154,7 @@ class TestSearchSymbolsMCPIntegration:
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "other_function",
-                "function",
+                SymbolKind.FUNCTION,
                 "/test/file.py",
                 20,
                 0,
@@ -159,7 +165,7 @@ class TestSearchSymbolsMCPIntegration:
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "SearchClass",
-                "class",
+                SymbolKind.CLASS,
                 "/test/class.py",
                 5,
                 0,
@@ -289,7 +295,7 @@ class TestSearchSymbolsMCPIntegration:
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "__init__",
-                "function",
+                SymbolKind.FUNCTION,
                 "/test/file.py",
                 10,
                 0,
@@ -300,7 +306,7 @@ class TestSearchSymbolsMCPIntegration:
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "test_method",
-                "function",
+                SymbolKind.FUNCTION,
                 "/test/file.py",
                 20,
                 0,
@@ -341,7 +347,7 @@ class TestSearchSymbolsMCPIntegration:
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "TestFunction",
-                "function",
+                SymbolKind.FUNCTION,
                 "/test/file.py",
                 10,
                 0,
@@ -352,7 +358,7 @@ class TestSearchSymbolsMCPIntegration:
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "testfunction",
-                "function",
+                SymbolKind.FUNCTION,
                 "/test/file.py",
                 20,
                 0,
@@ -382,7 +388,7 @@ class TestSearchSymbolsMCPIntegration:
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "function_a",
-                "function",
+                SymbolKind.FUNCTION,
                 "/test/file.py",
                 10,
                 0,
@@ -393,7 +399,7 @@ class TestSearchSymbolsMCPIntegration:
         mock_symbol_storage.insert_symbol(
             Symbol(
                 "function_b",
-                "function",
+                SymbolKind.FUNCTION,
                 "/other/file.py",
                 10,
                 0,
