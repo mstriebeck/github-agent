@@ -32,13 +32,7 @@ import codebase_tools
 import github_tools
 import mcp_master
 from constants import Language
-from python_repository_manager import PythonRepositoryManager
-from python_symbol_extractor import PythonSymbolExtractor
-from repository_indexer import PythonRepositoryIndexer
 from repository_manager import RepositoryManager
-from shutdown_simple import SimpleHealthMonitor, SimpleShutdownCoordinator
-from startup_orchestrator import CodebaseStartupOrchestrator
-from symbol_storage import ProductionSymbolStorage
 
 
 def find_free_port() -> int:
@@ -157,7 +151,9 @@ class TestMCPIntegration:
     """
 
     @pytest.mark.asyncio
-    async def test_end_to_end_workflow(self, test_config_with_dynamic_port, mcp_master_factory):
+    async def test_end_to_end_workflow(
+        self, test_config_with_dynamic_port, mcp_master_factory
+    ):
         """
         Test the complete end-to-end MCP workflow from configuration to tool execution.
 
@@ -431,7 +427,9 @@ class TestMCPIntegration:
             assert port < 65536  # Valid port range
 
     @pytest.mark.asyncio
-    async def test_configuration_validation_integration(self, temp_git_repo, mcp_master_factory):
+    async def test_configuration_validation_integration(
+        self, temp_git_repo, mcp_master_factory
+    ):
         """
         Test that configuration validation works end-to-end with real files.
 

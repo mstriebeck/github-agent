@@ -14,12 +14,22 @@ import pytest
 import mcp_master
 from python_repository_manager import PythonRepositoryManager
 from python_symbol_extractor import AbstractSymbolExtractor, PythonSymbolExtractor
-from repository_indexer import AbstractRepositoryIndexer, IndexingResult, PythonRepositoryIndexer
+from repository_indexer import (
+    AbstractRepositoryIndexer,
+    IndexingResult,
+    PythonRepositoryIndexer,
+)
 from repository_manager import RepositoryManager
 from shutdown_simple import SimpleHealthMonitor, SimpleShutdownCoordinator
 from startup_orchestrator import CodebaseStartupOrchestrator
-from symbol_storage import AbstractSymbolStorage, SQLiteSymbolStorage, Symbol, ProductionSymbolStorage
+from symbol_storage import (
+    AbstractSymbolStorage,
+    ProductionSymbolStorage,
+    SQLiteSymbolStorage,
+    Symbol,
+)
 from tests.test_fixtures import MockRepositoryManager
+
 
 @pytest.fixture(scope="session")
 def temp_dir():
@@ -27,10 +37,12 @@ def temp_dir():
     with tempfile.TemporaryDirectory() as temp_dir:
         yield Path(temp_dir)
 
+
 @pytest.fixture
 def mock_repository_manager():
     """Create a fresh mock repository manager for each test."""
     return MockRepositoryManager()
+
 
 @pytest.fixture
 def temp_health_file(temp_dir):
@@ -38,6 +50,7 @@ def temp_health_file(temp_dir):
     health_file = temp_dir / "health.json"
     yield str(health_file)
     # Cleanup is automatic with temp_dir
+
 
 @pytest.fixture
 def timeout_protection():
@@ -71,6 +84,7 @@ def timeout_protection():
         return result[0]
 
     return run_with_timeout
+
 
 @pytest.fixture(autouse=True)
 def cleanup_threads():
@@ -115,6 +129,7 @@ def cleanup_threads():
             except Exception:
                 pass  # Best effort cleanup
 
+
 class MockTimeProvider:
     """Mock time provider for testing time-dependent behavior."""
 
@@ -136,6 +151,7 @@ class MockTimeProvider:
         """Mock sleep that advances time instead of waiting."""
         self.advance(seconds)
 
+
 @pytest.fixture
 def mock_time():
     """Provide mock time for testing time-dependent behavior."""
@@ -155,6 +171,7 @@ def mock_time():
     # Restore original functions
     time.time = original_time
     time.sleep = original_sleep
+
 
 @pytest.fixture
 def captured_signals():
@@ -176,6 +193,7 @@ def captured_signals():
     # Restore
     signal.signal = original_signal
 
+
 # Custom assertions for shutdown testing
 def assert_clean_shutdown(shutdown_result, exit_code_manager, expected_exit_code=None):
     """Assert that a shutdown completed cleanly."""
@@ -183,14 +201,15 @@ def assert_clean_shutdown(shutdown_result, exit_code_manager, expected_exit_code
 
     if expected_exit_code:
         actual_exit_code = exit_code_manager.determine_exit_code("test")
-        assert actual_exit_code == expected_exit_code, (
-            f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
-        )
+        assert (
+            actual_exit_code == expected_exit_code
+        ), f"Expected exit code {expected_exit_code}, got {actual_exit_code}"
 
     summary = exit_code_manager.get_exit_summary()
-    assert summary["total_problems"] == 0, (
-        f"Expected clean shutdown but found problems: {summary}"
-    )
+    assert (
+        summary["total_problems"] == 0
+    ), f"Expected clean shutdown but found problems: {summary}"
+
 
 def assert_shutdown_with_issues(
     shutdown_result, exit_code_manager, expected_problems=None
@@ -200,19 +219,21 @@ def assert_shutdown_with_issues(
     if shutdown_result is False:
         # Failed shutdown should have critical issues
         summary = exit_code_manager.get_exit_summary()
-        assert summary["total_problems"] > 0, (
-            "Failed shutdown should have reported problems"
-        )
+        assert (
+            summary["total_problems"] > 0
+        ), "Failed shutdown should have reported problems"
 
     if expected_problems:
         summary = exit_code_manager.get_exit_summary()
-        assert summary["total_problems"] >= expected_problems, (
-            f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
-        )
+        assert (
+            summary["total_problems"] >= expected_problems
+        ), f"Expected at least {expected_problems} problems, got {summary['total_problems']}"
+
 
 # Add to pytest namespace for easy import
 pytest.assert_clean_shutdown = assert_clean_shutdown  # type: ignore[attr-defined]
 pytest.assert_shutdown_with_issues = assert_shutdown_with_issues  # type: ignore[attr-defined]
+
 
 # Mock classes for testing symbol extraction and indexing
 class MockSymbolStorage(AbstractSymbolStorage):
@@ -279,6 +300,7 @@ class MockSymbolStorage(AbstractSymbolStorage):
             if s.file_path == file_path and s.repository_id == repository_id
         ]
 
+
 class MockSymbolExtractor(AbstractSymbolExtractor):
     """Mock symbol extractor for testing."""
 
@@ -295,6 +317,7 @@ class MockSymbolExtractor(AbstractSymbolExtractor):
     ) -> list[Symbol]:
         """Return predefined symbols."""
         return self.symbols.copy()
+
 
 class MockRepositoryIndexer(AbstractRepositoryIndexer):
     """Mock repository indexer for testing."""
@@ -318,11 +341,13 @@ class MockRepositoryIndexer(AbstractRepositoryIndexer):
         """Track clear repository calls."""
         self.clear_calls.append(repository_id)
 
+
 # Test fixtures for mock objects
 @pytest.fixture
 def mock_symbol_storage():
     """Create a mock symbol storage for testing."""
     return MockSymbolStorage()
+
 
 @pytest.fixture
 def in_memory_symbol_storage():
@@ -331,15 +356,18 @@ def in_memory_symbol_storage():
     yield storage
     storage.close()
 
+
 @pytest.fixture
 def mock_symbol_extractor():
     """Create an empty mock symbol extractor."""
     return MockSymbolExtractor()
 
+
 @pytest.fixture
 def mock_repository_indexer():
     """Create a mock repository indexer for testing."""
     return MockRepositoryIndexer()
+
 
 @pytest.fixture
 def temp_database():
@@ -362,34 +390,36 @@ def temp_database():
 def mcp_master_factory():
     """
     Factory fixture for creating MCPMaster instances with all required dependencies.
-    
+
     This fixture returns a function that creates MCPMaster instances with proper
     dependency injection, using the same pattern as the main() function.
     """
+
     def create_mcp_master(config_file_path: str) -> mcp_master.MCPMaster:
         # Create repository manager from configuration
         repository_manager = RepositoryManager.create_from_config(config_file_path)
-        
+
         # Create worker managers (empty for testing)
         workers: dict[str, PythonRepositoryManager] = {}
-        
+
         # Create startup orchestrator components
         symbol_storage = ProductionSymbolStorage.create_with_schema()
         symbol_extractor = PythonSymbolExtractor()
         indexer = PythonRepositoryIndexer(symbol_extractor, symbol_storage)
-        
+
         startup_orchestrator = CodebaseStartupOrchestrator(
             symbol_storage=symbol_storage,
             symbol_extractor=symbol_extractor,
             indexer=indexer,
         )
-        
+
         # Create shutdown and health monitoring components
         import logging
+
         test_logger = logging.getLogger("test_mcp_master")
         shutdown_coordinator = SimpleShutdownCoordinator(test_logger)
         health_monitor = SimpleHealthMonitor(test_logger)
-        
+
         return mcp_master.MCPMaster(
             repository_manager=repository_manager,
             workers=workers,
@@ -398,5 +428,5 @@ def mcp_master_factory():
             shutdown_coordinator=shutdown_coordinator,
             health_monitor=health_monitor,
         )
-    
+
     return create_mcp_master
