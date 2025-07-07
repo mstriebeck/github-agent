@@ -2,7 +2,9 @@
 Pytest configuration and shared fixtures for shutdown system tests.
 """
 
+import logging
 import os
+import subprocess
 import tempfile
 import threading
 import time
@@ -383,6 +385,126 @@ def temp_database():
         os.unlink(db_path)
     except OSError:
         pass
+
+
+# Consolidated fixtures for common test needs
+
+
+@pytest.fixture
+def test_logger():
+    """Create a real logger for testing."""
+    logger = logging.getLogger(f"test_logger_{id(object())}")
+    logger.setLevel(logging.DEBUG)
+
+    # Add console handler if not already present
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+        )
+        logger.addHandler(handler)
+
+    return logger
+
+
+@pytest.fixture
+def temp_git_repo():
+    """Create a temporary git repository for testing."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        repo_path = Path(temp_dir)
+
+        # Initialize as a real git repository
+        subprocess.run(["git", "init"], cwd=repo_path, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=repo_path,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test User"],
+            cwd=repo_path,
+            capture_output=True,
+            check=True,
+        )
+
+        # Create test files
+        (repo_path / "README.md").write_text("# Test Repository")
+        (repo_path / "main.py").write_text("# Main application file")
+
+        # Initial commit
+        subprocess.run(
+            ["git", "add", "."], cwd=repo_path, capture_output=True, check=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=repo_path,
+            capture_output=True,
+            check=True,
+        )
+
+        yield str(repo_path)
+
+
+@pytest.fixture
+def temp_repo_path():
+    """Create a temporary repository path for testing."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield str(temp_dir)
+
+
+@pytest.fixture
+def python_symbol_extractor():
+    """Create a PythonSymbolExtractor for testing."""
+    return PythonSymbolExtractor()
+
+
+@pytest.fixture
+def sample_symbols():
+    """Create sample symbols for testing."""
+    return [
+        Symbol(
+            name="TestClass",
+            kind="class",
+            file_path="test.py",
+            line_number=1,
+            column_number=0,
+            repository_id="test-repo",
+            docstring="A test class.",
+        ),
+        Symbol(
+            name="test_function",
+            kind="function",
+            file_path="test.py",
+            line_number=10,
+            column_number=0,
+            repository_id="test-repo",
+        ),
+        Symbol(
+            name="test_method",
+            kind="method",
+            file_path="test.py",
+            line_number=15,
+            column_number=4,
+            repository_id="test-repo",
+        ),
+        Symbol(
+            name="TEST_CONSTANT",
+            kind="constant",
+            file_path="constants.py",
+            line_number=1,
+            column_number=0,
+            repository_id="test-repo",
+        ),
+        Symbol(
+            name="helper_function",
+            kind="function",
+            file_path="utils.py",
+            line_number=5,
+            column_number=0,
+            repository_id="other-repo",
+        ),
+    ]
 
 
 @pytest.fixture

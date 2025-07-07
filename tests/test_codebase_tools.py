@@ -14,36 +14,7 @@ import pytest
 import codebase_tools
 from symbol_storage import Symbol
 
-
-@pytest.fixture
-def temp_git_repo():
-    """Create a temporary git repository for testing"""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        repo_path = Path(temp_dir)
-
-        # Initialize as a real git repository
-        subprocess.run(["git", "init"], cwd=repo_path, capture_output=True)
-        subprocess.run(
-            ["git", "config", "user.email", "test@example.com"],
-            cwd=repo_path,
-            capture_output=True,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "Test User"],
-            cwd=repo_path,
-            capture_output=True,
-        )
-
-        # Create a test file and initial commit
-        (repo_path / "test.txt").write_text("test content")
-        subprocess.run(["git", "add", "."], cwd=repo_path, capture_output=True)
-        subprocess.run(
-            ["git", "commit", "-m", "Initial commit"],
-            cwd=repo_path,
-            capture_output=True,
-        )
-
-        yield str(repo_path)
+# temp_git_repo fixture now consolidated in conftest.py
 
 
 @pytest.fixture

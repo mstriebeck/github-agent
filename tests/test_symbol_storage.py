@@ -83,52 +83,7 @@ class TestSQLiteSymbolStorage:
             yield storage
             storage.close()
 
-    @pytest.fixture
-    def sample_symbols(self):
-        """Create sample symbols for testing."""
-        return [
-            Symbol(
-                name="TestClass",
-                kind="class",
-                file_path="test.py",
-                line_number=1,
-                column_number=0,
-                repository_id="test-repo",
-                docstring="A test class.",
-            ),
-            Symbol(
-                name="test_function",
-                kind="function",
-                file_path="test.py",
-                line_number=10,
-                column_number=0,
-                repository_id="test-repo",
-            ),
-            Symbol(
-                name="test_method",
-                kind="method",
-                file_path="test.py",
-                line_number=15,
-                column_number=4,
-                repository_id="test-repo",
-            ),
-            Symbol(
-                name="TEST_CONSTANT",
-                kind="constant",
-                file_path="constants.py",
-                line_number=1,
-                column_number=0,
-                repository_id="test-repo",
-            ),
-            Symbol(
-                name="helper_function",
-                kind="function",
-                file_path="utils.py",
-                line_number=5,
-                column_number=0,
-                repository_id="other-repo",
-            ),
-        ]
+    # Use sample_symbols fixture from conftest.py
 
     def test_database_schema_creation(self, storage):
         """Test that database schema is created correctly."""

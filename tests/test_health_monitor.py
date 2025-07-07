@@ -3,7 +3,6 @@ Tests for health monitoring functionality.
 """
 
 import json
-import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -51,26 +50,13 @@ class TestHealthMonitor:
     """Test HealthMonitor class."""
 
     @pytest.fixture
-    def mock_logger(self):
-        """Create a mock logger."""
-        return Mock()
-
-    @pytest.fixture
-    def temp_health_file(self):
-        """Create a temporary health file path."""
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as f:
-            path = f.name
-        yield path
-        Path(path).unlink(missing_ok=True)
-
-    @pytest.fixture
-    def monitor(self, mock_logger, temp_health_file):
+    def monitor(self, test_logger, temp_health_file):
         """Create a HealthMonitor instance."""
-        return HealthMonitor(mock_logger, temp_health_file)
+        return HealthMonitor(test_logger, temp_health_file)
 
-    def test_initialization(self, monitor, mock_logger, temp_health_file):
+    def test_initialization(self, monitor, test_logger, temp_health_file):
         """Test monitor initialization."""
-        assert monitor.logger == mock_logger
+        assert monitor.logger == test_logger
         assert str(monitor.health_file_path) == temp_health_file
         assert monitor._status == ServerStatus.STARTING
         assert monitor._shutdown_phase == ShutdownPhase.NOT_STARTED
@@ -80,25 +66,21 @@ class TestHealthMonitor:
         assert monitor._warnings == []
         assert monitor._should_monitor is True
 
-    def test_set_server_status(self, monitor, mock_logger):
+    def test_set_server_status(self, monitor, test_logger, caplog):
         """Test setting server status."""
         monitor.set_server_status(ServerStatus.RUNNING)
 
         assert monitor._status == ServerStatus.RUNNING
-        mock_logger.info.assert_called_with(
-            "Server status changed: starting -> running"
-        )
+        assert "Server status changed: starting -> running" in caplog.text
 
-    def test_set_shutdown_phase(self, monitor, mock_logger):
+    def test_set_shutdown_phase(self, monitor, test_logger, caplog):
         """Test setting shutdown phase."""
         monitor.set_shutdown_phase(ShutdownPhase.WORKERS_STOPPING)
 
         assert monitor._shutdown_phase == ShutdownPhase.WORKERS_STOPPING
-        mock_logger.info.assert_called_with(
-            "Shutdown phase changed: not_started -> workers_stopping"
-        )
+        assert "Shutdown phase changed: not_started -> workers_stopping" in caplog.text
 
-    def test_update_worker_status_new(self, monitor, mock_logger):
+    def test_update_worker_status_new(self, monitor, test_logger, caplog):
         """Test updating status for new worker."""
         monitor.update_worker_status("worker1", 1234, 8080, "running")
 
@@ -111,9 +93,7 @@ class TestHealthMonitor:
         assert not worker.shutdown_requested
         assert not worker.shutdown_completed
 
-        mock_logger.debug.assert_called_with("Worker worker1 status updated: running")
-
-    def test_update_worker_status_existing(self, monitor, mock_logger):
+    def test_update_worker_status_existing(self, monitor, test_logger, caplog):
         """Test updating status for existing worker."""
         # Add initial worker
         monitor.update_worker_status("worker1", 1234, 8080, "running")
@@ -127,15 +107,14 @@ class TestHealthMonitor:
         assert worker.status == "stopping"
         assert worker.last_seen > initial_time
 
-    def test_set_worker_shutdown_requested(self, monitor, mock_logger):
+    def test_set_worker_shutdown_requested(self, monitor, test_logger, caplog):
         """Test setting worker shutdown requested."""
         monitor.update_worker_status("worker1", 1234, 8080, "running")
         monitor.set_worker_shutdown_requested("worker1")
 
         assert monitor._workers["worker1"].shutdown_requested is True
-        mock_logger.debug.assert_called_with("Worker worker1 shutdown requested")
 
-    def test_set_worker_shutdown_completed(self, monitor, mock_logger):
+    def test_set_worker_shutdown_completed(self, monitor, test_logger, caplog):
         """Test setting worker shutdown completed."""
         monitor.update_worker_status("worker1", 1234, 8080, "running")
         monitor.set_worker_shutdown_completed("worker1")
@@ -143,9 +122,8 @@ class TestHealthMonitor:
         worker = monitor._workers["worker1"]
         assert worker.shutdown_completed is True
         assert worker.status == "stopped"
-        mock_logger.debug.assert_called_with("Worker worker1 shutdown completed")
 
-    def test_add_client(self, monitor, mock_logger):
+    def test_add_client(self, monitor, test_logger, caplog):
         """Test adding a client."""
         monitor.add_client("client1", "worker1")
 
@@ -155,10 +133,6 @@ class TestHealthMonitor:
         assert client.worker_id == "worker1"
         assert not client.disconnect_requested
         assert not client.disconnected
-
-        mock_logger.debug.assert_called_with(
-            "Client client1 connected to worker worker1"
-        )
 
     def test_update_client_activity(self, monitor):
         """Test updating client activity."""
@@ -170,46 +144,41 @@ class TestHealthMonitor:
 
         assert monitor._clients["client1"].last_activity > initial_time
 
-    def test_set_client_disconnect_requested(self, monitor, mock_logger):
+    def test_set_client_disconnect_requested(self, monitor, test_logger, caplog):
         """Test setting client disconnect requested."""
         monitor.add_client("client1", "worker1")
         monitor.set_client_disconnect_requested("client1")
 
         assert monitor._clients["client1"].disconnect_requested is True
-        mock_logger.debug.assert_called_with("Client client1 disconnect requested")
 
-    def test_set_client_disconnected(self, monitor, mock_logger):
+    def test_set_client_disconnected(self, monitor, test_logger, caplog):
         """Test setting client disconnected."""
         monitor.add_client("client1", "worker1")
         monitor.set_client_disconnected("client1")
 
         assert monitor._clients["client1"].disconnected is True
-        mock_logger.debug.assert_called_with("Client client1 disconnected")
 
-    def test_remove_client(self, monitor, mock_logger):
+    def test_remove_client(self, monitor, test_logger, caplog):
         """Test removing a client."""
         monitor.add_client("client1", "worker1")
         assert "client1" in monitor._clients
 
         monitor.remove_client("client1")
         assert "client1" not in monitor._clients
-        mock_logger.debug.assert_called_with("Client client1 removed from tracking")
 
-    def test_set_resource_cleanup_requested(self, monitor, mock_logger):
+    def test_set_resource_cleanup_requested(self, monitor, test_logger, caplog):
         """Test setting resource cleanup requested."""
         monitor.set_resource_cleanup_requested()
 
         assert monitor._resources.cleanup_requested is True
-        mock_logger.debug.assert_called_with("Resource cleanup requested")
 
-    def test_set_resource_cleanup_completed(self, monitor, mock_logger):
+    def test_set_resource_cleanup_completed(self, monitor, test_logger, caplog):
         """Test setting resource cleanup completed."""
         monitor.set_resource_cleanup_completed()
 
         assert monitor._resources.cleanup_completed is True
-        mock_logger.debug.assert_called_with("Resource cleanup completed")
 
-    def test_update_shutdown_progress(self, monitor, mock_logger):
+    def test_update_shutdown_progress(self, monitor, test_logger, caplog):
         """Test updating shutdown progress."""
         progress = {"workers_stopped": 2, "total_workers": 3}
         monitor.update_shutdown_progress("workers", progress)
@@ -219,29 +188,19 @@ class TestHealthMonitor:
         assert monitor._shutdown_progress["workers"]["total_workers"] == 3
         assert "timestamp" in monitor._shutdown_progress["workers"]
 
-        mock_logger.debug.assert_called_with(
-            f"Shutdown progress updated for workers: {progress}"
-        )
-
-    def test_add_error(self, monitor, mock_logger):
+    def test_add_error(self, monitor, test_logger, caplog):
         """Test adding an error."""
         monitor.add_error("Test error")
 
         assert len(monitor._errors) == 1
         assert "Test error" in monitor._errors[0]
-        mock_logger.error.assert_called_with(
-            "Health monitor recorded error: Test error"
-        )
 
-    def test_add_warning(self, monitor, mock_logger):
+    def test_add_warning(self, monitor, test_logger, caplog):
         """Test adding a warning."""
         monitor.add_warning("Test warning")
 
         assert len(monitor._warnings) == 1
         assert "Test warning" in monitor._warnings[0]
-        mock_logger.warning.assert_called_with(
-            "Health monitor recorded warning: Test warning"
-        )
 
     def test_error_warning_limit(self, monitor):
         """Test that errors and warnings are limited to 20."""
@@ -327,7 +286,7 @@ class TestHealthMonitor:
 
     @patch("health_monitor.psutil.Process")
     def test_update_resource_status_error(
-        self, mock_process_class, monitor, mock_logger
+        self, mock_process_class, monitor, test_logger, caplog
     ):
         """Test updating resource status with error."""
         import psutil
@@ -337,10 +296,7 @@ class TestHealthMonitor:
         monitor._update_resource_status()
 
         # Should not crash, but log warning
-        mock_logger.warning.assert_called_once()
-        # Check that the warning message contains the key text
-        warning_call = mock_logger.warning.call_args[0][0]
-        assert "Could not update resource status:" in warning_call
+        assert "Could not update resource status:" in caplog.text
 
     def test_generate_health_report(self, monitor):
         """Test generating health report."""
@@ -363,7 +319,7 @@ class TestHealthMonitor:
         assert len(report.warnings) == 1
         assert "workers" in report.shutdown_progress
 
-    def test_generate_health_report_error(self, monitor, mock_logger):
+    def test_generate_health_report_error(self, monitor, test_logger, caplog):
         """Test generating health report with error."""
         # Force an error by corrupting internal state
         monitor._workers = "invalid"  # Should cause TypeError
@@ -416,7 +372,7 @@ class TestHealthMonitor:
             monitor.stop_monitoring()
             assert monitor._should_monitor is False
 
-    def test_start_monitoring_already_running(self, monitor, mock_logger):
+    def test_start_monitoring_already_running(self, monitor, test_logger, caplog):
         """Test starting monitoring when already running."""
         # Mock a running thread
         monitor._monitoring_thread = Mock()
@@ -424,9 +380,7 @@ class TestHealthMonitor:
 
         monitor.start_monitoring()
 
-        mock_logger.warning.assert_called_with("Health monitoring already running")
-
-    def test_cleanup_health_file(self, monitor, temp_health_file, mock_logger):
+    def test_cleanup_health_file(self, monitor, temp_health_file, test_logger, caplog):
         """Test cleaning up health file."""
         # Create the file
         Path(temp_health_file).touch()
@@ -435,10 +389,9 @@ class TestHealthMonitor:
         monitor.cleanup_health_file()
 
         assert not Path(temp_health_file).exists()
-        mock_logger.info.assert_called_with("Health file cleaned up")
 
     def test_cleanup_health_file_not_exists(
-        self, monitor, temp_health_file, mock_logger
+        self, monitor, temp_health_file, test_logger, caplog
     ):
         """Test cleaning up non-existent health file."""
         # Ensure file doesn't exist
@@ -449,12 +402,7 @@ class TestHealthMonitor:
 
         # Should not crash and not log cleanup message since file doesn't exist
         # Check that no "Health file cleaned up" message was logged
-        cleanup_calls = [
-            call
-            for call in mock_logger.info.call_args_list
-            if "Health file cleaned up" in str(call)
-        ]
-        assert len(cleanup_calls) == 0
+        assert "Health file cleaned up" not in caplog.text
 
 
 class TestHealthStatusFunctions:

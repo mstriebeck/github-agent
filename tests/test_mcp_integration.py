@@ -21,7 +21,6 @@ mocking strategy without ensuring it still avoids production conflicts.
 
 import json
 import socket
-import subprocess
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -51,55 +50,7 @@ def find_free_port() -> int:
         return s.getsockname()[1]  # Return the allocated port
 
 
-@pytest.fixture
-def temp_git_repo():
-    """
-    Create a temporary git repository for integration testing.
-
-    This fixture creates a real git repository with:
-    - Proper git initialization
-    - Initial commit (required for valid git repo)
-    - Test content files
-
-    The repository simulates a real codebase environment for testing
-    the health check and other repository-aware tools.
-    """
-    with tempfile.TemporaryDirectory() as temp_dir:
-        repo_path = Path(temp_dir)
-
-        # Initialize as a real git repository - this is important because
-        # the health check tool validates that .git directory exists
-        subprocess.run(["git", "init"], cwd=repo_path, capture_output=True, check=True)
-        subprocess.run(
-            ["git", "config", "user.email", "integration-test@example.com"],
-            cwd=repo_path,
-            capture_output=True,
-            check=True,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "Integration Test"],
-            cwd=repo_path,
-            capture_output=True,
-            check=True,
-        )
-
-        # Create test files - the health check doesn't require specific content,
-        # but having files makes this more realistic
-        (repo_path / "README.md").write_text("# Integration Test Repository")
-        (repo_path / "main.py").write_text("# Main application file")
-
-        # Initial commit is required for the git repository to be valid
-        subprocess.run(
-            ["git", "add", "."], cwd=repo_path, capture_output=True, check=True
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "Initial commit for integration test"],
-            cwd=repo_path,
-            capture_output=True,
-            check=True,
-        )
-
-        yield str(repo_path)
+# temp_git_repo fixture now consolidated in conftest.py
 
 
 @pytest.fixture

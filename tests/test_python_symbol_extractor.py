@@ -16,19 +16,18 @@ from python_symbol_extractor import (
 class TestPythonSymbolExtractor:
     """Test the PythonSymbolExtractor class."""
 
-    @pytest.fixture
-    def extractor(self):
-        """Create a PythonSymbolExtractor for testing."""
-        return PythonSymbolExtractor()
+    # Use python_symbol_extractor fixture from conftest.py
 
-    def test_extract_simple_function(self, extractor):
+    def test_extract_simple_function(self, python_symbol_extractor):
         """Test extracting a simple function."""
         source = '''
 def hello_world():
     """Say hello to the world."""
     print("Hello, World!")
 '''
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         assert len(symbols) == 1
         assert symbols[0].name == "hello_world"
@@ -36,14 +35,16 @@ def hello_world():
         assert symbols[0].line_number == 2
         assert symbols[0].docstring == "Say hello to the world."
 
-    def test_extract_simple_class(self, extractor):
+    def test_extract_simple_class(self, python_symbol_extractor):
         """Test extracting a simple class."""
         source = '''
 class TestClass:
     """A test class."""
     pass
 '''
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         assert len(symbols) == 1
         assert symbols[0].name == "TestClass"
@@ -51,7 +52,7 @@ class TestClass:
         assert symbols[0].line_number == 2
         assert symbols[0].docstring == "A test class."
 
-    def test_extract_class_with_methods(self, extractor):
+    def test_extract_class_with_methods(self, python_symbol_extractor):
         """Test extracting class with methods."""
         source = '''
 class Calculator:
@@ -79,7 +80,9 @@ class Calculator:
         """Check if value is a number."""
         return isinstance(value, (int, float))
 '''
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Should find: class, add method, multiply method, name property,
         # create_default classmethod, is_number staticmethod
@@ -112,7 +115,7 @@ class Calculator:
         assert staticmethod_symbol.name == "Calculator.is_number"
         assert staticmethod_symbol.kind == "staticmethod"
 
-    def test_extract_nested_classes(self, extractor):
+    def test_extract_nested_classes(self, python_symbol_extractor):
         """Test extracting nested classes."""
         source = '''
 class Outer:
@@ -133,7 +136,9 @@ class Outer:
         """Outer method."""
         pass
 '''
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         assert len(symbols) == 5
 
@@ -158,7 +163,7 @@ class Outer:
         assert outer_method.name == "Outer.outer_method"
         assert outer_method.kind == "method"
 
-    def test_extract_nested_functions(self, extractor):
+    def test_extract_nested_functions(self, python_symbol_extractor):
         """Test extracting nested functions."""
         source = '''
 def outer_function():
@@ -179,7 +184,9 @@ def another_function():
     """Another top-level function."""
     pass
 '''
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         assert len(symbols) == 4
 
@@ -199,7 +206,7 @@ def another_function():
         assert another_func.name == "another_function"
         assert another_func.kind == "function"
 
-    def test_extract_variables_and_constants(self, extractor):
+    def test_extract_variables_and_constants(self, python_symbol_extractor):
         """Test extracting variables and constants."""
         source = '''
 # Module-level constants and variables
@@ -223,7 +230,9 @@ def setup():
     local_var = "local"
     LOCAL_CONSTANT = 123
 '''
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Filter symbols by kind
         constants = [s for s in symbols if s.kind == "constant"]
@@ -251,7 +260,7 @@ def setup():
         assert "setup.local_var" in variable_names
         assert "setup.LOCAL_CONSTANT" in constant_names
 
-    def test_extract_imports(self, extractor):
+    def test_extract_imports(self, python_symbol_extractor):
         """Test extracting import statements."""
         source = """
 import os
@@ -261,7 +270,9 @@ from typing import List, Dict
 from collections import defaultdict as dd
 from .local_module import local_function
 """
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         module_symbols = [s for s in symbols if s.kind == "module"]
         assert len(module_symbols) == 7
@@ -275,7 +286,7 @@ from .local_module import local_function
         assert "dd" in names  # alias for defaultdict
         assert "local_function" in names
 
-    def test_extract_async_functions(self, extractor):
+    def test_extract_async_functions(self, python_symbol_extractor):
         """Test extracting async functions."""
         source = '''
 import asyncio
@@ -296,7 +307,9 @@ async def main():
     handler = AsyncHandler()
     await handler.handle_request()
 '''
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Filter functions
         functions = [s for s in symbols if s.kind in ["function", "method"]]
@@ -308,7 +321,7 @@ async def main():
         assert "AsyncHandler.process_data" in func_names
         assert "main" in func_names
 
-    def test_extract_from_file(self, extractor):
+    def test_extract_from_file(self, python_symbol_extractor):
         """Test extracting symbols from a real file."""
         source = '''
 """Test module docstring."""
@@ -330,7 +343,7 @@ class TestClass:
             temp_path = f.name
 
         try:
-            symbols = extractor.extract_from_file(temp_path, "test-repo")
+            symbols = python_symbol_extractor.extract_from_file(temp_path, "test-repo")
 
             assert len(symbols) == 3  # function, class, method
 
@@ -343,7 +356,7 @@ class TestClass:
         finally:
             Path(temp_path).unlink()
 
-    def test_error_handling_syntax_error(self, extractor):
+    def test_error_handling_syntax_error(self, python_symbol_extractor):
         """Test handling of syntax errors."""
         invalid_source = """
 def broken_function(
@@ -351,20 +364,24 @@ def broken_function(
     pass
 """
         with pytest.raises(SyntaxError):
-            extractor.extract_from_source(invalid_source, "test.py", "test-repo")
+            python_symbol_extractor.extract_from_source(
+                invalid_source, "test.py", "test-repo"
+            )
 
-    def test_error_handling_file_not_found(self, extractor):
+    def test_error_handling_file_not_found(self, python_symbol_extractor):
         """Test handling of missing files."""
         with pytest.raises(FileNotFoundError):
-            extractor.extract_from_file("nonexistent.py", "test-repo")
+            python_symbol_extractor.extract_from_file("nonexistent.py", "test-repo")
 
-    def test_empty_file(self, extractor):
+    def test_empty_file(self, python_symbol_extractor):
         """Test extracting from an empty file."""
         source = ""
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
         assert len(symbols) == 0
 
-    def test_annotated_assignments(self, extractor):
+    def test_annotated_assignments(self, python_symbol_extractor):
         """Test extracting annotated assignments."""
         source = """
 name: str = "John"
@@ -376,7 +393,9 @@ class Person:
     age: int = 0
     SPECIES: str = "Homo sapiens"
 """
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Check module-level annotated assignments
         name_var = next(s for s in symbols if s.name == "name")
@@ -385,7 +404,7 @@ class Person:
         config_const = next(s for s in symbols if s.name == "CONFIG")
         assert config_const.kind == "constant"
 
-    def test_scope_tracking_reset(self, extractor):
+    def test_scope_tracking_reset(self, python_symbol_extractor):
         """Test that scope tracking resets between extractions."""
         # First extraction
         source1 = """
@@ -393,7 +412,9 @@ class FirstClass:
     def first_method(self):
         pass
 """
-        symbols1 = extractor.extract_from_source(source1, "file1.py", "repo1")
+        symbols1 = python_symbol_extractor.extract_from_source(
+            source1, "file1.py", "repo1"
+        )
 
         # Second extraction should not be affected by first
         source2 = """
@@ -401,7 +422,9 @@ class SecondClass:
     def second_method(self):
         pass
 """
-        symbols2 = extractor.extract_from_source(source2, "file2.py", "repo2")
+        symbols2 = python_symbol_extractor.extract_from_source(
+            source2, "file2.py", "repo2"
+        )
 
         # Check that scopes are correct and isolated
         first_method = next(s for s in symbols1 if s.name == "FirstClass.first_method")
@@ -414,7 +437,7 @@ class SecondClass:
         assert second_method.file_path == "file2.py"
         assert second_method.repository_id == "repo2"
 
-    def test_nested_imports(self, extractor):
+    def test_nested_imports(self, python_symbol_extractor):
         """Test extracting imports nested inside functions and methods."""
         source = """
 import os  # module level
@@ -436,7 +459,9 @@ def outer_function():
         return re.compile(r"test")
     return inner_function
 """
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         import_symbols = [s for s in symbols if s.kind == "module"]
         import_names = [s.name for s in import_symbols]
@@ -501,7 +526,7 @@ class TestComplexPythonConstructs:
         """Create a PythonSymbolExtractor for testing."""
         return PythonSymbolExtractor()
 
-    def test_multiple_decorators(self, extractor):
+    def test_multiple_decorators(self, python_symbol_extractor):
         """Test functions with multiple decorators."""
         source = '''
 from functools import wraps
@@ -529,7 +554,9 @@ class MyClass:
         """Static method with decorators."""
         return value
 '''
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Should still detect property despite multiple decorators
         prop = next(s for s in symbols if s.name == "MyClass.complex_property")
@@ -539,7 +566,7 @@ class MyClass:
         static = next(s for s in symbols if s.name == "MyClass.complex_static")
         assert static.kind == "staticmethod"
 
-    def test_class_inheritance(self, extractor):
+    def test_class_inheritance(self, python_symbol_extractor):
         """Test classes with inheritance."""
         source = '''
 class BaseClass:
@@ -564,7 +591,9 @@ class MultipleInheritance(BaseClass, DerivedClass):
     """Multiple inheritance."""
     pass
 '''
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Should extract all classes regardless of inheritance
         base_class = next(s for s in symbols if s.name == "BaseClass")
@@ -576,7 +605,7 @@ class MultipleInheritance(BaseClass, DerivedClass):
         multiple_class = next(s for s in symbols if s.name == "MultipleInheritance")
         assert multiple_class.kind == "class"
 
-    def test_generators_and_comprehensions(self, extractor):
+    def test_generators_and_comprehensions(self, python_symbol_extractor):
         """Test that generators and comprehensions don't interfere."""
         source = '''
 data = [i for i in range(10)]
@@ -592,7 +621,9 @@ class DataProcessor:
     def process_list(self):
         return [x * 2 for x in self.data]
 '''
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Should extract variables and functions correctly
         var_names = [s.name for s in symbols if s.kind == "variable"]
@@ -604,7 +635,7 @@ class DataProcessor:
         assert gen_func.kind == "function"
         assert gen_func.docstring == "A generator function."
 
-    def test_property_setters_deleters(self, extractor):
+    def test_property_setters_deleters(self, python_symbol_extractor):
         """Test extraction of property setters and deleters."""
         source = '''
 class PropertyExample:
@@ -626,7 +657,9 @@ class PropertyExample:
         """Delete the value."""
         del self._value
 '''
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         # Find property-related symbols
         prop_getter = next(
@@ -650,7 +683,7 @@ class PropertyExample:
         )
         assert prop_deleter.docstring == "Delete the value."
 
-    def test_walrus_operator(self, extractor):
+    def test_walrus_operator(self, python_symbol_extractor):
         """Test extraction of walrus operator assignments."""
         source = """
 def process_data():
@@ -667,7 +700,9 @@ def process_data():
     if (a := 5) > 2 and (b := 10) < 20:
         result = a + b
 """
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         variable_names = [s.name for s in symbols if s.kind == "variable"]
         assert "process_data.n" in variable_names
@@ -676,7 +711,7 @@ def process_data():
         assert "process_data.a" in variable_names
         assert "process_data.b" in variable_names
 
-    def test_context_manager_variables(self, extractor):
+    def test_context_manager_variables(self, python_symbol_extractor):
         """Test extraction of context manager variables."""
         source = """
 def file_operations():
@@ -699,7 +734,9 @@ async def async_file_operations():
     async with aiofiles.open('async_file.txt') as af:
         async_content = await af.read()
 """
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         variable_names = [s.name for s in symbols if s.kind == "variable"]
 
@@ -713,7 +750,7 @@ async def async_file_operations():
         # Async context manager variables
         assert "async_file_operations.af" in variable_names
 
-    def test_multiple_assignment_and_unpacking(self, extractor):
+    def test_multiple_assignment_and_unpacking(self, python_symbol_extractor):
         """Test extraction of multiple assignment and tuple unpacking."""
         source = """
 def assignment_examples():
@@ -737,7 +774,9 @@ class UnpackingInClass:
         # Instance variable unpacking
         self.x, self.y = 10, 20
 """
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         variable_names = [s.name for s in symbols if s.kind == "variable"]
 
@@ -772,7 +811,7 @@ class UnpackingInClass:
         assert "UnpackingInClass.__init__.x" in variable_names
         assert "UnpackingInClass.__init__.y" in variable_names
 
-    def test_iterator_variables(self, extractor):
+    def test_iterator_variables(self, python_symbol_extractor):
         """Test extraction of iterator variables in for loops."""
         source = """
 def loop_examples():
@@ -802,7 +841,9 @@ async def async_loop_examples():
     async for name, value in async_pairs():
         await store(name, value)
 """
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         variable_names = [s.name for s in symbols if s.kind == "variable"]
 
@@ -827,7 +868,7 @@ async def async_loop_examples():
         assert "async_loop_examples.name" in variable_names
         assert "async_loop_examples.value" in variable_names
 
-    def test_exception_variable_binding(self, extractor):
+    def test_exception_variable_binding(self, python_symbol_extractor):
         """Test extraction of exception variables in except clauses."""
         source = """
 def error_handling():
@@ -850,7 +891,9 @@ def error_handling():
     except IOError as io:
         handle_io_error(io)
 """
-        symbols = extractor.extract_from_source(source, "test.py", "test-repo")
+        symbols = python_symbol_extractor.extract_from_source(
+            source, "test.py", "test-repo"
+        )
 
         variable_names = [s.name for s in symbols if s.kind == "variable"]
 
