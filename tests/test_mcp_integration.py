@@ -32,7 +32,13 @@ import codebase_tools
 import github_tools
 import mcp_master
 from constants import Language
+from python_repository_manager import PythonRepositoryManager
+from python_symbol_extractor import PythonSymbolExtractor
+from repository_indexer import PythonRepositoryIndexer
 from repository_manager import RepositoryManager
+from shutdown_simple import SimpleHealthMonitor, SimpleShutdownCoordinator
+from startup_orchestrator import CodebaseStartupOrchestrator
+from symbol_storage import ProductionSymbolStorage
 
 
 def find_free_port() -> int:
@@ -151,7 +157,7 @@ class TestMCPIntegration:
     """
 
     @pytest.mark.asyncio
-    async def test_end_to_end_workflow(self, test_config_with_dynamic_port):
+    async def test_end_to_end_workflow(self, test_config_with_dynamic_port, mcp_master_factory):
         """
         Test the complete end-to-end MCP workflow from configuration to tool execution.
 
@@ -192,11 +198,11 @@ class TestMCPIntegration:
             # Test that master can load and validate our configuration
             # This exercises the real configuration validation logic that
             # checks for required fields (port, path, language, python_path)
-            master = mcp_master.MCPMaster(config_file_path)
-            loaded_successfully = master.load_configuration()
+            master = mcp_master_factory(config_file_path)
 
             # Verify configuration was loaded and validated successfully
-            assert loaded_successfully is True
+            assert master.repository_manager is not None
+            assert len(master.repository_manager.repositories) > 0
 
             # Test that we can access the loaded repository info through workers dict
             # The master doesn't expose repositories directly, but we can verify the
@@ -243,8 +249,7 @@ class TestMCPIntegration:
 
             worker = WorkerProcess(repository_config=test_repo_config)
 
-            # Create a master instance for the test
-            master = mcp_master.MCPMaster()
+            # Use the same master instance from the first phase
             worker_started = master.start_worker(worker)
 
             # Verify worker startup was attempted with correct parameters
@@ -426,7 +431,7 @@ class TestMCPIntegration:
             assert port < 65536  # Valid port range
 
     @pytest.mark.asyncio
-    async def test_configuration_validation_integration(self, temp_git_repo):
+    async def test_configuration_validation_integration(self, temp_git_repo, mcp_master_factory):
         """
         Test that configuration validation works end-to-end with real files.
 
@@ -451,9 +456,9 @@ class TestMCPIntegration:
 
         try:
             # Valid configuration should load successfully
-            master = mcp_master.MCPMaster(valid_config_path)
-            loaded_successfully = master.load_configuration()
-            assert loaded_successfully is True
+            master = mcp_master_factory(valid_config_path)
+            assert master.repository_manager is not None
+            assert len(master.repository_manager.repositories) > 0
         finally:
             Path(valid_config_path).unlink()
 

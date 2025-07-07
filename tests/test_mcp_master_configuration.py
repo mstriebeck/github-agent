@@ -14,11 +14,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from mcp_master import MCPMaster
+from repository_manager import RepositoryManager
 
 
-class TestMCPMasterConfigurationValidation(unittest.TestCase):
-    """Test MCP Master configuration validation"""
+class TestRepositoryManagerConfigurationValidation(unittest.TestCase):
+    """Test RepositoryManager configuration validation"""
 
     def setUp(self):
         """Set up test fixtures"""
@@ -63,10 +63,11 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
         """Test that a valid configuration loads successfully"""
         self._write_config_file(self.valid_config)
 
-        master = MCPMaster.create_for_testing(config_path=str(self.config_file))
+        # Test RepositoryManager directly - this is what actually validates configuration
+        manager = RepositoryManager.create_from_config(str(self.config_file))
 
-        self.assertEqual(len(master.workers), 1)
-        self.assertIn("test-repo", master.workers)
+        self.assertEqual(len(manager.repositories), 1)
+        self.assertIn("test-repo", manager.repositories)
 
     def test_missing_port_field_fails_validation(self):
         """Test that missing 'port' field causes configuration load to fail"""
@@ -83,10 +84,8 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
         }
         self._write_config_file(config_missing_port)
 
-        master = MCPMaster(config_path=str(self.config_file))
-        result = master.load_configuration()
-
-        self.assertFalse(result, "Configuration with missing port should fail to load")
+        with self.assertRaises(RuntimeError):
+            RepositoryManager.create_from_config(str(self.config_file))
 
     def test_missing_path_field_fails_validation(self):
         """Test that missing 'path' field causes configuration load to fail"""
@@ -103,10 +102,8 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
         }
         self._write_config_file(config_missing_path)
 
-        master = MCPMaster(config_path=str(self.config_file))
-        result = master.load_configuration()
-
-        self.assertFalse(result, "Configuration with missing path should fail to load")
+        with self.assertRaises(RuntimeError):
+            RepositoryManager.create_from_config(str(self.config_file))
 
     def test_missing_language_field_fails_validation(self):
         """Test that missing 'language' field causes configuration load to fail"""
@@ -123,12 +120,8 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
         }
         self._write_config_file(config_missing_language)
 
-        master = MCPMaster(config_path=str(self.config_file))
-        result = master.load_configuration()
-
-        self.assertFalse(
-            result, "Configuration with missing language should fail to load"
-        )
+        with self.assertRaises(RuntimeError):
+            RepositoryManager.create_from_config(str(self.config_file))
 
     def test_missing_python_path_field_fails_validation(self):
         """Test that missing 'python_path' field causes configuration load to fail"""
@@ -145,12 +138,8 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
         }
         self._write_config_file(config_missing_python_path)
 
-        master = MCPMaster(config_path=str(self.config_file))
-        result = master.load_configuration()
-
-        self.assertFalse(
-            result, "Configuration with missing python_path should fail to load"
-        )
+        with self.assertRaises(RuntimeError):
+            RepositoryManager.create_from_config(str(self.config_file))
 
     def test_multiple_missing_fields_fails_validation(self):
         """Test that configuration with multiple missing fields fails validation"""
@@ -165,12 +154,8 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
         }
         self._write_config_file(config_multiple_missing)
 
-        master = MCPMaster(config_path=str(self.config_file))
-        result = master.load_configuration()
-
-        self.assertFalse(
-            result, "Configuration with multiple missing fields should fail to load"
-        )
+        with self.assertRaises(RuntimeError):
+            RepositoryManager.create_from_config(str(self.config_file))
 
     def test_all_required_fields_must_be_present(self):
         """Test that all required fields must be present for successful validation"""
@@ -185,13 +170,8 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
 
                 self._write_config_file(config)
 
-                master = MCPMaster(config_path=str(self.config_file))
-                result = master.load_configuration()
-
-                self.assertFalse(
-                    result,
-                    f"Configuration missing required field '{field_to_remove}' should fail to load",
-                )
+                with self.assertRaises(RuntimeError):
+                    RepositoryManager.create_from_config(str(self.config_file))
 
     def test_no_auto_assignment_of_missing_fields(self):
         """Test that missing fields are not auto-assigned"""
@@ -208,14 +188,8 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
         }
         self._write_config_file(config_missing_port)
 
-        master = MCPMaster(config_path=str(self.config_file))
-        result = master.load_configuration()
-
-        # Should fail validation, not auto-assign port
-        self.assertFalse(result)
-        self.assertEqual(
-            len(master.workers), 0, "No workers should be created when validation fails"
-        )
+        with self.assertRaises(RuntimeError):
+            RepositoryManager.create_from_config(str(self.config_file))
 
     def test_configuration_file_not_modified(self):
         """Test that the configuration file is never modified during load"""
@@ -225,8 +199,8 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
         with open(self.config_file) as f:
             original_content = f.read()
 
-        master = MCPMaster(config_path=str(self.config_file))
-        master.load_configuration()
+        # Test that RepositoryManager.create_from_config doesn't modify the file
+        RepositoryManager.create_from_config(str(self.config_file))
 
         # Read file content after load
         with open(self.config_file) as f:
@@ -260,33 +234,24 @@ class TestMCPMasterConfigurationValidation(unittest.TestCase):
         }
         self._write_config_file(config_with_multiple_repos)
 
-        master = MCPMaster(config_path=str(self.config_file))
-        result = master.load_configuration()
-
-        self.assertFalse(
-            result,
-            "Configuration should fail if any repository is missing required fields",
-        )
+        with self.assertRaises(RuntimeError):
+            RepositoryManager.create_from_config(str(self.config_file))
 
     def test_empty_repositories_section_fails(self):
         """Test that empty repositories section fails validation"""
         empty_config: dict[str, dict[str, dict]] = {"repositories": {}}
         self._write_config_file(empty_config)
 
-        master = MCPMaster(config_path=str(self.config_file))
-        result = master.load_configuration()
-
-        self.assertFalse(result, "Empty repositories section should fail validation")
+        with self.assertRaises(RuntimeError):
+            RepositoryManager.create_from_config(str(self.config_file))
 
     def test_missing_repositories_key_fails(self):
         """Test that missing repositories key fails validation"""
         invalid_config = {"some_other_key": "value"}
         self._write_config_file(invalid_config)
 
-        master = MCPMaster(config_path=str(self.config_file))
-        result = master.load_configuration()
-
-        self.assertFalse(result, "Missing repositories key should fail validation")
+        with self.assertRaises(RuntimeError):
+            RepositoryManager.create_from_config(str(self.config_file))
 
 
 if __name__ == "__main__":
