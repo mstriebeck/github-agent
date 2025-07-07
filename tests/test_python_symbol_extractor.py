@@ -150,19 +150,19 @@ class Outer:
 
         inner_class = symbols[1]
         assert inner_class.name == "Outer.Inner"
-        assert inner_class.kind == "class"
+        assert inner_class.kind == SymbolKind.CLASS
 
         inner_method = symbols[2]
         assert inner_method.name == "Outer.Inner.inner_method"
-        assert inner_method.kind == "method"
+        assert inner_method.kind == SymbolKind.METHOD
 
         deeply_nested = symbols[3]
         assert deeply_nested.name == "Outer.Inner.DeeplyNested"
-        assert deeply_nested.kind == "class"
+        assert deeply_nested.kind == SymbolKind.CLASS
 
         outer_method = symbols[4]
         assert outer_method.name == "Outer.outer_method"
-        assert outer_method.kind == "method"
+        assert outer_method.kind == SymbolKind.METHOD
 
     def test_extract_nested_functions(self, python_symbol_extractor):
         """Test extracting nested functions."""
@@ -193,19 +193,19 @@ def another_function():
 
         outer_func = symbols[0]
         assert outer_func.name == "outer_function"
-        assert outer_func.kind == "function"
+        assert outer_func.kind == SymbolKind.FUNCTION
 
         inner_func = symbols[1]
         assert inner_func.name == "outer_function.inner_function"
-        assert inner_func.kind == "function"
+        assert inner_func.kind == SymbolKind.FUNCTION
 
         deeply_nested = symbols[2]
         assert deeply_nested.name == "outer_function.inner_function.deeply_nested"
-        assert deeply_nested.kind == "function"
+        assert deeply_nested.kind == SymbolKind.FUNCTION
 
         another_func = symbols[3]
         assert another_func.name == "another_function"
-        assert another_func.kind == "function"
+        assert another_func.kind == SymbolKind.FUNCTION
 
     def test_extract_variables_and_constants(self, python_symbol_extractor):
         """Test extracting variables and constants."""
@@ -236,8 +236,8 @@ def setup():
         )
 
         # Filter symbols by kind
-        constants = [s for s in symbols if s.kind == "constant"]
-        variables = [s for s in symbols if s.kind == "variable"]
+        constants = [s for s in symbols if s.kind == SymbolKind.CONSTANT]
+        variables = [s for s in symbols if s.kind == SymbolKind.VARIABLE]
 
         # Module-level constants
         constant_names = [s.name for s in constants]
@@ -275,7 +275,7 @@ from .local_module import local_function
             source, "test.py", "test-repo"
         )
 
-        module_symbols = [s for s in symbols if s.kind == "module"]
+        module_symbols = [s for s in symbols if s.kind == SymbolKind.MODULE]
         assert len(module_symbols) == 7
 
         names = [s.name for s in module_symbols]
@@ -402,10 +402,10 @@ class Person:
 
         # Check module-level annotated assignments
         name_var = next(s for s in symbols if s.name == "name")
-        assert name_var.kind == "variable"
+        assert name_var.kind == SymbolKind.VARIABLE
 
         config_const = next(s for s in symbols if s.name == "CONFIG")
-        assert config_const.kind == "constant"
+        assert config_const.kind == SymbolKind.CONSTANT
 
     def test_scope_tracking_reset(self, python_symbol_extractor):
         """Test that scope tracking resets between extractions."""
@@ -466,7 +466,7 @@ def outer_function():
             source, "test.py", "test-repo"
         )
 
-        import_symbols = [s for s in symbols if s.kind == "module"]
+        import_symbols = [s for s in symbols if s.kind == SymbolKind.MODULE]
         import_names = [s.name for s in import_symbols]
 
         # Module-level import
@@ -563,11 +563,11 @@ class MyClass:
 
         # Should still detect property despite multiple decorators
         prop = next(s for s in symbols if s.name == "MyClass.complex_property")
-        assert prop.kind == "property"
+        assert prop.kind == SymbolKind.PROPERTY
 
         # Should detect staticmethod despite decorators
         static = next(s for s in symbols if s.name == "MyClass.complex_static")
-        assert static.kind == "staticmethod"
+        assert static.kind == SymbolKind.STATICMETHOD
 
     def test_class_inheritance(self, python_symbol_extractor):
         """Test classes with inheritance."""
@@ -600,13 +600,13 @@ class MultipleInheritance(BaseClass, DerivedClass):
 
         # Should extract all classes regardless of inheritance
         base_class = next(s for s in symbols if s.name == "BaseClass")
-        assert base_class.kind == "class"
+        assert base_class.kind == SymbolKind.CLASS
 
         derived_class = next(s for s in symbols if s.name == "DerivedClass")
-        assert derived_class.kind == "class"
+        assert derived_class.kind == SymbolKind.CLASS
 
         multiple_class = next(s for s in symbols if s.name == "MultipleInheritance")
-        assert multiple_class.kind == "class"
+        assert multiple_class.kind == SymbolKind.CLASS
 
     def test_generators_and_comprehensions(self, python_symbol_extractor):
         """Test that generators and comprehensions don't interfere."""
@@ -629,13 +629,13 @@ class DataProcessor:
         )
 
         # Should extract variables and functions correctly
-        var_names = [s.name for s in symbols if s.kind == "variable"]
+        var_names = [s.name for s in symbols if s.kind == SymbolKind.VARIABLE]
         assert "data" in var_names
         assert "squares" in var_names
         assert "evens" in var_names
 
         gen_func = next(s for s in symbols if s.name == "generator_function")
-        assert gen_func.kind == "function"
+        assert gen_func.kind == SymbolKind.FUNCTION
         assert gen_func.docstring == "A generator function."
 
     def test_property_setters_deleters(self, python_symbol_extractor):
@@ -668,21 +668,21 @@ class PropertyExample:
         prop_getter = next(
             s
             for s in symbols
-            if s.name == "PropertyExample.value" and s.kind == "property"
+            if s.name == "PropertyExample.value" and s.kind == SymbolKind.PROPERTY
         )
         assert prop_getter.docstring == "Get the value."
 
         prop_setter = next(
             s
             for s in symbols
-            if s.name == "PropertyExample.value" and s.kind == "setter"
+            if s.name == "PropertyExample.value" and s.kind == SymbolKind.SETTER
         )
         assert prop_setter.docstring == "Set the value."
 
         prop_deleter = next(
             s
             for s in symbols
-            if s.name == "PropertyExample.value" and s.kind == "deleter"
+            if s.name == "PropertyExample.value" and s.kind == SymbolKind.DELETER
         )
         assert prop_deleter.docstring == "Delete the value."
 
@@ -707,7 +707,7 @@ def process_data():
             source, "test.py", "test-repo"
         )
 
-        variable_names = [s.name for s in symbols if s.kind == "variable"]
+        variable_names = [s.name for s in symbols if s.kind == SymbolKind.VARIABLE]
         assert "process_data.n" in variable_names
         assert "process_data.line" in variable_names
         assert "process_data.length" in variable_names
@@ -741,7 +741,7 @@ async def async_file_operations():
             source, "test.py", "test-repo"
         )
 
-        variable_names = [s.name for s in symbols if s.kind == "variable"]
+        variable_names = [s.name for s in symbols if s.kind == SymbolKind.VARIABLE]
 
         # Sync context manager variables
         assert "file_operations.f" in variable_names
@@ -781,7 +781,7 @@ class UnpackingInClass:
             source, "test.py", "test-repo"
         )
 
-        variable_names = [s.name for s in symbols if s.kind == "variable"]
+        variable_names = [s.name for s in symbols if s.kind == SymbolKind.VARIABLE]
 
         # Simple multiple assignment
         assert "assignment_examples.a" in variable_names
@@ -848,7 +848,7 @@ async def async_loop_examples():
             source, "test.py", "test-repo"
         )
 
-        variable_names = [s.name for s in symbols if s.kind == "variable"]
+        variable_names = [s.name for s in symbols if s.kind == SymbolKind.VARIABLE]
 
         # Simple for loop
         assert "loop_examples.item" in variable_names
@@ -898,7 +898,7 @@ def error_handling():
             source, "test.py", "test-repo"
         )
 
-        variable_names = [s.name for s in symbols if s.kind == "variable"]
+        variable_names = [s.name for s in symbols if s.kind == SymbolKind.VARIABLE]
 
         # Exception variables
         assert "error_handling.ve" in variable_names
