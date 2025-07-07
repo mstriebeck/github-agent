@@ -476,10 +476,9 @@ class TestMCPIntegration:
             invalid_config_path = f.name
 
         try:
-            # Invalid configuration should fail to load
-            master = mcp_master.MCPMaster(invalid_config_path)
-            loaded_successfully = master.load_configuration()
-            assert loaded_successfully is False  # Should fail due to missing fields
+            # Invalid configuration should fail to load with RepositoryManager
+            with pytest.raises(RuntimeError):
+                RepositoryManager.create_from_config(invalid_config_path)
         finally:
             Path(invalid_config_path).unlink()
 
