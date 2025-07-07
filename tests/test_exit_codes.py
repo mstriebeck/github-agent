@@ -2,7 +2,6 @@
 Tests for exit code system functionality.
 """
 
-
 import pytest
 
 from exit_codes import ExitCodeManager, ShutdownExitCode, get_exit_code_description

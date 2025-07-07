@@ -343,7 +343,7 @@ class TestClass:
             temp_path = f.name
 
         try:
-            symbols = extractor.extract_from_file(temp_path, "test-repo")
+            symbols = python_symbol_extractor.extract_from_file(temp_path, "test-repo")
 
             assert len(symbols) == 3  # function, class, method
 
@@ -364,12 +364,14 @@ def broken_function(
     pass
 """
         with pytest.raises(SyntaxError):
-            extractor.extract_from_source(invalid_source, "test.py", "test-repo")
+            python_symbol_extractor.extract_from_source(
+                invalid_source, "test.py", "test-repo"
+            )
 
     def test_error_handling_file_not_found(self, python_symbol_extractor):
         """Test handling of missing files."""
         with pytest.raises(FileNotFoundError):
-            extractor.extract_from_file("nonexistent.py", "test-repo")
+            python_symbol_extractor.extract_from_file("nonexistent.py", "test-repo")
 
     def test_empty_file(self, python_symbol_extractor):
         """Test extracting from an empty file."""
@@ -410,7 +412,9 @@ class FirstClass:
     def first_method(self):
         pass
 """
-        symbols1 = extractor.extract_from_source(source1, "file1.py", "repo1")
+        symbols1 = python_symbol_extractor.extract_from_source(
+            source1, "file1.py", "repo1"
+        )
 
         # Second extraction should not be affected by first
         source2 = """
@@ -418,7 +422,9 @@ class SecondClass:
     def second_method(self):
         pass
 """
-        symbols2 = extractor.extract_from_source(source2, "file2.py", "repo2")
+        symbols2 = python_symbol_extractor.extract_from_source(
+            source2, "file2.py", "repo2"
+        )
 
         # Check that scopes are correct and isolated
         first_method = next(s for s in symbols1 if s.name == "FirstClass.first_method")
