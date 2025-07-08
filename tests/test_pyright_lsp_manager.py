@@ -269,22 +269,26 @@ class TestPyrightLSPManagerIntegration(unittest.TestCase):
         self.workspace_path.mkdir()
 
         # Create a realistic Python project structure
-        (self.workspace_path / "main.py").write_text("""
+        (self.workspace_path / "main.py").write_text(
+            """
 def hello_world():
     print("Hello, World!")
 
 if __name__ == "__main__":
     hello_world()
-""")
+"""
+        )
 
-        (self.workspace_path / "utils.py").write_text("""
+        (self.workspace_path / "utils.py").write_text(
+            """
 def add_numbers(a, b):
     return a + b
 
 class Calculator:
     def multiply(self, x, y):
         return x * y
-""")
+"""
+        )
 
         (self.workspace_path / "requirements.txt").write_text("requests==2.25.1")
 
