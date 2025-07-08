@@ -341,10 +341,10 @@ class MockLSPServer:
     def send_response(self, response):
         content = json.dumps(response)
         content_bytes = content.encode('utf-8')
-        header = f"Content-Length: {len(content_bytes)}\\r\\n\\r\\n"
-        sys.stdout.write(header)
-        sys.stdout.write(content)
-        sys.stdout.flush()
+        header = f"Content-Length: {len(content_bytes)}\r\n\r\n"
+        sys.stdout.buffer.write(header.encode('utf-8'))
+        sys.stdout.buffer.write(content_bytes)
+        sys.stdout.buffer.flush()
 
 if __name__ == "__main__":
     server = MockLSPServer()

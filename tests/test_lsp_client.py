@@ -558,4 +558,3 @@ class TestLSPCommunicationMode:
         """Test communication mode enum values."""
         assert LSPCommunicationMode.STDIO.value == "stdio"
         assert LSPCommunicationMode.TCP.value == "tcp"
-        assert LSPCommunicationMode.PIPE.value == "pipe"
