@@ -16,7 +16,7 @@
 - Support for both absolute and relative paths (already exists)
 - Manual editing of `repositories.json` file
 
-### US003 - Single Python Repository Discovery
+### US003 - Single Python Repository Discovery - DONE
 **As a developer** I want to search for Python symbols by name in a single repository so that I can quickly locate classes and functions without grep.
 
 **Acceptance Criteria:**
@@ -27,7 +27,7 @@
 
 ## Phase 2: Core Language Server Integration
 
-### US004 - Single Repository Symbol Search
+### US004 - Single Repository Symbol Search - DONE
 **As a developer** I want to search for Python symbols by name in a single repository so that I can quickly locate classes and functions without grep.
 
 **Acceptance Criteria:**
@@ -41,11 +41,12 @@
 **As a developer** I want accurate symbol definitions and references through Python LSP so that I get semantic understanding rather than text matching.
 
 **Acceptance Criteria:**
-- Launch and manage pylsp server instance per repository
+- Launch and manage pyright server instance per repository (with pluggable LSP architecture)
 - LEVERAGES existing virtual environment settings from `repositories.json`
 - `find_definition(symbol, repository_id)` tool returns precise location
 - `find_references(symbol, repository_id)` tool returns all usage locations
 - Handle Python imports, classes, functions, and variables correctly
+- Abstract LSP interface allows easy switching between pyright/pylsp
 
 ### US005 - Symbol Type Information
 **As a developer** I want to retrieve type information and signatures for Python symbols so that I understand how to use them correctly.

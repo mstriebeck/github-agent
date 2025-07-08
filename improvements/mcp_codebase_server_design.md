@@ -154,7 +154,8 @@ The semantic compression is the real game-changer - instead of dumping entire fi
 ### Language Server Integration
 
 **Python LSP Management:**
-- Launch and manage pylsp or pyright language server instances
+- Launch and manage pyright language server instances (primary choice for superior type analysis)
+- Pluggable LSP server architecture supporting multiple Python language servers
 - Handle Python-specific features: imports, decorators, type hints, virtual environments
 - Support multiple Python versions and project configurations
 - Extract semantic information: class hierarchies, method signatures, variable types
@@ -166,18 +167,22 @@ The semantic compression is the real game-changer - instead of dumping entire fi
 - Extract semantic information: protocols, extensions, computed properties
 
 **LSP Client Architecture:**
-- Persistent LSP connections with automatic reconnection
+- **Abstract LSP Interface** for pluggable language server support
+- **Persistent LSP connections** with automatic reconnection per repository
+- **Hybrid query approach**: Fast symbol index + live LSP queries for semantic precision
 - Request queuing and batching for efficiency
 - Capability negotiation and feature detection
 - Error handling and fallback strategies
 
 ### Indexing Strategy
 
-**Incremental Indexing:**
-- File-level change detection using filesystem events
-- Symbol-level incremental updates through LSP didChange notifications
-- Dependency graph maintenance for impact analysis
-- Timestamp-based invalidation and cache management
+**Hybrid Indexing Architecture:**
+- **Fast Symbol Index**: Pre-built lookup tables for immediate symbol discovery
+- **Live LSP Queries**: Real-time semantic analysis for precise definitions/references
+- **Incremental Updates**: File-level change detection using filesystem events
+- **LSP Integration**: Symbol-level incremental updates through LSP didChange notifications
+- **Dependency Tracking**: Dependency graph maintenance for impact analysis
+- **Cache Management**: Timestamp-based invalidation and intelligent cache management
 
 **Cross-Language Symbol Resolution:**
 - Build unified symbol table across Python and Swift codebases
@@ -267,7 +272,8 @@ Git_State: {repository_id, current_branch, commit_hash, modified_files[]}
 - **JSON-RPC 2.0** - MCP transport protocol implementation
 
 ### Language Server Integration
-- **pylsp** or **pyright** - Python language server
+- **pyright** - Primary Python language server (superior type analysis and IntelliSense)
+- **pylsp** - Alternative Python language server (fallback option)
 - **sourcekit-lsp** - Swift language server  
 - **vscode-languageserver-protocol** - LSP client implementation library
 
@@ -441,7 +447,7 @@ dependencies = [
     "mcp>=0.1.0",
     "watchdog>=3.0.0",
     "GitPython>=3.1.0",
-    "pylsp>=1.8.0",
+    "pyright>=1.1.0",
     "cachetools>=5.0.0"
 ]
 
@@ -481,3 +487,191 @@ Since you mentioned potentially merging both servers, the architecture supports:
 - Configuration backup strategies
 - Disaster recovery documentation
 - Data migration procedures for upgrades
+
+## Further Extensions
+
+### Pre-Computed Semantic Database Architecture
+
+**Overview:**
+An alternative to the hybrid approach that pre-computes and stores all semantic analysis results in a comprehensive database, eliminating the need for live LSP queries during user interactions.
+
+**Core Concept:**
+Instead of live LSP queries, the system would:
+1. **Batch analyze** entire codebase during indexing using LSP servers
+2. **Store rich semantic data** in relational database with comprehensive schema
+3. **Serve all queries** purely from database lookups (sub-50ms response times)
+4. **Update incrementally** when files change with dependency impact analysis
+
+**Enhanced Database Schema:**
+```sql
+-- Core symbols with comprehensive metadata
+CREATE TABLE symbols (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    qualified_name TEXT NOT NULL,
+    kind TEXT NOT NULL, -- function, class, variable, method, property
+    file_path TEXT NOT NULL,
+    line_number INTEGER NOT NULL,
+    column_number INTEGER NOT NULL,
+    end_line INTEGER,
+    end_column INTEGER,
+    signature TEXT,
+    docstring TEXT,
+    type_info TEXT, -- JSON blob with detailed type information
+    scope TEXT, -- module, class, function
+    visibility TEXT, -- public, private, protected
+    is_definition BOOLEAN,
+    is_async BOOLEAN,
+    is_static BOOLEAN,
+    repository_id TEXT NOT NULL,
+    file_hash TEXT NOT NULL, -- For invalidation
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- All symbol references and usages
+CREATE TABLE symbol_references (
+    id INTEGER PRIMARY KEY,
+    symbol_id INTEGER REFERENCES symbols(id),
+    file_path TEXT NOT NULL,
+    line_number INTEGER NOT NULL,
+    column_number INTEGER NOT NULL,
+    reference_type TEXT, -- read, write, call, import, definition
+    context_info TEXT, -- Additional context (assignment, parameter, etc.)
+    repository_id TEXT NOT NULL
+);
+
+-- Type and inheritance relationships
+CREATE TABLE type_relationships (
+    id INTEGER PRIMARY KEY,
+    parent_symbol_id INTEGER REFERENCES symbols(id),
+    child_symbol_id INTEGER REFERENCES symbols(id),
+    relationship_type TEXT, -- inheritance, composition, implementation, override
+    repository_id TEXT NOT NULL
+);
+
+-- Function/method call relationships
+CREATE TABLE call_relationships (
+    id INTEGER PRIMARY KEY,
+    caller_symbol_id INTEGER REFERENCES symbols(id),
+    callee_symbol_id INTEGER REFERENCES symbols(id),
+    call_site_file TEXT NOT NULL,
+    call_site_line INTEGER NOT NULL,
+    call_site_column INTEGER NOT NULL,
+    call_type TEXT, -- direct, indirect, dynamic
+    repository_id TEXT NOT NULL
+);
+
+-- Import and dependency tracking
+CREATE TABLE import_dependencies (
+    id INTEGER PRIMARY KEY,
+    importing_file TEXT NOT NULL,
+    imported_symbol_id INTEGER REFERENCES symbols(id),
+    import_type TEXT, -- from, import, relative, absolute
+    alias TEXT,
+    line_number INTEGER NOT NULL,
+    repository_id TEXT NOT NULL
+);
+
+-- File-level metadata and dependency tracking
+CREATE TABLE file_dependencies (
+    id INTEGER PRIMARY KEY,
+    file_path TEXT NOT NULL,
+    depends_on_file TEXT NOT NULL,
+    dependency_type TEXT, -- import, inheritance, composition
+    repository_id TEXT NOT NULL
+);
+```
+
+**Batch Semantic Analysis Implementation:**
+```python
+class ComprehensiveSemanticIndexer:
+    def analyze_repository(self, repo_path: str):
+        """Perform complete semantic analysis of repository"""
+        lsp_server = self.lsp_manager.start_server(repo_path)
+        
+        with self.db.transaction():
+            # Clear existing data for repository
+            self.clear_repository_data(repo_path)
+            
+            # Analyze all Python files
+            for py_file in self.get_python_files(repo_path):
+                # Extract comprehensive symbol information
+                symbols = lsp_server.get_document_symbols(py_file)
+                
+                for symbol in symbols:
+                    # Get definitions, references, type info
+                    definition = lsp_server.get_definition(py_file, symbol.position)
+                    references = lsp_server.get_references(py_file, symbol.position)
+                    hover_info = lsp_server.get_hover(py_file, symbol.position)
+                    type_info = lsp_server.get_type_definition(py_file, symbol.position)
+                    
+                    # Store comprehensive semantic data
+                    self.store_symbol_data(symbol, definition, references, hover_info, type_info)
+                
+                # Extract call hierarchy
+                call_hierarchy = lsp_server.get_call_hierarchy(py_file)
+                self.store_call_relationships(call_hierarchy)
+                
+                # Extract import dependencies
+                imports = lsp_server.get_document_imports(py_file)
+                self.store_import_dependencies(imports)
+```
+
+**Incremental Update Strategy:**
+```python
+class IncrementalSemanticUpdater:
+    def on_file_changed(self, file_path: str):
+        """Handle file changes with dependency impact analysis"""
+        # Build dependency graph
+        affected_files = self.analyze_dependency_impact(file_path)
+        
+        with self.db.transaction():
+            # Re-analyze changed file and all dependents
+            for affected_file in [file_path] + affected_files:
+                self.reanalyze_file(affected_file)
+                
+            # Update cross-references
+            self.update_cross_references(affected_files)
+    
+    def analyze_dependency_impact(self, file_path: str) -> List[str]:
+        """Find all files that need re-analysis due to change"""
+        return self.db.execute("""
+            SELECT DISTINCT importing_file 
+            FROM import_dependencies 
+            WHERE imported_symbol_id IN (
+                SELECT id FROM symbols WHERE file_path = ?
+            )
+        """, [file_path]).fetchall()
+```
+
+**Query Performance Optimizations:**
+- **Indexed lookups**: Sub-50ms response times for symbol queries
+- **Materialized views**: Pre-computed common queries (inheritance chains, call graphs)
+- **Caching layer**: Redis/in-memory cache for hot queries
+- **Batch operations**: Efficient bulk symbol retrieval
+
+**Benefits:**
+- **Ultra-fast queries** (10-50ms vs 200ms hybrid approach)
+- **Offline operation** (no runtime LSP dependency)
+- **Rich relationship data** (call graphs, inheritance chains readily available)
+- **Predictable performance** (no LSP server variability)
+- **Advanced analytics** (code metrics, unused symbols, complexity analysis)
+
+**Challenges:**
+- **Complex dependency tracking** for incremental updates
+- **Storage requirements** (significantly larger database)
+- **Initial indexing time** (slower startup for comprehensive analysis)
+- **Data freshness** (potential staleness between updates)
+- **LSP server limitations** (not all servers support batch operations)
+
+**Migration Path:**
+The pre-computed approach could be implemented as an evolution of the hybrid system:
+1. **Phase 1**: Hybrid approach with live LSP queries
+2. **Phase 2**: Optional pre-computation for performance-critical repositories
+3. **Phase 3**: Full pre-computed mode with fallback to hybrid for unsupported scenarios
+
+This architecture would be particularly valuable for:
+- **Large production codebases** where analysis time amortizes well
+- **Performance-critical applications** requiring sub-50ms query response
+- **Offline/air-gapped environments** without runtime LSP access
+- **Advanced code analytics** requiring comprehensive relationship data
