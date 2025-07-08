@@ -12,9 +12,6 @@ from typing import Any
 
 from lsp_constants import (
     JsonRPCMessage,
-    JsonRPCNotification,
-    JsonRPCRequest,
-    JsonRPCResponse,
     LSPErrorCode,
 )
 
@@ -51,16 +48,20 @@ class JSONRPCRequest(JSONRPCMessage):
         self,
         method: str,
         params: dict[str, Any] | None = None,
-        id: str | int | None = None,
+        message_id: str | int | None = None,
     ):
         super().__init__()
         self.method = method
         self.params = params or {}
-        self.id = id or str(uuid.uuid4())
+        self.id = message_id or str(uuid.uuid4())
 
-    def to_dict(self) -> JsonRPCRequest:
+    def to_dict(self) -> dict[str, Any]:
         """Convert request to dictionary."""
-        result = {"jsonrpc": self.jsonrpc, "method": self.method, "id": self.id}
+        result: dict[str, Any] = {
+            "jsonrpc": self.jsonrpc,
+            "method": self.method,
+            "id": self.id,
+        }
         if self.params:
             result["params"] = self.params
         return result
@@ -74,9 +75,9 @@ class JSONRPCNotification(JSONRPCMessage):
         self.method = method
         self.params = params or {}
 
-    def to_dict(self) -> JsonRPCNotification:
+    def to_dict(self) -> dict[str, Any]:
         """Convert notification to dictionary."""
-        result = {"jsonrpc": self.jsonrpc, "method": self.method}
+        result: dict[str, Any] = {"jsonrpc": self.jsonrpc, "method": self.method}
         if self.params:
             result["params"] = self.params
         return result
@@ -87,18 +88,18 @@ class JSONRPCResponse(JSONRPCMessage):
 
     def __init__(
         self,
-        id: str | int,
+        message_id: str | int,
         result: Any | None = None,
         error: dict[str, Any] | None = None,
     ):
         super().__init__()
-        self.id = id
+        self.id = message_id
         self.result = result
         self.error = error
 
-    def to_dict(self) -> JsonRPCResponse:
+    def to_dict(self) -> dict[str, Any]:
         """Convert response to dictionary."""
-        result = {"jsonrpc": self.jsonrpc, "id": self.id}
+        result: dict[str, Any] = {"jsonrpc": self.jsonrpc, "id": self.id}
         if self.error is not None:
             result["error"] = self.error
         else:
@@ -107,13 +108,17 @@ class JSONRPCResponse(JSONRPCMessage):
 
     @classmethod
     def create_error(
-        cls, id: str | int, code: LSPErrorCode, message: str, data: Any | None = None
+        cls,
+        message_id: str | int,
+        code: LSPErrorCode,
+        message: str,
+        data: Any | None = None,
     ) -> "JSONRPCResponse":
         """Create an error response."""
         error = {"code": code.value, "message": message}
         if data is not None:
             error["data"] = data
-        return cls(id=id, error=error)
+        return cls(message_id=message_id, error=error)
 
 
 class JSONRPCProtocol:
@@ -137,20 +142,24 @@ class JSONRPCProtocol:
         """Create a new JSON-RPC notification."""
         return JSONRPCNotification(method=method, params=params)
 
-    def create_response(self, id: str | int, result: Any) -> JSONRPCResponse:
+    def create_response(self, message_id: str | int, result: Any) -> JSONRPCResponse:
         """Create a successful JSON-RPC response."""
         # Remove from pending requests if it exists
-        self._pending_requests.pop(id, None)
-        return JSONRPCResponse(id=id, result=result)
+        self._pending_requests.pop(message_id, None)
+        return JSONRPCResponse(message_id=message_id, result=result)
 
     def create_error_response(
-        self, id: str | int, code: LSPErrorCode, message: str, data: Any | None = None
+        self,
+        message_id: str | int,
+        code: LSPErrorCode,
+        message: str,
+        data: Any | None = None,
     ) -> JSONRPCResponse:
         """Create an error JSON-RPC response."""
         # Remove from pending requests if it exists
-        self._pending_requests.pop(id, None)
+        self._pending_requests.pop(message_id, None)
         return JSONRPCResponse.create_error(
-            id=id, code=code, message=message, data=data
+            message_id=message_id, code=code, message=message, data=data
         )
 
     def serialize_message(self, message: JSONRPCMessage) -> bytes:
@@ -165,7 +174,7 @@ class JSONRPCProtocol:
         try:
             message = json.loads(data)
         except json.JSONDecodeError as e:
-            raise JSONRPCError(LSPErrorCode.PARSE_ERROR, f"Invalid JSON: {e}")
+            raise JSONRPCError(LSPErrorCode.PARSE_ERROR, f"Invalid JSON: {e}") from e
 
         # Validate JSON-RPC version
         if message.get("jsonrpc") != "2.0":
@@ -206,7 +215,9 @@ class JSONRPCProtocol:
             return headers, content_data
 
         except (UnicodeDecodeError, ValueError) as e:
-            raise JSONRPCError(LSPErrorCode.PARSE_ERROR, f"Message parsing error: {e}")
+            raise JSONRPCError(
+                LSPErrorCode.PARSE_ERROR, f"Message parsing error: {e}"
+            ) from e
 
     def is_request(self, message: JsonRPCMessage) -> bool:
         """Check if message is a request."""
@@ -220,13 +231,13 @@ class JSONRPCProtocol:
         """Check if message is a notification."""
         return "method" in message and "id" not in message
 
-    def get_pending_request(self, id: str | int) -> JSONRPCRequest | None:
+    def get_pending_request(self, message_id: str | int) -> JSONRPCRequest | None:
         """Get a pending request by ID."""
-        return self._pending_requests.get(id)
+        return self._pending_requests.get(message_id)
 
-    def cancel_request(self, id: str | int) -> JSONRPCRequest | None:
+    def cancel_request(self, message_id: str | int) -> JSONRPCRequest | None:
         """Cancel a pending request."""
-        return self._pending_requests.pop(id, None)
+        return self._pending_requests.pop(message_id, None)
 
     def get_pending_request_count(self) -> int:
         """Get the number of pending requests."""

@@ -219,19 +219,19 @@ class MockLSPServer:
     def __init__(self):
         self.initialized = False
         self.shutdown_received = False
-    
+
     def run_server(self):
         try:
             while True:
                 line = sys.stdin.readline()
                 if not line:
                     break
-                
+
                 if line.startswith("Content-Length:"):
                     content_length = int(line.split(":")[1].strip())
                     sys.stdin.readline()  # Empty line
                     content = sys.stdin.read(content_length)
-                    
+
                     try:
                         message = json.loads(content)
                         response = self.handle_message(message)
@@ -241,11 +241,11 @@ class MockLSPServer:
                         pass
         except (KeyboardInterrupt, EOFError):
             pass
-    
+
     def handle_message(self, message):
         method = message.get("method")
         message_id = message.get("id")
-        
+
         if method == "initialize":
             self.initialized = True
             return {
@@ -337,7 +337,7 @@ class MockLSPServer:
                     "message": f"Method not found: {method}"
                 }
             }
-    
+
     def send_response(self, response):
         content = json.dumps(response)
         content_bytes = content.encode('utf-8')

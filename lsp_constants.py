@@ -6,7 +6,7 @@ communication, following the LSP 3.17 specification.
 """
 
 from enum import Enum
-from typing import Any, Union
+from typing import Any
 
 
 class LSPErrorCode(Enum):

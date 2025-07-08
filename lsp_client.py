@@ -237,10 +237,13 @@ class AbstractLSPClient(ABC):
 
             # Check if process started successfully
             if self.server_process.poll() is not None:
-                stderr = self.server_process.stderr.read().decode(
-                    "utf-8", errors="replace"
-                )
-                self.logger.error(f"Server failed to start: {stderr}")
+                if self.server_process.stderr:
+                    stderr = self.server_process.stderr.read().decode(
+                        "utf-8", errors="replace"
+                    )
+                    self.logger.error(f"Server failed to start: {stderr}")
+                else:
+                    self.logger.error("Server failed to start: no stderr available")
                 return False
 
             self.logger.info("LSP server process started successfully")
@@ -264,7 +267,10 @@ class AbstractLSPClient(ABC):
         while not self._stop_event.is_set() and self.server_process:
             try:
                 # Read data from server
-                data = self.server_process.stdout.read(1024)
+                if self.server_process.stdout:
+                    data = self.server_process.stdout.read(1024)
+                else:
+                    break
                 if not data:
                     if self.server_process.poll() is not None:
                         self.logger.warning("Server process terminated")
@@ -358,20 +364,24 @@ class AbstractLSPClient(ABC):
                     await self._send_message(response)
             except Exception as e:
                 self.logger.error(f"Error in request handler for {method}: {e}")
-                error_response = self.protocol.create_error_response(
-                    message.get("id"),
-                    LSPErrorCode.INTERNAL_ERROR,
-                    f"Handler error: {e}",
-                )
-                await self._send_message(error_response)
+                message_id = message.get("id")
+                if message_id is not None:
+                    error_response = self.protocol.create_error_response(
+                        message_id,
+                        LSPErrorCode.INTERNAL_ERROR,
+                        f"Handler error: {e}",
+                    )
+                    await self._send_message(error_response)
         else:
             self.logger.warning(f"No handler for request method: {method}")
-            error_response = self.protocol.create_error_response(
-                message.get("id"),
-                LSPErrorCode.METHOD_NOT_FOUND,
-                f"Method not found: {method}",
-            )
-            await self._send_message(error_response)
+            message_id = message.get("id")
+            if message_id is not None:
+                error_response = self.protocol.create_error_response(
+                    message_id,
+                    LSPErrorCode.METHOD_NOT_FOUND,
+                    f"Method not found: {method}",
+                )
+                await self._send_message(error_response)
 
     async def _handle_notification(self, message: JsonRPCMessage) -> None:
         """Handle a notification message."""
@@ -457,7 +467,7 @@ class AbstractLSPClient(ABC):
         self, request: JSONRPCRequest, timeout: float = 30.0
     ) -> JsonRPCMessage | None:
         """Send a request and wait for response."""
-        response_future = asyncio.Future()
+        response_future: asyncio.Future[JsonRPCMessage] = asyncio.Future()
 
         async def response_handler(message: JsonRPCMessage) -> None:
             response_future.set_result(message)
@@ -515,14 +525,20 @@ class AbstractLSPClient(ABC):
     ) -> JSONRPCResponse | None:
         """Handle workspace/configuration request."""
         # Return empty configuration by default
-        return self.protocol.create_response(message.get("id"), {})
+        message_id = message.get("id")
+        if message_id is not None:
+            return self.protocol.create_response(message_id, {})
+        return None
 
     async def _handle_show_message_request(
         self, message: JsonRPCMessage
     ) -> JSONRPCResponse | None:
         """Handle showMessageRequest."""
         # Return null by default (no action taken)
-        return self.protocol.create_response(message.get("id"), None)
+        message_id = message.get("id")
+        if message_id is not None:
+            return self.protocol.create_response(message_id, None)
+        return None
 
     # Public API methods
     def is_initialized(self) -> bool:

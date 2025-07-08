@@ -24,7 +24,7 @@ class TestJSONRPCRequest:
     def test_request_creation(self):
         """Test creating a JSON-RPC request."""
         request = JSONRPCRequest(
-            method="test_method", params={"param1": "value1"}, id="test_id"
+            method="test_method", params={"param1": "value1"}, message_id="test_id"
         )
 
         assert request.method == "test_method"
@@ -35,7 +35,7 @@ class TestJSONRPCRequest:
     def test_request_to_dict(self):
         """Test converting request to dictionary."""
         request = JSONRPCRequest(
-            method="test_method", params={"param1": "value1"}, id="test_id"
+            method="test_method", params={"param1": "value1"}, message_id="test_id"
         )
         result = request.to_dict()
 
@@ -50,7 +50,7 @@ class TestJSONRPCRequest:
     def test_request_to_json(self):
         """Test converting request to JSON string."""
         request = JSONRPCRequest(
-            method="test_method", params={"param1": "value1"}, id="test_id"
+            method="test_method", params={"param1": "value1"}, message_id="test_id"
         )
         json_str = request.to_json()
 
@@ -83,7 +83,7 @@ class TestJSONRPCResponse:
 
     def test_response_creation(self):
         """Test creating a JSON-RPC response."""
-        response = JSONRPCResponse(id="test_id", result={"result": "success"})
+        response = JSONRPCResponse(message_id="test_id", result={"result": "success"})
 
         assert response.id == "test_id"
         assert response.result == {"result": "success"}
@@ -92,7 +92,7 @@ class TestJSONRPCResponse:
 
     def test_response_to_dict(self):
         """Test converting response to dictionary."""
-        response = JSONRPCResponse(id="test_id", result={"result": "success"})
+        response = JSONRPCResponse(message_id="test_id", result={"result": "success"})
         result = response.to_dict()
 
         expected = {"jsonrpc": "2.0", "id": "test_id", "result": {"result": "success"}}
@@ -101,7 +101,7 @@ class TestJSONRPCResponse:
     def test_error_response_creation(self):
         """Test creating error response."""
         response = JSONRPCResponse.create_error(
-            id="test_id",
+            message_id="test_id",
             code=LSPErrorCode.INVALID_REQUEST,
             message="Invalid request",
             data={"details": "test"},
@@ -117,9 +117,12 @@ class TestJSONRPCResponse:
     def test_error_response_without_data(self):
         """Test creating error response without data."""
         response = JSONRPCResponse.create_error(
-            id="test_id", code=LSPErrorCode.INVALID_REQUEST, message="Invalid request"
+            message_id="test_id",
+            code=LSPErrorCode.INVALID_REQUEST,
+            message="Invalid request",
         )
 
+        assert response.error is not None
         assert response.error["code"] == LSPErrorCode.INVALID_REQUEST.value
         assert response.error["message"] == "Invalid request"
         assert "data" not in response.error
@@ -223,7 +226,7 @@ class TestJSONRPCProtocol:
 
     def test_serialize_message(self):
         """Test message serialization with LSP header."""
-        request = JSONRPCRequest(method="test_method", id="test_id")
+        request = JSONRPCRequest(method="test_method", message_id="test_id")
         serialized = self.protocol.serialize_message(request)
 
         assert isinstance(serialized, bytes)

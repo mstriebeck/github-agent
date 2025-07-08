@@ -253,7 +253,7 @@ class TestAbstractLSPClient:
 
         from lsp_jsonrpc import JSONRPCRequest
 
-        request = JSONRPCRequest("test/method", id="test_id")
+        request = JSONRPCRequest("test/method", message_id="test_id")
 
         # Mock _send_message to simulate response
         async def mock_send_message(msg):
@@ -262,7 +262,7 @@ class TestAbstractLSPClient:
             if handler:
                 await handler(mock_response)
 
-        self.client._send_message = mock_send_message
+        self.client._send_message = mock_send_message  # type: ignore[method-assign]
 
         result = await self.client._send_request(request)
 
@@ -273,10 +273,10 @@ class TestAbstractLSPClient:
         """Test request timeout."""
         from lsp_jsonrpc import JSONRPCRequest
 
-        request = JSONRPCRequest("test/method", id="test_id")
+        request = JSONRPCRequest("test/method", message_id="test_id")
 
         # Mock _send_message to not call response handler
-        self.client._send_message = AsyncMock()
+        self.client._send_message = AsyncMock()  # type: ignore[method-assign]
 
         result = await self.client._send_request(request, timeout=0.1)
 
@@ -363,7 +363,7 @@ class TestAbstractLSPClient:
         async def mock_send_message(msg):
             sent_messages.append(msg)
 
-        self.client._send_message = mock_send_message
+        self.client._send_message = mock_send_message  # type: ignore[method-assign]
 
         await self.client._handle_request(message)
 
@@ -441,6 +441,7 @@ class TestAbstractLSPClient:
 
         response = await self.client._handle_workspace_configuration(config_request)
 
+        assert response is not None
         assert response.id == "config_id"
         assert response.result == {}
 
@@ -456,6 +457,7 @@ class TestAbstractLSPClient:
 
         response = await self.client._handle_show_message_request(show_request)
 
+        assert response is not None
         assert response.id == "show_id"
         assert response.result is None
 
@@ -475,7 +477,7 @@ class TestAbstractLSPClient:
         self.client._stop_event = threading.Event()
 
         # Mock _send_message
-        self.client._send_message = AsyncMock()
+        self.client._send_message = AsyncMock()  # type: ignore[method-assign]
 
         await self.client.stop()
 
@@ -499,7 +501,7 @@ class TestAbstractLSPClient:
         self.client._stop_event = threading.Event()
 
         # Mock _send_message
-        self.client._send_message = AsyncMock()
+        self.client._send_message = AsyncMock()  # type: ignore[method-assign]
 
         await self.client.stop()
 
@@ -523,7 +525,7 @@ class TestAbstractLSPClient:
         self.client._stop_event = threading.Event()
 
         # Mock _send_message
-        self.client._send_message = AsyncMock()
+        self.client._send_message = AsyncMock()  # type: ignore[method-assign]
 
         await self.client.stop()
 
