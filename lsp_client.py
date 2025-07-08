@@ -115,19 +115,19 @@ class AbstractLSPClient(ABC):
     def _setup_builtin_handlers(self) -> None:
         """Setup built-in message handlers."""
         # Server-to-client notifications
-        self._notification_handlers[LSPMethod.PUBLISH_DIAGNOSTICS] = (
-            self._handle_publish_diagnostics
-        )
+        self._notification_handlers[
+            LSPMethod.PUBLISH_DIAGNOSTICS
+        ] = self._handle_publish_diagnostics
         self._notification_handlers[LSPMethod.SHOW_MESSAGE] = self._handle_show_message
         self._notification_handlers[LSPMethod.LOG_MESSAGE] = self._handle_log_message
 
         # Server-to-client requests
-        self._message_handlers["workspace/configuration"] = (
-            self._handle_workspace_configuration
-        )
-        self._message_handlers["window/showMessageRequest"] = (
-            self._handle_show_message_request
-        )
+        self._message_handlers[
+            "workspace/configuration"
+        ] = self._handle_workspace_configuration
+        self._message_handlers[
+            "window/showMessageRequest"
+        ] = self._handle_show_message_request
 
     async def start(self) -> bool:
         """Start the LSP server and initialize the connection."""
