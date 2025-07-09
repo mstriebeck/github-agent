@@ -112,19 +112,6 @@ class TestPyrightLSPManager(unittest.TestCase):
         self.assertEqual(options["settings"]["python"]["pythonPath"], self.python_path)
 
     @patch("pyright_lsp_manager.subprocess.run")
-    def test_get_initialization_options_no_python_path(self, mock_run):
-        """Test getting initialization options without Python path."""
-        mock_run.return_value = Mock(stdout="pyright 1.1.0", returncode=0)
-
-        manager = PyrightLSPManager(str(self.workspace_path))
-        options = manager.get_initialization_options()
-
-        # Check structure
-        self.assertIn("settings", options)
-        self.assertIn("python", options["settings"])
-        self.assertNotIn("pythonPath", options["settings"]["python"])
-
-    @patch("pyright_lsp_manager.subprocess.run")
     def test_get_workspace_folders(self, mock_run):
         """Test getting workspace folders."""
         mock_run.return_value = Mock(stdout="pyright 1.1.0", returncode=0)
@@ -303,7 +290,7 @@ class Calculator:
         """Test full workspace setup process."""
         mock_run.return_value = Mock(stdout="pyright 1.1.0", returncode=0)
 
-        manager = PyrightLSPManager(str(self.workspace_path))
+        manager = PyrightLSPManager(str(self.workspace_path), "/unused/python_path")
 
         # Test workspace preparation
         manager.prepare_workspace()

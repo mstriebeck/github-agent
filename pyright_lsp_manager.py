@@ -18,13 +18,13 @@ from lsp_server_manager import LSPCommunicationMode, LSPServerManager
 class PyrightLSPManager(LSPServerManager):
     """LSP Server Manager for Pyright Python Language Server."""
 
-    def __init__(self, workspace_path: str, python_path: str | None = None):
+    def __init__(self, workspace_path: str, python_path: str):
         """
         Initialize the Pyright LSP Manager.
 
         Args:
             workspace_path: Path to the Python workspace/project
-            python_path: Path to the Python interpreter (optional)
+            python_path: Path to the Python interpreter
         """
         self.workspace_path = Path(workspace_path)
         self.python_path = python_path
@@ -106,8 +106,7 @@ class PyrightLSPManager(LSPServerManager):
         }
 
         # Add Python path if specified
-        if self.python_path:
-            options["settings"]["python"]["pythonPath"] = self.python_path  # type: ignore
+        options["settings"]["python"]["pythonPath"] = self.python_path  # type: ignore
 
         return options
 
@@ -187,8 +186,7 @@ class PyrightLSPManager(LSPServerManager):
         }
 
         # Add Python path if specified
-        if self.python_path:
-            config["pythonPath"] = self.python_path
+        config["pythonPath"] = self.python_path
 
         # Only create config if it doesn't exist
         if not config_path.exists():
@@ -231,25 +229,24 @@ class PyrightLSPManager(LSPServerManager):
             self.logger.error(f"Workspace path does not exist: {self.workspace_path}")
             return False
 
-        # Check if Python path is valid (if specified)
-        if self.python_path:
-            python_path = Path(self.python_path)
-            if not python_path.exists():
-                self.logger.error(f"Python path does not exist: {self.python_path}")
-                return False
+        # Check if Python path is valid
+        python_path = Path(self.python_path)
+        if not python_path.exists():
+            self.logger.error(f"Python path does not exist: {self.python_path}")
+            return False
 
-            # Test Python executable
-            try:
-                result = subprocess.run(
-                    [self.python_path, "--version"],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-                self.logger.info(f"Using Python: {result.stdout.strip()}")
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                self.logger.error(f"Invalid Python executable: {self.python_path}")
-                return False
+        # Test Python executable
+        try:
+            result = subprocess.run(
+                [self.python_path, "--version"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.logger.info(f"Using Python: {result.stdout.strip()}")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            self.logger.error(f"Invalid Python executable: {self.python_path}")
+            return False
 
         return True
 

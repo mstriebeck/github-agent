@@ -81,7 +81,7 @@ class TestLSPIntegration:
                 f.write("def hello(): pass\n")
 
             try:
-                manager = PyrightLSPManager(temp_dir)
+                manager = PyrightLSPManager(temp_dir, "/unused/python_path")
 
                 assert manager.workspace_path.name == temp_dir.split("/")[-1]
                 assert manager.get_communication_mode() == LSPCommunicationMode.STDIO
@@ -103,7 +103,7 @@ class TestLSPIntegration:
                 f.write("def hello(): pass\n")
 
             try:
-                server_manager = PyrightLSPManager(temp_dir)
+                server_manager = PyrightLSPManager(temp_dir, "/unused/python_path")
                 logger = Mock()
 
                 client = SimpleLSPClient(
