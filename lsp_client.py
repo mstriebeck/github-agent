@@ -324,7 +324,13 @@ class AbstractLSPClient(ABC):
     async def _process_message(self, content: str) -> None:
         """Process a received message."""
         try:
-            message = self.protocol.deserialize_message(content)
+            # Parse JSON directly - the real parsing work is done by JsonRpcStreamReader in parse_lsp_message
+            import json
+            message = json.loads(content)
+            
+            # Basic validation
+            if message.get("jsonrpc") != "2.0":
+                raise JSONRPCError(LSPErrorCode.INVALID_REQUEST, "Invalid JSON-RPC version")
 
             if self.protocol.is_response(message):
                 await self._handle_response(message)
@@ -335,6 +341,8 @@ class AbstractLSPClient(ABC):
             else:
                 self.logger.warning(f"Unknown message type: {message}")
 
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Invalid JSON: {e}")
         except JSONRPCError as e:
             self.logger.error(f"JSON-RPC error: {e}")
         except Exception as e:
