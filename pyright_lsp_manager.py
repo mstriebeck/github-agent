@@ -150,6 +150,8 @@ class PyrightLSPManager(LSPServerManager):
 
     def prepare_workspace(self) -> None:
         """Prepare the workspace for pyright analysis."""
+        self.logger.debug(f"Preparing workspace: {self.workspace_path}")
+
         # Create or update pyrightconfig.json if needed
         self._create_pyright_config()
 
@@ -157,6 +159,10 @@ class PyrightLSPManager(LSPServerManager):
         if not self._is_valid_python_workspace():
             self.logger.warning(
                 f"Workspace {self.workspace_path} may not be a valid Python project"
+            )
+        else:
+            self.logger.debug(
+                f"Workspace {self.workspace_path} is a valid Python project"
             )
 
     def _create_pyright_config(self) -> None:
@@ -190,8 +196,11 @@ class PyrightLSPManager(LSPServerManager):
                 with open(config_path, "w") as f:
                     json.dump(config, f, indent=2)
                 self.logger.info(f"Created pyrightconfig.json at {config_path}")
+                self.logger.debug(f"Pyright config content: {config}")
             except Exception as e:
                 self.logger.error(f"Failed to create pyrightconfig.json: {e}")
+        else:
+            self.logger.debug(f"Pyrightconfig.json already exists at {config_path}")
 
     def _is_valid_python_workspace(self) -> bool:
         """Check if the workspace is a valid Python project."""

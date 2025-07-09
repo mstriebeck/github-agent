@@ -206,6 +206,22 @@ class LSPSymbolKind(Enum):
     TYPE_PARAMETER = 26
 
 
+# Mapping from internal SymbolKind to LSP SymbolKind
+SYMBOL_KIND_MAPPING = {
+    "class": LSPSymbolKind.CLASS,
+    "function": LSPSymbolKind.FUNCTION,
+    "method": LSPSymbolKind.METHOD,
+    "property": LSPSymbolKind.PROPERTY,
+    "classmethod": LSPSymbolKind.METHOD,
+    "staticmethod": LSPSymbolKind.METHOD,
+    "setter": LSPSymbolKind.PROPERTY,
+    "deleter": LSPSymbolKind.PROPERTY,
+    "variable": LSPSymbolKind.VARIABLE,
+    "constant": LSPSymbolKind.CONSTANT,
+    "module": LSPSymbolKind.MODULE,
+}
+
+
 class LSPDiagnosticSeverity(Enum):
     """Diagnostic severity levels."""
 

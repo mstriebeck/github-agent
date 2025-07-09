@@ -88,14 +88,44 @@ class AbstractLSPClient(ABC):
             self._handle_show_message_request
         )
 
+    def _set_state_connecting(self) -> None:
+        """Set state to connecting and log the transition."""
+        self.logger.info("LSP client connecting to server")
+        self.state = LSPClientState.CONNECTING
+
+    def _set_state_initializing(self) -> None:
+        """Set state to initializing and log the transition."""
+        self.logger.debug("LSP client initializing connection")
+        self.state = LSPClientState.INITIALIZING
+
+    def _set_state_initialized(self) -> None:
+        """Set state to initialized and log the transition."""
+        self.logger.info("LSP client successfully initialized")
+        self.state = LSPClientState.INITIALIZED
+
+    def _set_state_error(self, error_context: str) -> None:
+        """Set state to error and log the error context."""
+        self.logger.error(f"LSP client error: {error_context}")
+        self.state = LSPClientState.ERROR
+
+    def _set_state_shutting_down(self) -> None:
+        """Set state to shutting down and log the transition."""
+        self.logger.info("LSP client shutting down")
+        self.state = LSPClientState.SHUTTING_DOWN
+
+    def _set_state_disconnected(self) -> None:
+        """Set state to disconnected and log the transition."""
+        self.logger.info("LSP client disconnected")
+        self.state = LSPClientState.DISCONNECTED
+
     async def start(self) -> bool:
         """Start the LSP server and initialize the connection."""
         try:
-            self.state = LSPClientState.CONNECTING
+            self._set_state_connecting()
 
             # Start the server process
             if not await self._start_server():
-                self.state = LSPClientState.ERROR
+                self._set_state_error("Failed to start LSP server process")
                 return False
 
             # Start message reading thread
@@ -103,17 +133,15 @@ class AbstractLSPClient(ABC):
 
             # Initialize the connection
             if not await self._initialize_connection():
-                self.state = LSPClientState.ERROR
+                self._set_state_error("Failed to initialize LSP connection")
                 await self.stop()
                 return False
 
-            self.state = LSPClientState.INITIALIZED
-            self.logger.info("LSP client successfully initialized")
+            self._set_state_initialized()
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to start LSP client: {e}")
-            self.state = LSPClientState.ERROR
+            self._set_state_error(f"Exception during startup: {e}")
             await self.stop()
             return False
 
@@ -123,7 +151,7 @@ class AbstractLSPClient(ABC):
             return
 
         try:
-            self.state = LSPClientState.SHUTTING_DOWN
+            self._set_state_shutting_down()
 
             # Send shutdown request if still connected
             if self.state in [LSPClientState.INITIALIZED, LSPClientState.INITIALIZING]:
@@ -163,12 +191,10 @@ class AbstractLSPClient(ABC):
                 finally:
                     self.server_process = None
 
-            self.state = LSPClientState.DISCONNECTED
-            self.logger.info("LSP client stopped")
+            self._set_state_disconnected()
 
         except Exception as e:
-            self.logger.error(f"Error during LSP client shutdown: {e}")
-            self.state = LSPClientState.ERROR
+            self._set_state_error(f"Error during shutdown: {e}")
 
     async def _start_server(self) -> bool:
         """Start the LSP server process."""
@@ -178,6 +204,8 @@ class AbstractLSPClient(ABC):
             full_command = command + args
 
             self.logger.info(f"Starting LSP server: {' '.join(full_command)}")
+            self.logger.debug(f"Communication mode: {self.communication_mode}")
+            self.logger.debug(f"Workspace root: {self.workspace_root}")
 
             if self.communication_mode == LSPCommunicationMode.STDIO:
                 self.server_process = subprocess.Popen(
@@ -209,6 +237,7 @@ class AbstractLSPClient(ABC):
                 return False
 
             self.logger.info("LSP server process started successfully")
+            self.logger.debug(f"Server process PID: {self.server_process.pid}")
             return True
 
         except Exception as e:
@@ -376,7 +405,7 @@ class AbstractLSPClient(ABC):
     async def _initialize_connection(self) -> bool:
         """Initialize the LSP connection."""
         try:
-            self.state = LSPClientState.INITIALIZING
+            self._set_state_initializing()
 
             # Create initialize request
             init_params = {
@@ -392,6 +421,14 @@ class AbstractLSPClient(ABC):
                 "capabilities": LSPCapabilities.client_capabilities(),
                 "initializationOptions": self.server_manager.get_initialization_options(),
             }
+
+            self.logger.debug(f"Sending initialize request with params: {init_params}")
+            self.logger.debug(
+                f"Client capabilities: {LSPCapabilities.client_capabilities()}"
+            )
+            init_options = self.server_manager.get_initialization_options()
+            if init_options:
+                self.logger.debug(f"Initialization options: {init_options}")
 
             # Send initialize request
             init_request = self.protocol.create_request(
