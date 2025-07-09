@@ -4,6 +4,7 @@ Integration tests for LSP client with mock server.
 
 import asyncio
 import json
+import logging
 import os
 import sys
 import tempfile
@@ -14,10 +15,9 @@ import pytest
 from lsp_client import (
     AbstractLSPClient,
     LSPClientState,
-    LSPCommunicationMode,
-    LSPServerManager,
 )
 from lsp_constants import LSPMethod
+from lsp_server_manager import LSPCommunicationMode, LSPServerManager
 
 
 class MockLSPServer:
@@ -370,7 +370,7 @@ def temp_workspace():
 def lsp_client(mock_server_script, temp_workspace):
     """Create an LSP client with mock server."""
     server_manager = MockLSPServerManager(mock_server_script)
-    logger = Mock()
+    logger = Mock(spec=logging.Logger)
     client = IntegrationTestLSPClient(
         server_manager=server_manager, workspace_root=temp_workspace, logger=logger
     )

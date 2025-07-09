@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from lsp_client import LSPCommunicationMode
+from lsp_server_manager import LSPCommunicationMode
 from pyright_lsp_manager import PyrightLSPManager
 
 

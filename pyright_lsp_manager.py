@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from lsp_client import LSPCommunicationMode, LSPServerManager
+from lsp_server_manager import LSPCommunicationMode, LSPServerManager
 
 
 class PyrightLSPManager(LSPServerManager):
@@ -30,22 +30,24 @@ class PyrightLSPManager(LSPServerManager):
         self.python_path = python_path
         self.logger = logging.getLogger(__name__)
 
-        # Check if pyright is available
-        if not self._check_pyright_availability():
+        # Check if pyright is available and store version
+        self.pyright_version = self._check_pyright_availability()
+        if not self.pyright_version:
             raise RuntimeError(
                 "Pyright is not available. Please install it with: npm install -g pyright"
             )
 
-    def _check_pyright_availability(self) -> bool:
-        """Check if pyright is available in the system."""
+    def _check_pyright_availability(self) -> str | None:
+        """Check if pyright is available in the system and return version."""
         try:
             result = subprocess.run(
                 ["pyright", "--version"], capture_output=True, text=True, check=True
             )
-            self.logger.info(f"Pyright version: {result.stdout.strip()}")
-            return True
+            version = result.stdout.strip()
+            self.logger.info(f"Pyright version: {version}")
+            return version
         except (subprocess.CalledProcessError, FileNotFoundError):
-            return False
+            return None
 
     def get_server_command(self) -> list[str]:
         """Get the command to start the pyright LSP server."""
@@ -125,10 +127,17 @@ class PyrightLSPManager(LSPServerManager):
             "definitionProvider",
         ]
 
-        for capability in required_capabilities:
-            if capability not in capabilities:
-                self.logger.warning(f"Missing expected capability: {capability}")
-                return False
+        missing_capabilities = [
+            cap for cap in required_capabilities if cap not in capabilities
+        ]
+
+        if missing_capabilities:
+            missing_caps_str = ", ".join(missing_capabilities)
+            error_msg = (
+                f"Pyright server missing required capabilities: {missing_caps_str}"
+            )
+            self.logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
         return True
 
@@ -237,20 +246,9 @@ class PyrightLSPManager(LSPServerManager):
 
     def get_server_info(self) -> dict[str, Any]:
         """Get information about the pyright server."""
-        info = {
+        return {
             "name": "pyright",
-            "version": "unknown",
+            "version": self.pyright_version,
             "workspace": str(self.workspace_path),
             "python_path": self.python_path,
         }
-
-        # Try to get pyright version
-        try:
-            result = subprocess.run(
-                ["pyright", "--version"], capture_output=True, text=True, check=True
-            )
-            info["version"] = result.stdout.strip()
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pass
-
-        return info

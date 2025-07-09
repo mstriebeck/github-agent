@@ -3,6 +3,7 @@ Unit tests for LSP client infrastructure.
 """
 
 import json
+import logging
 import subprocess
 import threading
 from unittest.mock import AsyncMock, Mock, patch
@@ -12,10 +13,9 @@ import pytest
 from lsp_client import (
     AbstractLSPClient,
     LSPClientState,
-    LSPCommunicationMode,
-    LSPServerManager,
 )
 from lsp_constants import LSPMethod
+from lsp_server_manager import LSPCommunicationMode, LSPServerManager
 
 
 class MockLSPServerManager(LSPServerManager):
@@ -106,7 +106,7 @@ class TestAbstractLSPClient:
         """Set up test fixtures."""
         self.server_manager = MockLSPServerManager()
         self.workspace_root = "/test/workspace"
-        self.logger = Mock()
+        self.logger = Mock(spec=logging.Logger)
         self.client = TestLSPClient(
             server_manager=self.server_manager,
             workspace_root=self.workspace_root,
