@@ -32,12 +32,8 @@ class PyrightLSPManager(LSPServerManager):
 
         # Check if pyright is available and store version
         self.pyright_version = self._check_pyright_availability()
-        if not self.pyright_version:
-            raise RuntimeError(
-                "Pyright is not available. Please install it with: npm install -g pyright"
-            )
 
-    def _check_pyright_availability(self) -> str | None:
+    def _check_pyright_availability(self) -> str:
         """Check if pyright is available in the system and return version."""
         try:
             result = subprocess.run(
@@ -46,8 +42,10 @@ class PyrightLSPManager(LSPServerManager):
             version = result.stdout.strip()
             self.logger.info(f"Pyright version: {version}")
             return version
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            return None
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            raise RuntimeError(
+                "Pyright is not available. Please install it with: npm install -g pyright"
+            ) from e
 
     def get_server_command(self) -> list[str]:
         """Get the command to start the pyright LSP server."""
