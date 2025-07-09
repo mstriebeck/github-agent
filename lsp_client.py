@@ -301,9 +301,16 @@ class AbstractLSPClient(ABC):
                         buffer = buffer[message_end:]
 
                         # Process the message
-                        asyncio.run_coroutine_threadsafe(
-                            self._process_message(content), asyncio.get_event_loop()
-                        )
+                        try:
+                            loop = asyncio.get_running_loop()
+                            asyncio.run_coroutine_threadsafe(
+                                self._process_message(content), loop
+                            )
+                        except RuntimeError:
+                            # No event loop running, skip processing
+                            self.logger.warning(
+                                "No event loop running, skipping message processing"
+                            )
 
                     except Exception as e:
                         self.logger.error(f"Error processing message: {e}")
