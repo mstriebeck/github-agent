@@ -575,13 +575,19 @@ class MCPWorker:
                                 if tool_name in [
                                     "git_get_current_branch",
                                     "git_get_current_commit",
-                                    "github_post_pr_reply",
                                     "codebase_health_check",
                                 ]:
                                     result = await module.execute_tool(
                                         tool_name,
                                         repo_name=self.repo_name,
                                         repo_path=self.repo_path,
+                                        **tool_args,
+                                    )
+                                elif tool_name == "github_post_pr_reply":
+                                    # This tool only needs repo_name, not repo_path
+                                    result = await module.execute_tool(
+                                        tool_name,
+                                        repo_name=self.repo_name,
                                         **tool_args,
                                     )
                                 else:

@@ -55,6 +55,15 @@ class ShutdownExitCode(enum.IntEnum):
     CORRUPTION_DETECTED = 61  # Data corruption detected
     INCONSISTENT_STATE = 62  # Server in inconsistent state
 
+    # LSP-specific errors (70-79)
+    LSP_SERVER_START_FAILED = 70  # LSP server failed to start
+    LSP_INITIALIZATION_FAILED = 71  # LSP initialization failed
+    LSP_COMMUNICATION_ERROR = 72  # LSP communication error
+    LSP_PROTOCOL_ERROR = 73  # LSP protocol violation
+    LSP_SERVER_CRASHED = 74  # LSP server crashed unexpectedly
+    LSP_TIMEOUT_ERROR = 75  # LSP request timeout
+    LSP_CAPABILITY_ERROR = 76  # LSP capability negotiation failed
+
 
 class ExitCodeManager:
     """Manages exit code determination and reporting during shutdown."""
@@ -114,6 +123,8 @@ class ExitCodeManager:
             self._issues.append(ShutdownExitCode.CLIENT_MANAGER_ERROR)
         elif "resource" in component.lower():
             self._issues.append(ShutdownExitCode.RESOURCE_MANAGER_ERROR)
+        elif "lsp" in component.lower():
+            self._issues.append(ShutdownExitCode.LSP_COMMUNICATION_ERROR)
         else:
             self._issues.append(ShutdownExitCode.UNEXPECTED_ERROR)
 
@@ -197,5 +208,12 @@ def get_exit_code_description(code: ShutdownExitCode) -> str:
         ShutdownExitCode.UNEXPECTED_ERROR: "Unexpected error during shutdown",
         ShutdownExitCode.CORRUPTION_DETECTED: "Data corruption detected during shutdown",
         ShutdownExitCode.INCONSISTENT_STATE: "Server found in inconsistent state",
+        ShutdownExitCode.LSP_SERVER_START_FAILED: "LSP server failed to start",
+        ShutdownExitCode.LSP_INITIALIZATION_FAILED: "LSP initialization failed",
+        ShutdownExitCode.LSP_COMMUNICATION_ERROR: "LSP communication error",
+        ShutdownExitCode.LSP_PROTOCOL_ERROR: "LSP protocol violation",
+        ShutdownExitCode.LSP_SERVER_CRASHED: "LSP server crashed unexpectedly",
+        ShutdownExitCode.LSP_TIMEOUT_ERROR: "LSP request timeout",
+        ShutdownExitCode.LSP_CAPABILITY_ERROR: "LSP capability negotiation failed",
     }
     return descriptions.get(code, f"Unknown exit code: {code}")
