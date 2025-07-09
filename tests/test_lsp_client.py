@@ -47,8 +47,8 @@ class MockLSPServerManager(LSPServerManager):
         return True
 
 
-class TestLSPClient(AbstractLSPClient):
-    """Test implementation of AbstractLSPClient."""
+class MockLSPClient(AbstractLSPClient):
+    """Mock implementation of AbstractLSPClient for testing."""
 
     async def get_definition(self, uri, line, character):
         """Mock implementation."""
@@ -107,7 +107,7 @@ class TestAbstractLSPClient:
         self.server_manager = MockLSPServerManager()
         self.workspace_root = "/test/workspace"
         self.logger = Mock(spec=logging.Logger)
-        self.client = TestLSPClient(
+        self.client = MockLSPClient(
             server_manager=self.server_manager,
             workspace_root=self.workspace_root,
             logger=self.logger,
