@@ -243,8 +243,6 @@ class TestJSONRPCProtocol:
         assert parsed_content["method"] == "test_method"
         assert parsed_content["id"] == "test_id"
 
-
-
     def test_parse_lsp_message(self):
         """Test parsing LSP message with header."""
         content = '{"jsonrpc": "2.0", "method": "test_method"}'

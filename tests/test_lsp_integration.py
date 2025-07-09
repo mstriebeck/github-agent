@@ -8,8 +8,6 @@ correctly without requiring a full mock server setup.
 import tempfile
 from unittest.mock import Mock
 
-import pytest
-
 from lsp_client import AbstractLSPClient, LSPClientState
 from lsp_server_manager import LSPCommunicationMode, LSPServerManager
 from pyright_lsp_manager import PyrightLSPManager
@@ -85,7 +83,7 @@ class TestLSPIntegration:
             assert manager.workspace_path.name == temp_dir.split("/")[-1]
             assert manager.get_communication_mode() == LSPCommunicationMode.STDIO
             assert "pyright-langserver" in manager.get_server_command()
-            
+
             # Pyright provides comprehensive LSP capabilities
             capabilities = manager.get_server_capabilities()
             assert isinstance(capabilities, dict)

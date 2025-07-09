@@ -5,13 +5,12 @@ This module leverages python-lsp-jsonrpc package for all core functionality
 and provides only minimal compatibility wrappers where needed.
 """
 
+import io
 import json
 import logging
 import uuid
 from typing import Any
-import io
 
-from pylsp_jsonrpc.endpoint import Endpoint
 from pylsp_jsonrpc.streams import JsonRpcStreamReader, JsonRpcStreamWriter
 
 from lsp_constants import (
@@ -147,11 +146,11 @@ class JSONRPCProtocol:
 
     def __init__(self, logger: logging.Logger | None = None):
         self.logger = logger or logging.getLogger(__name__)
-        
+
         # Create stream writer for serialization
         self._stream_buffer = io.BytesIO()
         self._stream_writer = JsonRpcStreamWriter(self._stream_buffer)
-        
+
         # Simple pending request tracking (we can't fully use Endpoint because we need the wrapper classes)
         self._pending_requests: dict[str | int, JSONRPCRequest] = {}
 
@@ -195,15 +194,15 @@ class JSONRPCProtocol:
         self._stream_buffer.seek(0)
         return self._stream_buffer.read()
 
-
-
     def parse_lsp_message(self, raw_data: bytes) -> tuple[dict[str, str], str]:
         """Parse LSP message using python-lsp-jsonrpc with validation."""
         try:
             # First validate the basic structure before using the reader
             header_end = raw_data.find(b"\r\n\r\n")
             if header_end == -1:
-                raise JSONRPCError(LSPErrorCode.PARSE_ERROR, "Invalid LSP message format")
+                raise JSONRPCError(
+                    LSPErrorCode.PARSE_ERROR, "Invalid LSP message format"
+                )
 
             header_data = raw_data[:header_end].decode("utf-8")
             content_data = raw_data[header_end + 4 :].decode("utf-8")
@@ -217,7 +216,9 @@ class JSONRPCProtocol:
 
             # Validate content length (tests expect this validation)
             if "Content-Length" not in headers:
-                raise JSONRPCError(LSPErrorCode.PARSE_ERROR, "Missing Content-Length header")
+                raise JSONRPCError(
+                    LSPErrorCode.PARSE_ERROR, "Missing Content-Length header"
+                )
 
             expected_length = int(headers["Content-Length"])
             if len(content_data.encode("utf-8")) != expected_length:
@@ -226,20 +227,25 @@ class JSONRPCProtocol:
             # Now use JsonRpcStreamReader for actual parsing
             stream = io.BytesIO(raw_data)
             reader = JsonRpcStreamReader(stream)
-            
+
             messages = []
+
             def consume_message(msg):
                 messages.append(msg)
-            
+
             reader.listen(consume_message)
-            
+
             if not messages:
-                raise JSONRPCError(LSPErrorCode.PARSE_ERROR, "No valid JSON-RPC message found")
+                raise JSONRPCError(
+                    LSPErrorCode.PARSE_ERROR, "No valid JSON-RPC message found"
+                )
 
             return headers, content_data
 
         except (UnicodeDecodeError, ValueError) as e:
-            raise JSONRPCError(LSPErrorCode.PARSE_ERROR, f"Message parsing error: {e}") from e
+            raise JSONRPCError(
+                LSPErrorCode.PARSE_ERROR, f"Message parsing error: {e}"
+            ) from e
 
     def is_request(self, message: JsonRPCMessage) -> bool:
         """Check if message is a request."""
