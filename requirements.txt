@@ -8,6 +8,8 @@ GitPython
 mypy
 pydantic>=2.0.0
 PyGithub
+pyright
+python-lsp-jsonrpc
 python-lsp-server[all]>=1.8.0
 pytest
 pytest-asyncio>=0.23.0
