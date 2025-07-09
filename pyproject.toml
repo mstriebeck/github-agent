@@ -9,7 +9,31 @@ description = "GitHub Agent for repository management"
 authors = [
     {name = "Your Name", email = "your.email@example.com"}
 ]
-dependencies = []
+dependencies = [
+    "aiohttp>=3.8.0",
+    "bandit",
+    "black",
+    "cachetools>=5.0.0",
+    "coverage",
+    "fastapi>=0.104.0",
+    "GitPython",
+    "mypy",
+    "pydantic>=2.0.0",
+    "PyGithub",
+    "pyright",
+    "python-lsp-jsonrpc",
+    "python-lsp-server[all]>=1.8.0",
+    "pytest",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov",
+    "python-dotenv",
+    "psutil>=5.8.0",
+    "requests",
+    "ruff==0.1.13",
+    "types-requests",
+    "uvicorn[standard]>=0.24.0",
+    "watchdog>=3.0.0",
+]
 
 [tool.ruff]
 line-length = 88

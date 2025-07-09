@@ -58,7 +58,7 @@ class JSONRPCRequest(JSONRPCMessage):
         params: dict[str, Any] | None = None,
         message_id: str | int | None = None,
     ):
-        data = {
+        data: dict[str, Any] = {
             "jsonrpc": "2.0",
             "method": method,
             "id": message_id or str(uuid.uuid4()),
@@ -84,7 +84,7 @@ class JSONRPCNotification(JSONRPCMessage):
     """JSON-RPC notification message."""
 
     def __init__(self, method: str, params: dict[str, Any] | None = None):
-        data = {"jsonrpc": "2.0", "method": method}
+        data: dict[str, Any] = {"jsonrpc": "2.0", "method": method}
         if params:
             data["params"] = params
         super().__init__(data)
@@ -107,7 +107,7 @@ class JSONRPCResponse(JSONRPCMessage):
         result: Any | None = None,
         error: dict[str, Any] | None = None,
     ):
-        data = {"jsonrpc": "2.0", "id": message_id}
+        data: dict[str, Any] = {"jsonrpc": "2.0", "id": message_id}
         if error is not None:
             data["error"] = error
         else:
