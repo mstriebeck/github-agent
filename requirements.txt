@@ -5,6 +5,7 @@ cachetools>=5.0.0
 coverage
 fastapi>=0.104.0
 GitPython
+httpx
 mypy
 pydantic>=2.0.0
 PyGithub
