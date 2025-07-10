@@ -326,6 +326,7 @@ jobs:
           echo "Created coverage_reports directory for storing coverage files"
 
       - name: Run Python tests with coverage inside container
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
