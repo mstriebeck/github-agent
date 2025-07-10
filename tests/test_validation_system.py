@@ -30,7 +30,11 @@ class MockValidator(AbstractValidator):
         self._should_fail = should_fail
         self._error_message = error_message
         self.validate_called = False
+<<<<<<< HEAD
         self.last_context = None
+=======
+        self.last_context: ValidationContext | None = None
+>>>>>>> 729dd2c (fix: Resolve linting and type errors in validation system)
 
     def validate(self, context: ValidationContext) -> None:
         self.validate_called = True
@@ -84,7 +88,7 @@ class TestAbstractValidator:
     def test_abstract_validator_cannot_be_instantiated(self):
         """Test that AbstractValidator cannot be instantiated directly."""
         with pytest.raises(TypeError):
-            AbstractValidator()
+            AbstractValidator()  # type: ignore[abstract]
 
 
 class TestValidationRegistry:
@@ -376,7 +380,9 @@ class TestValidationRegistryIntegration:
         # Verify both validators were called
         assert python_validator.validate_called
         assert codebase_validator.validate_called
+        assert python_validator.last_context is not None
         assert python_validator.last_context.workspace == "/home/user/project"
+        assert codebase_validator.last_context is not None
         assert codebase_validator.last_context.workspace == "/home/user/project"
 
     def test_swift_github_workflow(self):

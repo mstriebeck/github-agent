@@ -9,7 +9,7 @@ language-specific and service-specific prerequisites for repositories.
 
 import abc
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from constants import Language
 
@@ -58,8 +58,8 @@ class AbstractValidator(abc.ABC):
 class ValidationRegistry:
     """Registry for managing validators and performing validation."""
 
-    _language_validators: dict[Language, AbstractValidator] = {}
-    _service_validators: dict[str, AbstractValidator] = {}
+    _language_validators: ClassVar[dict[Language, AbstractValidator]] = {}
+    _service_validators: ClassVar[dict[str, AbstractValidator]] = {}
 
     @classmethod
     def register_language_validator(
