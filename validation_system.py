@@ -17,16 +17,16 @@ from constants import Language
 @dataclass
 class ValidationContext:
     """Context information for validation operations."""
-    
+
     workspace: str
     language: Language
     services: list[str]
     repository_config: Any
-    
+
 
 class ValidationError(Exception):
     """Exception raised when validation fails."""
-    
+
     def __init__(self, message: str, validator_type: str | None = None):
         self.validator_type = validator_type
         super().__init__(message)
@@ -34,20 +34,20 @@ class ValidationError(Exception):
 
 class AbstractValidator(abc.ABC):
     """Abstract base class for validators."""
-    
+
     @abc.abstractmethod
     def validate(self, context: ValidationContext) -> None:
         """
         Validate the given context.
-        
+
         Args:
             context: ValidationContext containing workspace, language, services, and config
-            
+
         Raises:
             ValidationError: If validation fails
         """
         pass
-    
+
     @property
     @abc.abstractmethod
     def validator_name(self) -> str:
@@ -57,38 +57,42 @@ class AbstractValidator(abc.ABC):
 
 class ValidationRegistry:
     """Registry for managing validators and performing validation."""
-    
+
     _language_validators: dict[Language, AbstractValidator] = {}
     _service_validators: dict[str, AbstractValidator] = {}
-    
+
     @classmethod
-    def register_language_validator(cls, language: Language, validator: AbstractValidator) -> None:
+    def register_language_validator(
+        cls, language: Language, validator: AbstractValidator
+    ) -> None:
         """Register a validator for a specific language."""
         cls._language_validators[language] = validator
-    
+
     @classmethod
-    def register_service_validator(cls, service: str, validator: AbstractValidator) -> None:
+    def register_service_validator(
+        cls, service: str, validator: AbstractValidator
+    ) -> None:
         """Register a validator for a specific service."""
         cls._service_validators[service] = validator
-    
+
     @classmethod
     def get_language_validator(cls, language: Language) -> AbstractValidator | None:
         """Get the validator for a specific language."""
         return cls._language_validators.get(language)
-    
+
     @classmethod
     def get_service_validator(cls, service: str) -> AbstractValidator | None:
         """Get the validator for a specific service."""
         return cls._service_validators.get(service)
-    
+
     @classmethod
     def validate_all(cls, context: ValidationContext) -> None:
         """
         Validate all prerequisites for the given context.
-        
+
         Args:
             context: ValidationContext containing workspace, language, services, and config
-            
+
         Raises:
             ValidationError: If any validation fails
         """
@@ -101,9 +105,9 @@ class ValidationRegistry:
                 # Re-raise with validator type information
                 raise ValidationError(
                     f"Language validation failed for {context.language.value}: {e}",
-                    validator_type=f"language:{context.language.value}"
+                    validator_type=f"language:{context.language.value}",
                 ) from e
-        
+
         # Validate service prerequisites
         for service in context.services:
             if service in cls._service_validators:
@@ -114,20 +118,20 @@ class ValidationRegistry:
                     # Re-raise with validator type information
                     raise ValidationError(
                         f"Service validation failed for {service}: {e}",
-                        validator_type=f"service:{service}"
+                        validator_type=f"service:{service}",
                     ) from e
-    
+
     @classmethod
     def clear_all_validators(cls) -> None:
         """Clear all registered validators. Primarily for testing."""
         cls._language_validators.clear()
         cls._service_validators.clear()
-    
+
     @classmethod
     def get_registered_languages(cls) -> list[Language]:
         """Get list of languages with registered validators."""
         return list(cls._language_validators.keys())
-    
+
     @classmethod
     def get_registered_services(cls) -> list[str]:
         """Get list of services with registered validators."""
