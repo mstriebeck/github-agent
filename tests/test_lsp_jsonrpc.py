@@ -243,31 +243,6 @@ class TestJSONRPCProtocol:
         assert parsed_content["method"] == "test_method"
         assert parsed_content["id"] == "test_id"
 
-    def test_deserialize_message(self):
-        """Test message deserialization."""
-        message_data = '{"jsonrpc": "2.0", "method": "test_method", "id": "test_id"}'
-        deserialized = self.protocol.deserialize_message(message_data)
-
-        assert deserialized["jsonrpc"] == "2.0"
-        assert deserialized["method"] == "test_method"
-        assert deserialized["id"] == "test_id"
-
-    def test_deserialize_invalid_json(self):
-        """Test deserialization with invalid JSON."""
-        with pytest.raises(JSONRPCError) as exc_info:
-            self.protocol.deserialize_message("invalid json")
-
-        assert exc_info.value.code == LSPErrorCode.PARSE_ERROR
-
-    def test_deserialize_invalid_jsonrpc_version(self):
-        """Test deserialization with invalid JSON-RPC version."""
-        message_data = '{"jsonrpc": "1.0", "method": "test_method"}'
-
-        with pytest.raises(JSONRPCError) as exc_info:
-            self.protocol.deserialize_message(message_data)
-
-        assert exc_info.value.code == LSPErrorCode.INVALID_REQUEST
-
     def test_parse_lsp_message(self):
         """Test parsing LSP message with header."""
         content = '{"jsonrpc": "2.0", "method": "test_method"}'

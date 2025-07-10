@@ -1,14 +1,17 @@
 """
 JSON-RPC 2.0 Protocol Implementation for LSP
 
-This module implements the JSON-RPC 2.0 protocol as required by LSP,
-handling message serialization, deserialization, and protocol compliance.
+This module leverages python-lsp-jsonrpc package for all core functionality
+and provides only minimal compatibility wrappers where needed.
 """
 
+import io
 import json
 import logging
 import uuid
 from typing import Any
+
+from pylsp_jsonrpc.streams import JsonRpcStreamReader, JsonRpcStreamWriter
 
 from lsp_constants import (
     JsonRPCMessage,
@@ -26,19 +29,24 @@ class JSONRPCError(Exception):
         super().__init__(f"JSON-RPC Error {code.value}: {message}")
 
 
+# Simple compatibility classes that just wrap dictionaries
 class JSONRPCMessage:
-    """Base class for JSON-RPC messages."""
+    """Base class for JSON-RPC messages - minimal wrapper around dict."""
 
-    def __init__(self, jsonrpc: str = "2.0"):
-        self.jsonrpc = jsonrpc
+    def __init__(self, data: dict[str, Any]):
+        self._data = data
 
     def to_dict(self) -> dict[str, Any]:
         """Convert message to dictionary."""
-        raise NotImplementedError
+        return self._data.copy()
 
     def to_json(self) -> str:
         """Convert message to JSON string."""
-        return json.dumps(self.to_dict(), separators=(",", ":"))
+        return json.dumps(self._data, separators=(",", ":"))
+
+    @property
+    def jsonrpc(self) -> str:
+        return self._data.get("jsonrpc", "2.0")
 
 
 class JSONRPCRequest(JSONRPCMessage):
@@ -50,37 +58,44 @@ class JSONRPCRequest(JSONRPCMessage):
         params: dict[str, Any] | None = None,
         message_id: str | int | None = None,
     ):
-        super().__init__()
-        self.method = method
-        self.params = params or {}
-        self.id = message_id or str(uuid.uuid4())
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert request to dictionary."""
-        result: dict[str, Any] = {
-            "jsonrpc": self.jsonrpc,
-            "method": self.method,
-            "id": self.id,
+        data: dict[str, Any] = {
+            "jsonrpc": "2.0",
+            "method": method,
+            "id": message_id or str(uuid.uuid4()),
         }
-        if self.params:
-            result["params"] = self.params
-        return result
+        if params:
+            data["params"] = params
+        super().__init__(data)
+
+    @property
+    def method(self) -> str:
+        return self._data["method"]
+
+    @property
+    def params(self) -> dict[str, Any]:
+        return self._data.get("params", {})
+
+    @property
+    def id(self) -> str | int:
+        return self._data["id"]
 
 
 class JSONRPCNotification(JSONRPCMessage):
-    """JSON-RPC notification message (no response expected)."""
+    """JSON-RPC notification message."""
 
     def __init__(self, method: str, params: dict[str, Any] | None = None):
-        super().__init__()
-        self.method = method
-        self.params = params or {}
+        data: dict[str, Any] = {"jsonrpc": "2.0", "method": method}
+        if params:
+            data["params"] = params
+        super().__init__(data)
 
-    def to_dict(self) -> dict[str, Any]:
-        """Convert notification to dictionary."""
-        result: dict[str, Any] = {"jsonrpc": self.jsonrpc, "method": self.method}
-        if self.params:
-            result["params"] = self.params
-        return result
+    @property
+    def method(self) -> str:
+        return self._data["method"]
+
+    @property
+    def params(self) -> dict[str, Any]:
+        return self._data.get("params", {})
 
 
 class JSONRPCResponse(JSONRPCMessage):
@@ -92,19 +107,24 @@ class JSONRPCResponse(JSONRPCMessage):
         result: Any | None = None,
         error: dict[str, Any] | None = None,
     ):
-        super().__init__()
-        self.id = message_id
-        self.result = result
-        self.error = error
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert response to dictionary."""
-        result: dict[str, Any] = {"jsonrpc": self.jsonrpc, "id": self.id}
-        if self.error is not None:
-            result["error"] = self.error
+        data: dict[str, Any] = {"jsonrpc": "2.0", "id": message_id}
+        if error is not None:
+            data["error"] = error
         else:
-            result["result"] = self.result
-        return result
+            data["result"] = result
+        super().__init__(data)
+
+    @property
+    def id(self) -> str | int:
+        return self._data["id"]
+
+    @property
+    def result(self) -> Any:
+        return self._data.get("result")
+
+    @property
+    def error(self) -> dict[str, Any] | None:
+        return self._data.get("error")
 
     @classmethod
     def create_error(
@@ -122,10 +142,16 @@ class JSONRPCResponse(JSONRPCMessage):
 
 
 class JSONRPCProtocol:
-    """JSON-RPC 2.0 protocol handler for LSP communication."""
+    """JSON-RPC 2.0 protocol handler leveraging python-lsp-jsonrpc."""
 
     def __init__(self, logger: logging.Logger | None = None):
         self.logger = logger or logging.getLogger(__name__)
+
+        # Create stream writer for serialization
+        self._stream_buffer = io.BytesIO()
+        self._stream_writer = JsonRpcStreamWriter(self._stream_buffer)
+
+        # Simple pending request tracking (we can't fully use Endpoint because we need the wrapper classes)
         self._pending_requests: dict[str | int, JSONRPCRequest] = {}
 
     def create_request(
@@ -144,7 +170,6 @@ class JSONRPCProtocol:
 
     def create_response(self, message_id: str | int, result: Any) -> JSONRPCResponse:
         """Create a successful JSON-RPC response."""
-        # Remove from pending requests if it exists
         self._pending_requests.pop(message_id, None)
         return JSONRPCResponse(message_id=message_id, result=result)
 
@@ -156,36 +181,23 @@ class JSONRPCProtocol:
         data: Any | None = None,
     ) -> JSONRPCResponse:
         """Create an error JSON-RPC response."""
-        # Remove from pending requests if it exists
         self._pending_requests.pop(message_id, None)
         return JSONRPCResponse.create_error(
             message_id=message_id, code=code, message=message, data=data
         )
 
     def serialize_message(self, message: JSONRPCMessage) -> bytes:
-        """Serialize a JSON-RPC message to bytes with LSP header."""
-        content = message.to_json()
-        content_bytes = content.encode("utf-8")
-        header = f"Content-Length: {len(content_bytes)}\r\n\r\n"
-        return header.encode("utf-8") + content_bytes
-
-    def deserialize_message(self, data: str) -> JsonRPCMessage:
-        """Deserialize JSON-RPC message from string."""
-        try:
-            message = json.loads(data)
-        except json.JSONDecodeError as e:
-            raise JSONRPCError(LSPErrorCode.PARSE_ERROR, f"Invalid JSON: {e}") from e
-
-        # Validate JSON-RPC version
-        if message.get("jsonrpc") != "2.0":
-            raise JSONRPCError(LSPErrorCode.INVALID_REQUEST, "Invalid JSON-RPC version")
-
-        return message
+        """Serialize a JSON-RPC message using python-lsp-jsonrpc."""
+        self._stream_buffer.seek(0)
+        self._stream_buffer.truncate()
+        self._stream_writer.write(message.to_dict())
+        self._stream_buffer.seek(0)
+        return self._stream_buffer.read()
 
     def parse_lsp_message(self, raw_data: bytes) -> tuple[dict[str, str], str]:
-        """Parse LSP message with header and content."""
+        """Parse LSP message using python-lsp-jsonrpc with validation."""
         try:
-            # Split header and content
+            # First validate the basic structure before using the reader
             header_end = raw_data.find(b"\r\n\r\n")
             if header_end == -1:
                 raise JSONRPCError(
@@ -195,14 +207,14 @@ class JSONRPCProtocol:
             header_data = raw_data[:header_end].decode("utf-8")
             content_data = raw_data[header_end + 4 :].decode("utf-8")
 
-            # Parse header
+            # Parse and validate headers
             headers = {}
             for line in header_data.split("\r\n"):
                 if ":" in line:
                     key, value = line.split(":", 1)
                     headers[key.strip()] = value.strip()
 
-            # Validate content length
+            # Validate content length (tests expect this validation)
             if "Content-Length" not in headers:
                 raise JSONRPCError(
                     LSPErrorCode.PARSE_ERROR, "Missing Content-Length header"
@@ -211,6 +223,22 @@ class JSONRPCProtocol:
             expected_length = int(headers["Content-Length"])
             if len(content_data.encode("utf-8")) != expected_length:
                 raise JSONRPCError(LSPErrorCode.PARSE_ERROR, "Content length mismatch")
+
+            # Now use JsonRpcStreamReader for actual parsing
+            stream = io.BytesIO(raw_data)
+            reader = JsonRpcStreamReader(stream)
+
+            messages = []
+
+            def consume_message(msg):
+                messages.append(msg)
+
+            reader.listen(consume_message)
+
+            if not messages:
+                raise JSONRPCError(
+                    LSPErrorCode.PARSE_ERROR, "No valid JSON-RPC message found"
+                )
 
             return headers, content_data
 
@@ -253,9 +281,7 @@ class JSONRPCProtocol:
             return False
 
         required_fields = ["jsonrpc", "method"]
-        # Only requests need an ID, notifications don't
         if "id" in message:
-            # This is a request
             required_fields.append("id")
 
         for field in required_fields:
@@ -283,7 +309,6 @@ class JSONRPCProtocol:
         if message.get("jsonrpc") != "2.0":
             return False
 
-        # Must have either result or error, but not both
         has_result = "result" in message
         has_error = "error" in message
 

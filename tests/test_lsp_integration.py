@@ -8,8 +8,6 @@ correctly without requiring a full mock server setup.
 import tempfile
 from unittest.mock import Mock
 
-import pytest
-
 from lsp_client import AbstractLSPClient, LSPClientState
 from lsp_server_manager import LSPCommunicationMode, LSPServerManager
 from pyright_lsp_manager import PyrightLSPManager
@@ -80,19 +78,19 @@ class TestLSPIntegration:
             with open(python_file, "w") as f:
                 f.write("def hello(): pass\n")
 
-            try:
-                manager = PyrightLSPManager(temp_dir, "/unused/python_path")
+            manager = PyrightLSPManager(temp_dir, "/unused/python_path")
 
-                assert manager.workspace_path.name == temp_dir.split("/")[-1]
-                assert manager.get_communication_mode() == LSPCommunicationMode.STDIO
-                assert "pyright-langserver" in manager.get_server_command()
-                assert manager.get_server_capabilities() == {}
+            assert manager.workspace_path.name == temp_dir.split("/")[-1]
+            assert manager.get_communication_mode() == LSPCommunicationMode.STDIO
+            assert "pyright-langserver" in manager.get_server_command()
 
-            except RuntimeError as e:
-                if "Pyright is not available" in str(e):
-                    pytest.skip("Pyright not installed")
-                else:
-                    raise
+            # Pyright provides comprehensive LSP capabilities
+            capabilities = manager.get_server_capabilities()
+            assert isinstance(capabilities, dict)
+            # Check for some key capabilities that Pyright should provide
+            assert capabilities.get("definitionProvider") is True
+            assert capabilities.get("hoverProvider") is True
+            assert capabilities.get("referencesProvider") is True
 
     def test_lsp_client_with_pyright_manager(self):
         """Test that LSP client works with Pyright manager."""
@@ -102,31 +100,24 @@ class TestLSPIntegration:
             with open(python_file, "w") as f:
                 f.write("def hello(): pass\n")
 
-            try:
-                server_manager = PyrightLSPManager(temp_dir, "/unused/python_path")
-                logger = Mock()
+            server_manager = PyrightLSPManager(temp_dir, "/unused/python_path")
+            logger = Mock()
 
-                client = SimpleLSPClient(
-                    server_manager=server_manager,
-                    workspace_root=temp_dir,
-                    logger=logger,
-                )
+            client = SimpleLSPClient(
+                server_manager=server_manager,
+                workspace_root=temp_dir,
+                logger=logger,
+            )
 
-                # Test that components are properly wired
-                assert client.server_manager is server_manager
-                assert client.workspace_root == temp_dir
-                assert client.communication_mode == LSPCommunicationMode.STDIO
+            # Test that components are properly wired
+            assert client.server_manager is server_manager
+            assert client.workspace_root == temp_dir
+            assert client.communication_mode == LSPCommunicationMode.STDIO
 
-                # Test that we can call server manager methods
-                command = server_manager.get_server_command()
-                assert isinstance(command, list)
-                assert len(command) > 0
-
-            except RuntimeError as e:
-                if "Pyright is not available" in str(e):
-                    pytest.skip("Pyright not installed")
-                else:
-                    raise
+            # Test that we can call server manager methods
+            command = server_manager.get_server_command()
+            assert isinstance(command, list)
+            assert len(command) > 0
 
     def test_server_manager_interface_compliance(self):
         """Test that server managers implement the required interface."""
