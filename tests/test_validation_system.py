@@ -18,6 +18,7 @@ from validation_system import (
     ValidationContext,
     ValidationError,
     ValidationRegistry,
+    ValidatorType,
 )
 
 
@@ -53,9 +54,9 @@ class TestValidationError:
 
     def test_validation_error_creation(self):
         """Test creating ValidationError with message and validator type."""
-        error = ValidationError("Test error", "test_validator")
+        error = ValidationError("Test error", ValidatorType.PYTHON)
         assert str(error) == "Test error"
-        assert error.validator_type == "test_validator"
+        assert error.validator_type == ValidatorType.PYTHON
 
 
 class TestAbstractValidator:
@@ -111,7 +112,10 @@ class TestValidationRegistry:
         )
 
         ValidationRegistry.validate_all(context)
-        mock_validator.validate.assert_called_once_with(context)
+        mock_validator.validate.assert_called_once()
+        args, kwargs = mock_validator.validate.call_args
+        assert args[0] == context
+        assert len(args) == 2  # context and logger
 
     def test_validate_all_with_service_validator(self, clean_registry):
         """Test validate_all with service validator."""
@@ -127,12 +131,18 @@ class TestValidationRegistry:
         )
 
         ValidationRegistry.validate_all(context)
-        mock_validator.validate.assert_called_once_with(context)
+        mock_validator.validate.assert_called_once()
+        args, kwargs = mock_validator.validate.call_args
+        assert args[0] == context
+        assert len(args) == 2  # context and logger
 
     def test_validate_all_with_validation_error(self, clean_registry):
         """Test validate_all handles ValidationError correctly."""
         mock_validator = Mock(spec=AbstractValidator)
-        mock_validator.validate.side_effect = ValidationError("Test error", "test")
+        mock_validator.validate.side_effect = ValidationError(
+            "Test error", ValidatorType.PYTHON
+        )
+        mock_validator.validator_type = ValidatorType.PYTHON
         mock_config = Mock()
         ValidationRegistry.register_language_validator(Language.PYTHON, mock_validator)
 
@@ -147,7 +157,7 @@ class TestValidationRegistry:
             ValidationRegistry.validate_all(context)
 
         assert "Language validation failed for python" in str(exc_info.value)
-        assert exc_info.value.validator_type == "language:python"
+        assert exc_info.value.validator_type == ValidatorType.PYTHON
 
     def test_clear_all_validators(self, clean_registry):
         """Test clearing all validators."""
@@ -171,9 +181,11 @@ class TestPythonValidator:
 
     def test_validate_missing_python_path(self):
         """Test validation fails when python_path is missing."""
+        mock_logger = Mock()
         validator = PythonValidator()
         mock_config = Mock()
         mock_config.python_path = None
+        mock_logger = Mock()
 
         context = ValidationContext(
             workspace="/test/workspace",
@@ -183,14 +195,16 @@ class TestPythonValidator:
         )
 
         with pytest.raises(ValidationError) as exc_info:
-            validator.validate(context)
+            validator.validate(context, mock_logger)
 
         assert "Python path not configured" in str(exc_info.value)
-        assert exc_info.value.validator_type == "python"
+        assert exc_info.value.validator_type == ValidatorType.PYTHON
 
     @patch("validation_system.subprocess.run")
     def test_validate_python_path_success(self, mock_run):
+        mock_logger = Mock()
         """Test successful Python path validation."""
+        mock_logger = Mock()
         validator = PythonValidator()
         mock_config = Mock()
         mock_config.python_path = "/usr/bin/python3"
@@ -213,7 +227,7 @@ class TestPythonValidator:
             patch("validation_system.os.path.abspath", return_value="/usr/bin/python3"),
         ):
             # Should not raise any exception
-            validator.validate(context)
+            validator.validate(context, mock_logger)
 
             # Verify both Python version and pyright checks were called
             assert mock_run.call_count == 2
@@ -221,6 +235,7 @@ class TestPythonValidator:
     @patch("validation_system.subprocess.run")
     def test_validate_python_path_nonexistent(self, mock_run):
         """Test validation fails for non-existent Python path."""
+        mock_logger = Mock()
         validator = PythonValidator()
         mock_config = Mock()
         mock_config.python_path = "/nonexistent/python"
@@ -239,22 +254,35 @@ class TestPythonValidator:
             ),
         ):
             with pytest.raises(ValidationError) as exc_info:
-                validator.validate(context)
+                validator.validate(context, mock_logger)
 
             assert "Python path validation failed" in str(exc_info.value)
-            assert exc_info.value.validator_type == "python"
+            assert exc_info.value.validator_type == ValidatorType.PYTHON
 
     @patch("validation_system.subprocess.run")
     def test_validate_python_version_too_old(self, mock_run):
+        mock_logger = Mock()
         """Test validation fails for old Python version."""
         validator = PythonValidator()
         mock_config = Mock()
         mock_config.python_path = "/usr/bin/python3"
 
         # Mock subprocess to return old Python version
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = "Python 3.8.0"
-        mock_run.return_value.stderr = ""
+        def mock_subprocess_run(cmd, **kwargs):
+            if cmd[0] == "/usr/bin/python3":
+                mock_result = Mock()
+                mock_result.returncode = 0
+                mock_result.stdout = "Python 3.7.0"
+                mock_result.stderr = ""
+                return mock_result
+            elif cmd[0] == "pyright":
+                mock_result = Mock()
+                mock_result.returncode = 0
+                mock_result.stdout = "pyright 1.1.0"
+                mock_result.stderr = ""
+                return mock_result
+
+        mock_run.side_effect = mock_subprocess_run
 
         context = ValidationContext(
             workspace="/test/workspace",
@@ -269,13 +297,14 @@ class TestPythonValidator:
             patch("validation_system.os.path.abspath", return_value="/usr/bin/python3"),
         ):
             with pytest.raises(ValidationError) as exc_info:
-                validator.validate(context)
+                validator.validate(context, mock_logger)
 
             assert "Python path validation failed" in str(exc_info.value)
-            assert exc_info.value.validator_type == "python"
+            assert exc_info.value.validator_type == ValidatorType.PYTHON
 
     @patch("validation_system.subprocess.run")
     def test_validate_pyright_not_available(self, mock_run):
+        mock_logger = Mock()
         """Test validation fails when pyright is not available."""
         validator = PythonValidator()
         mock_config = Mock()
@@ -307,10 +336,10 @@ class TestPythonValidator:
             patch("validation_system.os.path.abspath", return_value="/usr/bin/python3"),
         ):
             with pytest.raises(ValidationError) as exc_info:
-                validator.validate(context)
+                validator.validate(context, mock_logger)
 
             assert "Pyright availability check failed" in str(exc_info.value)
-            assert exc_info.value.validator_type == "python"
+            assert exc_info.value.validator_type == ValidatorType.PYTHON
 
 
 class TestGitHubValidator:
@@ -318,6 +347,7 @@ class TestGitHubValidator:
 
     def test_validator_name(self):
         """Test validator name property."""
+
         validator = GitHubValidator()
         assert validator.validator_name == "GitHub Service Validator"
 
@@ -325,6 +355,7 @@ class TestGitHubValidator:
     @patch("validation_system.subprocess.run")
     def test_validate_success(self, mock_run):
         """Test successful GitHub validation."""
+        mock_logger = Mock()
         validator = GitHubValidator()
         mock_config = Mock()
 
@@ -341,11 +372,12 @@ class TestGitHubValidator:
 
         with patch("validation_system.os.path.exists", return_value=True):
             # Should not raise any exception
-            validator.validate(context)
+            validator.validate(context, mock_logger)
 
     @patch.dict(os.environ, {}, clear=True)
     def test_validate_missing_github_token(self):
         """Test validation fails when GITHUB_TOKEN is missing."""
+        mock_logger = Mock()
         validator = GitHubValidator()
         mock_config = Mock()
 
@@ -357,14 +389,15 @@ class TestGitHubValidator:
         )
 
         with pytest.raises(ValidationError) as exc_info:
-            validator.validate(context)
+            validator.validate(context, mock_logger)
 
         assert "GitHub token validation failed" in str(exc_info.value)
-        assert exc_info.value.validator_type == "github"
+        assert exc_info.value.validator_type == ValidatorType.GITHUB
 
     @patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"})
     def test_validate_nonexistent_workspace(self):
         """Test validation fails for non-existent workspace."""
+        mock_logger = Mock()
         validator = GitHubValidator()
         mock_config = Mock()
 
@@ -377,14 +410,15 @@ class TestGitHubValidator:
 
         with patch("validation_system.os.path.exists", return_value=False):
             with pytest.raises(ValidationError) as exc_info:
-                validator.validate(context)
+                validator.validate(context, mock_logger)
 
             assert "Git repository validation failed" in str(exc_info.value)
-            assert exc_info.value.validator_type == "github"
+            assert exc_info.value.validator_type == ValidatorType.GITHUB
 
     @patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"})
     def test_validate_not_git_repository(self):
         """Test validation fails for non-git workspace."""
+        mock_logger = Mock()
         validator = GitHubValidator()
         mock_config = Mock()
 
@@ -401,10 +435,10 @@ class TestGitHubValidator:
 
         with patch("validation_system.os.path.exists", side_effect=mock_exists):
             with pytest.raises(ValidationError) as exc_info:
-                validator.validate(context)
+                validator.validate(context, mock_logger)
 
             assert "Git repository validation failed" in str(exc_info.value)
-            assert exc_info.value.validator_type == "github"
+            assert exc_info.value.validator_type == ValidatorType.GITHUB
 
 
 class TestCodebaseValidator:
@@ -412,12 +446,14 @@ class TestCodebaseValidator:
 
     def test_validator_name(self):
         """Test validator name property."""
+
         validator = CodebaseValidator()
         assert validator.validator_name == "Codebase Service Validator"
 
     @patch("validation_system.subprocess.run")
     def test_validate_python_success(self, mock_run):
         """Test successful codebase validation for Python."""
+        mock_logger = Mock()
         validator = CodebaseValidator()
         mock_config = Mock()
 
@@ -439,10 +475,11 @@ class TestCodebaseValidator:
             patch("validation_system.os.access", return_value=True),
         ):
             # Should not raise any exception
-            validator.validate(context)
+            validator.validate(context, mock_logger)
 
     def test_validate_nonexistent_workspace(self):
         """Test validation fails for non-existent workspace."""
+        mock_logger = Mock()
         validator = CodebaseValidator()
         mock_config = Mock()
 
@@ -455,13 +492,14 @@ class TestCodebaseValidator:
 
         with patch("validation_system.os.path.exists", return_value=False):
             with pytest.raises(ValidationError) as exc_info:
-                validator.validate(context)
+                validator.validate(context, mock_logger)
 
             assert "Workspace access validation failed" in str(exc_info.value)
-            assert exc_info.value.validator_type == "codebase"
+            assert exc_info.value.validator_type == ValidatorType.CODEBASE
 
     def test_validate_workspace_not_directory(self):
         """Test validation fails when workspace is not a directory."""
+        mock_logger = Mock()
         validator = CodebaseValidator()
         mock_config = Mock()
 
@@ -477,13 +515,14 @@ class TestCodebaseValidator:
             patch("validation_system.os.path.isdir", return_value=False),
         ):
             with pytest.raises(ValidationError) as exc_info:
-                validator.validate(context)
+                validator.validate(context, mock_logger)
 
             assert "Workspace access validation failed" in str(exc_info.value)
-            assert exc_info.value.validator_type == "codebase"
+            assert exc_info.value.validator_type == ValidatorType.CODEBASE
 
     def test_validate_workspace_not_readable(self):
         """Test validation fails when workspace is not readable."""
+        mock_logger = Mock()
         validator = CodebaseValidator()
         mock_config = Mock()
 
@@ -505,14 +544,15 @@ class TestCodebaseValidator:
             patch("validation_system.os.access", side_effect=mock_access),
         ):
             with pytest.raises(ValidationError) as exc_info:
-                validator.validate(context)
+                validator.validate(context, mock_logger)
 
             assert "Workspace access validation failed" in str(exc_info.value)
-            assert exc_info.value.validator_type == "codebase"
+            assert exc_info.value.validator_type == ValidatorType.CODEBASE
 
     @patch("validation_system.subprocess.run")
     def test_validate_python_lsp_tools_not_available(self, mock_run):
         """Test validation fails when Python LSP tools are not available."""
+        mock_logger = Mock()
         validator = CodebaseValidator()
         mock_config = Mock()
 
@@ -532,10 +572,10 @@ class TestCodebaseValidator:
             patch("validation_system.os.access", return_value=True),
         ):
             with pytest.raises(ValidationError) as exc_info:
-                validator.validate(context)
+                validator.validate(context, mock_logger)
 
             assert "Python LSP tools validation failed" in str(exc_info.value)
-            assert exc_info.value.validator_type == "codebase"
+            assert exc_info.value.validator_type == ValidatorType.CODEBASE
 
 
 class TestValidationIntegration:

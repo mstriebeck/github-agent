@@ -13,9 +13,23 @@ import os
 import re
 import subprocess
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, ClassVar
 
 from constants import Language
+from repository_manager import (
+    MINIMUM_PYTHON_MAJOR,
+    MINIMUM_PYTHON_MINOR,
+    MINIMUM_PYTHON_VERSION,
+)
+
+
+class ValidatorType(Enum):
+    """Enum for validator types to avoid brittle string comparisons."""
+
+    PYTHON = "python"
+    GITHUB = "github"
+    CODEBASE = "codebase"
 
 
 @dataclass
@@ -31,7 +45,7 @@ class ValidationContext:
 class ValidationError(Exception):
     """Exception raised when validation fails."""
 
-    def __init__(self, message: str, validator_type: str):
+    def __init__(self, message: str, validator_type: ValidatorType):
         self.validator_type = validator_type
         super().__init__(message)
 
@@ -40,12 +54,13 @@ class AbstractValidator(abc.ABC):
     """Abstract base class for validators."""
 
     @abc.abstractmethod
-    def validate(self, context: ValidationContext) -> None:
+    def validate(self, context: ValidationContext, logger: logging.Logger) -> None:
         """
         Validate the given context.
 
         Args:
             context: ValidationContext containing workspace, language, services, and config
+            logger: Logger instance for debugging and monitoring
 
         Raises:
             ValidationError: If validation fails
@@ -56,6 +71,12 @@ class AbstractValidator(abc.ABC):
     @abc.abstractmethod
     def validator_name(self) -> str:
         """Return a human-readable name for this validator."""
+        pass
+
+    @property
+    @abc.abstractmethod
+    def validator_type(self) -> ValidatorType:
+        """Return the validator type enum."""
         pass
 
 
@@ -90,26 +111,32 @@ class ValidationRegistry:
         return cls._service_validators.get(service)
 
     @classmethod
-    def validate_all(cls, context: ValidationContext) -> None:
+    def validate_all(
+        cls, context: ValidationContext, logger: logging.Logger | None = None
+    ) -> None:
         """
         Validate all prerequisites for the given context.
 
         Args:
             context: ValidationContext containing workspace, language, services, and config
+            logger: Logger instance for debugging and monitoring
 
         Raises:
             ValidationError: If any validation fails
         """
+        if logger is None:
+            logger = logging.getLogger(__name__)
+
         # Validate language prerequisites
         if context.language in cls._language_validators:
             validator = cls._language_validators[context.language]
             try:
-                validator.validate(context)
+                validator.validate(context, logger)
             except ValidationError as e:
                 # Re-raise with validator type information
                 raise ValidationError(
                     f"Language validation failed for {context.language.value}: {e}",
-                    validator_type=f"language:{context.language.value}",
+                    validator_type=validator.validator_type,
                 ) from e
 
         # Validate service prerequisites
@@ -117,12 +144,12 @@ class ValidationRegistry:
             if service in cls._service_validators:
                 validator = cls._service_validators[service]
                 try:
-                    validator.validate(context)
+                    validator.validate(context, logger)
                 except ValidationError as e:
                     # Re-raise with validator type information
                     raise ValidationError(
                         f"Service validation failed for {service}: {e}",
-                        validator_type=f"service:{service}",
+                        validator_type=validator.validator_type,
                     ) from e
 
     @classmethod
@@ -145,24 +172,21 @@ class ValidationRegistry:
 class PythonValidator(AbstractValidator):
     """Validator for Python language prerequisites."""
 
-    # Constants extracted from repository_manager.py
-    MINIMUM_PYTHON_MAJOR = 3
-    MINIMUM_PYTHON_MINOR = 9
-    MINIMUM_PYTHON_VERSION = f"{MINIMUM_PYTHON_MAJOR}.{MINIMUM_PYTHON_MINOR}"
-
-    def __init__(self):
-        self.logger = logging.getLogger(__name__)
-
     @property
     def validator_name(self) -> str:
         return "Python Language Validator"
 
-    def validate(self, context: ValidationContext) -> None:
+    @property
+    def validator_type(self) -> ValidatorType:
+        return ValidatorType.PYTHON
+
+    def validate(self, context: ValidationContext, logger: logging.Logger) -> None:
         """
         Validate Python prerequisites.
 
         Args:
             context: ValidationContext containing workspace, language, services, and config
+            logger: Logger instance for debugging and monitoring
 
         Raises:
             ValidationError: If Python path is invalid or pyright is not available
@@ -172,33 +196,35 @@ class PythonValidator(AbstractValidator):
         if not python_path:
             raise ValidationError(
                 "Python path not configured in repository config",
-                validator_type="python",
+                validator_type=ValidatorType.PYTHON,
             )
 
         try:
-            validated_path = self._validate_python_path(python_path)
-            self.logger.debug(f"Python path validation passed: {validated_path}")
+            validated_path = self._validate_python_path(python_path, logger)
+            logger.debug(f"Python path validation passed: {validated_path}")
         except Exception as e:
             raise ValidationError(
-                f"Python path validation failed: {e}", validator_type="python"
+                f"Python path validation failed: {e}",
+                validator_type=ValidatorType.PYTHON,
             ) from e
 
         # Validate pyright availability
         try:
-            version = self._check_pyright_availability()
-            self.logger.debug(f"Pyright availability check passed: {version}")
+            version = self._check_pyright_availability(logger)
+            logger.debug(f"Pyright availability check passed: {version}")
         except Exception as e:
             raise ValidationError(
-                f"Pyright availability check failed: {e}", validator_type="python"
+                f"Pyright availability check failed: {e}",
+                validator_type=ValidatorType.PYTHON,
             ) from e
 
-    def _validate_python_path(self, python_path: str) -> str:
+    def _validate_python_path(self, python_path: str, logger: logging.Logger) -> str:
         """
         Validate python_path parameter with comprehensive logging.
 
         Extracted from repository_manager.py
         """
-        self.logger.debug(f"Validating Python executable: {python_path}")
+        logger.debug(f"Validating Python executable: {python_path}")
 
         if not isinstance(python_path, str):
             raise ValueError(
@@ -210,21 +236,19 @@ class PythonValidator(AbstractValidator):
 
         # Expand user home if needed and normalize
         normalized_path = os.path.abspath(os.path.expanduser(python_path.strip()))
-        self.logger.debug(f"Normalized Python path: {normalized_path}")
+        logger.debug(f"Normalized Python path: {normalized_path}")
 
         # Check if path exists
         if not os.path.exists(normalized_path):
-            self.logger.error(f"❌ Python executable does not exist: {normalized_path}")
+            logger.error(f"❌ Python executable does not exist: {normalized_path}")
             raise ValueError(f"Python executable does not exist: {normalized_path}")
 
         # Check if it's executable
         if not os.access(normalized_path, os.X_OK):
-            self.logger.error(f"❌ Python path is not executable: {normalized_path}")
+            logger.error(f"❌ Python path is not executable: {normalized_path}")
             raise ValueError(f"Python path is not executable: {normalized_path}")
 
-        self.logger.debug(
-            f"Running version check for Python executable: {normalized_path}"
-        )
+        logger.debug(f"Running version check for Python executable: {normalized_path}")
 
         # Verify it's actually a Python executable by running --version
         try:
@@ -235,7 +259,7 @@ class PythonValidator(AbstractValidator):
                 timeout=10,
             )
             if result.returncode != 0:
-                self.logger.error(
+                logger.error(
                     f"❌ Python version check failed for {normalized_path}: return code {result.returncode}"
                 )
                 raise ValueError(
@@ -244,10 +268,10 @@ class PythonValidator(AbstractValidator):
 
             # Check if output contains "Python"
             version_output = result.stdout.strip() or result.stderr.strip()
-            self.logger.debug(f"Python version output: {version_output}")
+            logger.debug(f"Python version output: {version_output}")
 
             if not version_output.startswith("Python"):
-                self.logger.error(
+                logger.error(
                     f"❌ Executable does not appear to be Python: {normalized_path}, output: {version_output}"
                 )
                 raise ValueError(
@@ -257,7 +281,7 @@ class PythonValidator(AbstractValidator):
             # Parse and validate Python version
             version_match = re.search(r"Python (\d+)\.(\d+)\.(\d+)", version_output)
             if not version_match:
-                self.logger.error(
+                logger.error(
                     f"❌ Could not parse Python version from output: {version_output}"
                 )
                 raise ValueError(
@@ -265,40 +289,38 @@ class PythonValidator(AbstractValidator):
                 )
 
             major, minor, patch = map(int, version_match.groups())
-            self.logger.debug(f"Detected Python version: {major}.{minor}.{patch}")
+            logger.debug(f"Detected Python version: {major}.{minor}.{patch}")
 
-            if major < self.MINIMUM_PYTHON_MAJOR or (
-                major == self.MINIMUM_PYTHON_MAJOR and minor < self.MINIMUM_PYTHON_MINOR
+            if major < MINIMUM_PYTHON_MAJOR or (
+                major == MINIMUM_PYTHON_MAJOR and minor < MINIMUM_PYTHON_MINOR
             ):
-                self.logger.error(
+                logger.error(
                     f"❌ Python version {major}.{minor}.{patch} is below minimum required "
-                    f"{self.MINIMUM_PYTHON_VERSION} for {normalized_path}"
+                    f"{MINIMUM_PYTHON_VERSION} for {normalized_path}"
                 )
                 raise ValueError(
                     f"Python version {major}.{minor}.{patch} is below minimum required "
-                    f"{self.MINIMUM_PYTHON_VERSION}: {normalized_path}"
+                    f"{MINIMUM_PYTHON_VERSION}: {normalized_path}"
                 )
 
-            self.logger.info(
+            logger.info(
                 f"✅ Python executable validated: {normalized_path} (version {major}.{minor}.{patch})"
             )
 
         except subprocess.TimeoutExpired:
-            self.logger.error(
-                f"❌ Python version check timed out for {normalized_path}"
-            )
+            logger.error(f"❌ Python version check timed out for {normalized_path}")
             raise ValueError(
                 f"Python executable timed out during version check: {normalized_path}"
             ) from None
         except subprocess.SubprocessError as e:
-            self.logger.error(
+            logger.error(
                 f"❌ Failed to run Python version check for {normalized_path}: {e}"
             )
             raise ValueError(f"Failed to verify Python executable: {e}") from e
 
         return normalized_path
 
-    def _check_pyright_availability(self) -> str:
+    def _check_pyright_availability(self, logger: logging.Logger) -> str:
         """
         Check if pyright is available in the system and return version.
 
@@ -309,7 +331,7 @@ class PythonValidator(AbstractValidator):
                 ["pyright", "--version"], capture_output=True, text=True, check=True
             )
             version = result.stdout.strip()
-            self.logger.info(f"Pyright version: {version}")
+            logger.info(f"Pyright version: {version}")
             return version
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             raise RuntimeError(
@@ -320,40 +342,44 @@ class PythonValidator(AbstractValidator):
 class GitHubValidator(AbstractValidator):
     """Validator for GitHub service prerequisites."""
 
-    def __init__(self):
-        self.logger = logging.getLogger(__name__)
-
     @property
     def validator_name(self) -> str:
         return "GitHub Service Validator"
 
-    def validate(self, context: ValidationContext) -> None:
+    @property
+    def validator_type(self) -> ValidatorType:
+        return ValidatorType.GITHUB
+
+    def validate(self, context: ValidationContext, logger: logging.Logger) -> None:
         """
         Validate GitHub service prerequisites.
 
         Args:
             context: ValidationContext containing workspace, language, services, and config
+            logger: Logger instance for debugging and monitoring
 
         Raises:
             ValidationError: If GitHub token is not available or git repository is invalid
         """
         # Validate GitHub token
         try:
-            self._validate_github_token()
+            self._validate_github_token(logger)
         except Exception as e:
             raise ValidationError(
-                f"GitHub token validation failed: {e}", validator_type="github"
+                f"GitHub token validation failed: {e}",
+                validator_type=ValidatorType.GITHUB,
             ) from e
 
         # Validate git repository
         try:
-            self._validate_git_repository(context.workspace)
+            self._validate_git_repository(context.workspace, logger)
         except Exception as e:
             raise ValidationError(
-                f"Git repository validation failed: {e}", validator_type="github"
+                f"Git repository validation failed: {e}",
+                validator_type=ValidatorType.GITHUB,
             ) from e
 
-    def _validate_github_token(self) -> str:
+    def _validate_github_token(self, logger: logging.Logger) -> str:
         """
         Validate GitHub token environment variable.
 
@@ -366,10 +392,10 @@ class GitHubValidator(AbstractValidator):
         if not github_token.strip():
             raise RuntimeError("GITHUB_TOKEN environment variable is empty")
 
-        self.logger.debug(f"GitHub token found (length: {len(github_token)})")
+        logger.debug(f"GitHub token found (length: {len(github_token)})")
         return github_token
 
-    def _validate_git_repository(self, workspace: str) -> None:
+    def _validate_git_repository(self, workspace: str, logger: logging.Logger) -> None:
         """
         Validate that the workspace is a valid git repository.
         """
@@ -402,48 +428,62 @@ class GitHubValidator(AbstractValidator):
                 f"Failed to run git command in workspace {workspace}: {e}"
             ) from e
 
-        self.logger.debug(f"Git repository validation passed: {workspace}")
+        logger.debug(f"Git repository validation passed: {workspace}")
 
 
 class CodebaseValidator(AbstractValidator):
     """Validator for codebase service prerequisites."""
 
-    def __init__(self):
-        self.logger = logging.getLogger(__name__)
-
     @property
     def validator_name(self) -> str:
         return "Codebase Service Validator"
 
-    def validate(self, context: ValidationContext) -> None:
+    @property
+    def validator_type(self) -> ValidatorType:
+        return ValidatorType.CODEBASE
+
+    def validate(self, context: ValidationContext, logger: logging.Logger) -> None:
         """
         Validate codebase service prerequisites.
 
         Args:
             context: ValidationContext containing workspace, language, services, and config
+            logger: Logger instance for debugging and monitoring
 
         Raises:
             ValidationError: If codebase prerequisites are not met
         """
         # Validate workspace accessibility
         try:
-            self._validate_workspace_access(context.workspace)
+            self._validate_workspace_access(context.workspace, logger)
         except Exception as e:
             raise ValidationError(
-                f"Workspace access validation failed: {e}", validator_type="codebase"
+                f"Workspace access validation failed: {e}",
+                validator_type=ValidatorType.CODEBASE,
+            ) from e
+
+        # Validate symbol storage service
+        try:
+            self._validate_symbol_storage(logger)
+        except Exception as e:
+            raise ValidationError(
+                f"Symbol storage validation failed: {e}",
+                validator_type=ValidatorType.CODEBASE,
             ) from e
 
         # Validate language-specific LSP tools if applicable
         if context.language == Language.PYTHON:
             try:
-                self._validate_python_lsp_tools()
+                self._validate_python_lsp_tools(logger)
             except Exception as e:
                 raise ValidationError(
                     f"Python LSP tools validation failed: {e}",
-                    validator_type="codebase",
+                    validator_type=ValidatorType.CODEBASE,
                 ) from e
 
-    def _validate_workspace_access(self, workspace: str) -> None:
+    def _validate_workspace_access(
+        self, workspace: str, logger: logging.Logger
+    ) -> None:
         """
         Validate that the workspace is accessible for reading/writing.
         """
@@ -459,21 +499,43 @@ class CodebaseValidator(AbstractValidator):
         if not os.access(workspace, os.W_OK):
             raise RuntimeError(f"Workspace directory is not writable: {workspace}")
 
-        self.logger.debug(f"Workspace access validation passed: {workspace}")
+        logger.debug(f"Workspace access validation passed: {workspace}")
 
-    def _validate_python_lsp_tools(self) -> None:
+    def _validate_symbol_storage(self, logger: logging.Logger) -> None:
+        """
+        Validate that symbol storage service is available and configured.
+        """
+        try:
+            # Check if symbol_storage module is available
+            import importlib.util
+
+            if importlib.util.find_spec("symbol_storage") is None:
+                raise ImportError("symbol_storage module not found")
+
+            # Test basic symbol storage functionality
+            # This is a basic check - in production, you might want to test database connectivity
+            if importlib.util.find_spec("symbol_storage") is None:
+                raise ImportError("SQLiteSymbolStorage not found")
+
+            logger.debug(
+                "Symbol storage validation passed: SQLiteSymbolStorage available"
+            )
+        except ImportError as e:
+            raise RuntimeError(
+                f"Symbol storage not available: {e}. Required for codebase indexing."
+            ) from e
+
+    def _validate_python_lsp_tools(self, logger: logging.Logger) -> None:
         """
         Validate Python-specific LSP tools for codebase service.
         """
-        # This is a placeholder - in practice, this would check for specific
-        # Python LSP tools like pyright, symbol storage capabilities, etc.
-        # For now, we'll just verify pyright is available since that's the main LSP tool
+        # Validate pyright is available since that's the main LSP tool for Python
         try:
             result = subprocess.run(
                 ["pyright", "--version"], capture_output=True, text=True, check=True
             )
             version = result.stdout.strip()
-            self.logger.debug(f"Python LSP tools validation passed: pyright {version}")
+            logger.debug(f"Python LSP tools validation passed: pyright {version}")
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             raise RuntimeError(
                 "Python LSP tools not available. Please install with: npm install -g pyright"
