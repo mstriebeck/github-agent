@@ -36,7 +36,7 @@ class MockValidator(AbstractValidator):
         self.validate_called = True
         self.last_context = context
         if self._should_fail:
-            raise ValidationError(self._error_message)
+            raise ValidationError(self._error_message, f"mock:{self._name}")
 
     @property
     def validator_name(self) -> str:
@@ -67,9 +67,9 @@ class TestValidationError:
 
     def test_validation_error_basic(self):
         """Test basic ValidationError creation."""
-        error = ValidationError("Test error")
+        error = ValidationError("Test error", "test:validator")
         assert str(error) == "Test error"
-        assert error.validator_type is None
+        assert error.validator_type == "test:validator"
 
     def test_validation_error_with_validator_type(self):
         """Test ValidationError with validator type."""

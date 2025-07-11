@@ -27,7 +27,7 @@ class ValidationContext:
 class ValidationError(Exception):
     """Exception raised when validation fails."""
 
-    def __init__(self, message: str, validator_type: str | None = None):
+    def __init__(self, message: str, validator_type: str):
         self.validator_type = validator_type
         super().__init__(message)
 
