@@ -14,7 +14,12 @@ from pathlib import Path
 from constants import Language
 from python_symbol_extractor import AbstractSymbolExtractor
 from symbol_storage import AbstractSymbolStorage
-from validation_system import AbstractValidator, ValidationContext, ValidationError, ValidatorType
+from validation_system import (
+    AbstractValidator,
+    ValidationContext,
+    ValidationError,
+    ValidatorType,
+)
 
 logger = logging.getLogger(__name__)
 

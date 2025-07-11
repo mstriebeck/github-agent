@@ -159,6 +159,3 @@ class ValidationRegistry:
     def get_registered_services(cls) -> list[str]:
         """Get list of services with registered validators."""
         return list(cls._service_validators.keys())
-
-
-

@@ -15,13 +15,18 @@ import subprocess
 
 from constants import Language
 from repository_manager import (
-    RepositoryConfig, 
-    RepositoryManager,
     MINIMUM_PYTHON_MAJOR,
     MINIMUM_PYTHON_MINOR,
     MINIMUM_PYTHON_VERSION,
+    RepositoryConfig,
+    RepositoryManager,
 )
-from validation_system import AbstractValidator, ValidationContext, ValidationError, ValidatorType
+from validation_system import (
+    AbstractValidator,
+    ValidationContext,
+    ValidationError,
+    ValidatorType,
+)
 
 # Dedicated Python repository manager using composition with RepositoryManager
 
@@ -249,7 +254,9 @@ class PythonValidator(AbstractValidator):
             self.logger.error(f"❌ Python path is not executable: {normalized_path}")
             raise ValueError(f"Python path is not executable: {normalized_path}")
 
-        self.logger.debug(f"Running version check for Python executable: {normalized_path}")
+        self.logger.debug(
+            f"Running version check for Python executable: {normalized_path}"
+        )
 
         # Verify it's actually a Python executable by running --version
         try:
@@ -309,7 +316,9 @@ class PythonValidator(AbstractValidator):
             )
 
         except subprocess.TimeoutExpired:
-            self.logger.error(f"❌ Python version check timed out for {normalized_path}")
+            self.logger.error(
+                f"❌ Python version check timed out for {normalized_path}"
+            )
             raise ValueError(
                 f"Python executable timed out during version check: {normalized_path}"
             ) from None

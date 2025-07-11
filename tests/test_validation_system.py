@@ -218,7 +218,10 @@ class TestPythonValidator:
         with (
             patch("python_repository_manager.os.path.exists", return_value=True),
             patch("python_repository_manager.os.access", return_value=True),
-            patch("python_repository_manager.os.path.abspath", return_value="/usr/bin/python3"),
+            patch(
+                "python_repository_manager.os.path.abspath",
+                return_value="/usr/bin/python3",
+            ),
         ):
             # Should not raise any exception
             validator.validate(context)
@@ -244,7 +247,8 @@ class TestPythonValidator:
         with (
             patch("python_repository_manager.os.path.exists", return_value=False),
             patch(
-                "python_repository_manager.os.path.abspath", return_value="/nonexistent/python"
+                "python_repository_manager.os.path.abspath",
+                return_value="/nonexistent/python",
             ),
         ):
             with pytest.raises(ValidationError) as exc_info:
@@ -288,7 +292,10 @@ class TestPythonValidator:
         with (
             patch("python_repository_manager.os.path.exists", return_value=True),
             patch("python_repository_manager.os.access", return_value=True),
-            patch("python_repository_manager.os.path.abspath", return_value="/usr/bin/python3"),
+            patch(
+                "python_repository_manager.os.path.abspath",
+                return_value="/usr/bin/python3",
+            ),
         ):
             with pytest.raises(ValidationError) as exc_info:
                 validator.validate(context)
@@ -327,7 +334,10 @@ class TestPythonValidator:
         with (
             patch("python_repository_manager.os.path.exists", return_value=True),
             patch("python_repository_manager.os.access", return_value=True),
-            patch("python_repository_manager.os.path.abspath", return_value="/usr/bin/python3"),
+            patch(
+                "python_repository_manager.os.path.abspath",
+                return_value="/usr/bin/python3",
+            ),
         ):
             with pytest.raises(ValidationError) as exc_info:
                 validator.validate(context)
@@ -581,7 +591,9 @@ class TestValidationIntegration:
     @patch("repository_indexer.subprocess.run")
     @patch("github_tools.subprocess.run")
     @patch("python_repository_manager.subprocess.run")
-    def test_full_validation_success(self, mock_python_run, mock_github_run, mock_codebase_run, clean_registry):
+    def test_full_validation_success(
+        self, mock_python_run, mock_github_run, mock_codebase_run, clean_registry
+    ):
         """Test full validation workflow with all validators."""
         # Register validators
         ValidationRegistry.register_language_validator(
@@ -598,23 +610,23 @@ class TestValidationIntegration:
         mock_config = Mock()
         mock_config.python_path = "/usr/bin/python3"
 
-        # Mock successful subprocess calls for Python version check  
+        # Mock successful subprocess calls for Python version check
         python_result = Mock()
         python_result.returncode = 0
         python_result.stdout = "Python 3.9.0"
         python_result.stderr = ""
-        
+
         pyright_result = Mock()
         pyright_result.returncode = 0
         pyright_result.stdout = "pyright 1.1.0"
         pyright_result.stderr = ""
-        
+
         mock_python_run.side_effect = [python_result, pyright_result]
-        
+
         mock_github_run.return_value.returncode = 0
         mock_github_run.return_value.stdout = ""
         mock_github_run.return_value.stderr = ""
-        
+
         mock_codebase_run.return_value.returncode = 0
         mock_codebase_run.return_value.stdout = "pyright 1.1.0"
         mock_codebase_run.return_value.stderr = ""
@@ -629,7 +641,10 @@ class TestValidationIntegration:
         with (
             patch("python_repository_manager.os.path.exists", return_value=True),
             patch("python_repository_manager.os.access", return_value=True),
-            patch("python_repository_manager.os.path.abspath", return_value="/usr/bin/python3"),
+            patch(
+                "python_repository_manager.os.path.abspath",
+                return_value="/usr/bin/python3",
+            ),
             patch("github_tools.os.path.exists", return_value=True),
             patch("repository_indexer.os.path.exists", return_value=True),
             patch("repository_indexer.os.path.isdir", return_value=True),

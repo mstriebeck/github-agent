@@ -24,7 +24,12 @@ from repository_manager import (
     RepositoryConfig,
     RepositoryManager,
 )
-from validation_system import AbstractValidator, ValidationContext, ValidationError, ValidatorType
+from validation_system import (
+    AbstractValidator,
+    ValidationContext,
+    ValidationError,
+    ValidatorType,
+)
 
 logger = logging.getLogger(__name__)
 
