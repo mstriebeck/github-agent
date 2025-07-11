@@ -30,11 +30,7 @@ class MockValidator(AbstractValidator):
         self._should_fail = should_fail
         self._error_message = error_message
         self.validate_called = False
-<<<<<<< HEAD
-        self.last_context = None
-=======
         self.last_context: ValidationContext | None = None
->>>>>>> 729dd2c (fix: Resolve linting and type errors in validation system)
 
     def validate(self, context: ValidationContext) -> None:
         self.validate_called = True
