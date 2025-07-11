@@ -443,13 +443,8 @@ build-backend = "setuptools.build_meta"
 name = "mcp-codebase-server"
 version = "0.1.0"
 description = "MCP server for codebase intelligence"
-dependencies = [
-    "mcp>=0.1.0",
-    "watchdog>=3.0.0",
-    "GitPython>=3.1.0",
-    "pyright>=1.1.0",
-    "cachetools>=5.0.0"
-]
+# Dependencies are handled through the requirements.txt file which is used to setup the local dev environment, run the server but also setup the github CI runners.
+dependencies = []
 
 [project.scripts]
 mcp-codebase = "mcp_codebase.cli:main"
