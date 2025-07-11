@@ -36,18 +36,18 @@ class TestValidationContext:
 
     def test_validation_context_creation(self):
         """Test creating ValidationContext with all required fields."""
-        mock_config = Mock()
+        repository_config = Mock()
         context = ValidationContext(
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=["github", "codebase"],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         assert context.workspace == "/test/workspace"
         assert context.language == Language.PYTHON
         assert context.services == ["github", "codebase"]
-        assert context.repository_config is mock_config
+        assert context.repository_config is repository_config
 
 
 class TestValidationError:
@@ -65,8 +65,9 @@ class TestAbstractValidator:
 
     def test_abstract_validator_cannot_be_instantiated(self):
         """Test that AbstractValidator cannot be instantiated directly."""
+        logger = logging.getLogger("test")
         with pytest.raises(TypeError):
-            AbstractValidator()  # type: ignore[abstract]
+            AbstractValidator(logger)  # type: ignore[abstract]
 
     def test_concrete_validator_must_implement_methods(self):
         """Test that concrete validators must implement required methods."""
@@ -74,8 +75,9 @@ class TestAbstractValidator:
         class IncompleteValidator(AbstractValidator):
             pass
 
+        logger = logging.getLogger("test")
         with pytest.raises(TypeError):
-            IncompleteValidator()  # type: ignore[abstract]
+            IncompleteValidator(logger)  # type: ignore[abstract]
 
 
 class TestValidationRegistry:
@@ -83,69 +85,76 @@ class TestValidationRegistry:
 
     def test_register_language_validator(self, clean_registry):
         """Test registering a language validator."""
-        mock_validator = Mock(spec=AbstractValidator)
-        ValidationRegistry.register_language_validator(Language.PYTHON, mock_validator)
+        python_validator = Mock(spec=AbstractValidator)
+        ValidationRegistry.register_language_validator(
+            Language.PYTHON, python_validator
+        )
 
         assert (
-            ValidationRegistry.get_language_validator(Language.PYTHON) is mock_validator
+            ValidationRegistry.get_language_validator(Language.PYTHON)
+            is python_validator
         )
         assert Language.PYTHON in ValidationRegistry.get_registered_languages()
 
     def test_register_service_validator(self, clean_registry):
         """Test registering a service validator."""
-        mock_validator = Mock(spec=AbstractValidator)
-        ValidationRegistry.register_service_validator("github", mock_validator)
+        github_validator = Mock(spec=AbstractValidator)
+        ValidationRegistry.register_service_validator("github", github_validator)
 
-        assert ValidationRegistry.get_service_validator("github") is mock_validator
+        assert ValidationRegistry.get_service_validator("github") is github_validator
         assert "github" in ValidationRegistry.get_registered_services()
 
     def test_validate_all_with_language_validator(self, clean_registry):
         """Test validate_all with language validator."""
-        mock_validator = Mock(spec=AbstractValidator)
-        mock_config = Mock()
-        ValidationRegistry.register_language_validator(Language.PYTHON, mock_validator)
+        python_validator = Mock(spec=AbstractValidator)
+        repository_config = Mock()
+        ValidationRegistry.register_language_validator(
+            Language.PYTHON, python_validator
+        )
 
         context = ValidationContext(
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=[],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         ValidationRegistry.validate_all(context)
-        mock_validator.validate.assert_called_once_with(context)
+        python_validator.validate.assert_called_once_with(context)
 
     def test_validate_all_with_service_validator(self, clean_registry):
         """Test validate_all with service validator."""
-        mock_validator = Mock(spec=AbstractValidator)
-        mock_config = Mock()
-        ValidationRegistry.register_service_validator("github", mock_validator)
+        github_validator = Mock(spec=AbstractValidator)
+        repository_config = Mock()
+        ValidationRegistry.register_service_validator("github", github_validator)
 
         context = ValidationContext(
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=["github"],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         ValidationRegistry.validate_all(context)
-        mock_validator.validate.assert_called_once_with(context)
+        github_validator.validate.assert_called_once_with(context)
 
     def test_validate_all_with_validation_error(self, clean_registry):
         """Test validate_all handles ValidationError correctly."""
-        mock_validator = Mock(spec=AbstractValidator)
-        mock_validator.validate.side_effect = ValidationError(
+        python_validator = Mock(spec=AbstractValidator)
+        python_validator.validate.side_effect = ValidationError(
             "Test error", ValidatorType.PYTHON
         )
-        mock_validator.validator_type = ValidatorType.PYTHON
-        mock_config = Mock()
-        ValidationRegistry.register_language_validator(Language.PYTHON, mock_validator)
+        python_validator.validator_type = ValidatorType.PYTHON
+        repository_config = Mock()
+        ValidationRegistry.register_language_validator(
+            Language.PYTHON, python_validator
+        )
 
         context = ValidationContext(
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=[],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         with pytest.raises(ValidationError) as exc_info:
@@ -156,9 +165,9 @@ class TestValidationRegistry:
 
     def test_clear_all_validators(self, clean_registry):
         """Test clearing all validators."""
-        mock_validator = Mock(spec=AbstractValidator)
-        ValidationRegistry.register_language_validator(Language.PYTHON, mock_validator)
-        ValidationRegistry.register_service_validator("github", mock_validator)
+        test_validator = Mock(spec=AbstractValidator)
+        ValidationRegistry.register_language_validator(Language.PYTHON, test_validator)
+        ValidationRegistry.register_service_validator("github", test_validator)
 
         ValidationRegistry.clear_all_validators()
 
@@ -179,14 +188,14 @@ class TestPythonValidator:
         """Test validation fails when python_path is missing."""
         logger = logging.getLogger("test")
         validator = PythonValidator(logger)
-        mock_config = Mock()
-        mock_config.python_path = None
+        repository_config = Mock()
+        repository_config.python_path = None
 
         context = ValidationContext(
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=[],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         with pytest.raises(ValidationError) as exc_info:
@@ -200,8 +209,8 @@ class TestPythonValidator:
         """Test successful Python path validation."""
         logger = logging.getLogger("test")
         validator = PythonValidator(logger)
-        mock_config = Mock()
-        mock_config.python_path = "/usr/bin/python3"
+        repository_config = Mock()
+        repository_config.python_path = "/usr/bin/python3"
 
         # Mock successful subprocess calls
         mock_run.return_value.returncode = 0
@@ -212,7 +221,7 @@ class TestPythonValidator:
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=[],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         with (
@@ -234,14 +243,14 @@ class TestPythonValidator:
         """Test validation fails for non-existent Python path."""
         logger = logging.getLogger("test")
         validator = PythonValidator(logger)
-        mock_config = Mock()
-        mock_config.python_path = "/nonexistent/python"
+        repository_config = Mock()
+        repository_config.python_path = "/nonexistent/python"
 
         context = ValidationContext(
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=[],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         with (
@@ -262,8 +271,8 @@ class TestPythonValidator:
         """Test validation fails for old Python version."""
         logger = logging.getLogger("test")
         validator = PythonValidator(logger)
-        mock_config = Mock()
-        mock_config.python_path = "/usr/bin/python3"
+        repository_config = Mock()
+        repository_config.python_path = "/usr/bin/python3"
 
         # Mock subprocess to return old Python version
         def mock_subprocess_run(cmd, **kwargs):
@@ -286,7 +295,7 @@ class TestPythonValidator:
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=[],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         with (
@@ -308,8 +317,8 @@ class TestPythonValidator:
         """Test validation fails when pyright is not available."""
         logger = logging.getLogger("test")
         validator = PythonValidator(logger)
-        mock_config = Mock()
-        mock_config.python_path = "/usr/bin/python3"
+        repository_config = Mock()
+        repository_config.python_path = "/usr/bin/python3"
 
         # Mock successful Python check but failed pyright check
         def mock_subprocess_run(cmd, **kwargs):
@@ -328,7 +337,7 @@ class TestPythonValidator:
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=[],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         with (
@@ -362,7 +371,7 @@ class TestGitHubValidator:
         """Test successful GitHub validation."""
         logger = logging.getLogger("test")
         validator = GitHubValidator(logger)
-        mock_config = Mock()
+        repository_config = Mock()
 
         # Mock successful git command
         mock_run.return_value.returncode = 0
@@ -372,7 +381,7 @@ class TestGitHubValidator:
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=["github"],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         with patch("github_tools.os.path.exists", return_value=True):
@@ -384,13 +393,13 @@ class TestGitHubValidator:
         """Test validation fails when GITHUB_TOKEN is missing."""
         logger = logging.getLogger("test")
         validator = GitHubValidator(logger)
-        mock_config = Mock()
+        repository_config = Mock()
 
         context = ValidationContext(
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=["github"],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         with pytest.raises(ValidationError) as exc_info:
@@ -404,13 +413,13 @@ class TestGitHubValidator:
         """Test validation fails for non-existent workspace."""
         logger = logging.getLogger("test")
         validator = GitHubValidator(logger)
-        mock_config = Mock()
+        repository_config = Mock()
 
         context = ValidationContext(
             workspace="/nonexistent/workspace",
             language=Language.PYTHON,
             services=["github"],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         with patch("github_tools.os.path.exists", return_value=False):
@@ -425,13 +434,13 @@ class TestGitHubValidator:
         """Test validation fails for non-git workspace."""
         logger = logging.getLogger("test")
         validator = GitHubValidator(logger)
-        mock_config = Mock()
+        repository_config = Mock()
 
         context = ValidationContext(
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=["github"],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         # Mock workspace exists but .git doesn't
@@ -461,7 +470,7 @@ class TestCodebaseValidator:
         """Test successful codebase validation for Python."""
         logger = logging.getLogger("test")
         validator = CodebaseValidator(logger)
-        mock_config = Mock()
+        repository_config = Mock()
 
         # Mock successful pyright check
         mock_run.return_value.returncode = 0
@@ -472,7 +481,7 @@ class TestCodebaseValidator:
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=["codebase"],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         with (
@@ -487,13 +496,13 @@ class TestCodebaseValidator:
         """Test validation fails for non-existent workspace."""
         logger = logging.getLogger("test")
         validator = CodebaseValidator(logger)
-        mock_config = Mock()
+        repository_config = Mock()
 
         context = ValidationContext(
             workspace="/nonexistent/workspace",
             language=Language.PYTHON,
             services=["codebase"],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         with patch("repository_indexer.os.path.exists", return_value=False):
@@ -507,13 +516,13 @@ class TestCodebaseValidator:
         """Test validation fails when workspace is not a directory."""
         logger = logging.getLogger("test")
         validator = CodebaseValidator(logger)
-        mock_config = Mock()
+        repository_config = Mock()
 
         context = ValidationContext(
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=["codebase"],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         with (
@@ -530,13 +539,13 @@ class TestCodebaseValidator:
         """Test validation fails when workspace is not readable."""
         logger = logging.getLogger("test")
         validator = CodebaseValidator(logger)
-        mock_config = Mock()
+        repository_config = Mock()
 
         context = ValidationContext(
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=["codebase"],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         def mock_access(path, mode):
@@ -560,7 +569,7 @@ class TestCodebaseValidator:
         """Test validation fails when Python LSP tools are not available."""
         logger = logging.getLogger("test")
         validator = CodebaseValidator(logger)
-        mock_config = Mock()
+        repository_config = Mock()
 
         # Mock pyright not available
         mock_run.side_effect = FileNotFoundError("pyright not found")
@@ -569,7 +578,7 @@ class TestCodebaseValidator:
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=["codebase"],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         with (
@@ -607,8 +616,8 @@ class TestValidationIntegration:
         )
 
         # Mock repository config
-        mock_config = Mock()
-        mock_config.python_path = "/usr/bin/python3"
+        repository_config = Mock()
+        repository_config.python_path = "/usr/bin/python3"
 
         # Mock successful subprocess calls for Python version check
         python_result = Mock()
@@ -635,7 +644,7 @@ class TestValidationIntegration:
             workspace="/test/workspace",
             language=Language.PYTHON,
             services=["github", "codebase"],
-            repository_config=mock_config,
+            repository_config=repository_config,
         )
 
         with (
