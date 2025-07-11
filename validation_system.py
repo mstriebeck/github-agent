@@ -52,10 +52,10 @@ class ValidationError(Exception):
 
 class AbstractValidator(abc.ABC):
     """Abstract base class for validators."""
-    
+
     def __init__(self, logger: logging.Logger):
         """Initialize validator with self.logger.
-        
+
         Args:
             logger: Logger instance for debugging and monitoring
         """
@@ -248,7 +248,9 @@ class PythonValidator(AbstractValidator):
             self.logger.error(f"❌ Python path is not executable: {normalized_path}")
             raise ValueError(f"Python path is not executable: {normalized_path}")
 
-        self.logger.debug(f"Running version check for Python executable: {normalized_path}")
+        self.logger.debug(
+            f"Running version check for Python executable: {normalized_path}"
+        )
 
         # Verify it's actually a Python executable by running --version
         try:
@@ -308,7 +310,9 @@ class PythonValidator(AbstractValidator):
             )
 
         except subprocess.TimeoutExpired:
-            self.logger.error(f"❌ Python version check timed out for {normalized_path}")
+            self.logger.error(
+                f"❌ Python version check timed out for {normalized_path}"
+            )
             raise ValueError(
                 f"Python executable timed out during version check: {normalized_path}"
             ) from None

@@ -585,8 +585,12 @@ class TestValidationIntegration:
         ValidationRegistry.register_language_validator(
             Language.PYTHON, PythonValidator(logging.getLogger("test"))
         )
-        ValidationRegistry.register_service_validator("github", GitHubValidator(logging.getLogger("test")))
-        ValidationRegistry.register_service_validator("codebase", CodebaseValidator(logging.getLogger("test")))
+        ValidationRegistry.register_service_validator(
+            "github", GitHubValidator(logging.getLogger("test"))
+        )
+        ValidationRegistry.register_service_validator(
+            "codebase", CodebaseValidator(logging.getLogger("test"))
+        )
 
         # Mock repository config
         mock_config = Mock()
@@ -616,11 +620,15 @@ class TestValidationIntegration:
     def test_validation_order_independence(self, clean_registry):
         """Test that validation order doesn't matter."""
         # Register validators in different order
-        ValidationRegistry.register_service_validator("codebase", CodebaseValidator(logging.getLogger("test")))
+        ValidationRegistry.register_service_validator(
+            "codebase", CodebaseValidator(logging.getLogger("test"))
+        )
         ValidationRegistry.register_language_validator(
             Language.PYTHON, PythonValidator(logging.getLogger("test"))
         )
-        ValidationRegistry.register_service_validator("github", GitHubValidator(logging.getLogger("test")))
+        ValidationRegistry.register_service_validator(
+            "github", GitHubValidator(logging.getLogger("test"))
+        )
 
         # Test that we can retrieve them
         assert ValidationRegistry.get_language_validator(Language.PYTHON) is not None
