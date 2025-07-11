@@ -8,10 +8,20 @@ language-specific and service-specific prerequisites for repositories.
 """
 
 import abc
+import logging
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, ClassVar
 
 from constants import Language
+
+
+class ValidatorType(Enum):
+    """Enum for validator types to avoid brittle string comparisons."""
+
+    PYTHON = "Python Language Validator"
+    GITHUB = "GitHub Integration Validator"
+    CODEBASE = "Codebase Index Validator"
 
 
 @dataclass
@@ -27,13 +37,21 @@ class ValidationContext:
 class ValidationError(Exception):
     """Exception raised when validation fails."""
 
-    def __init__(self, message: str, validator_type: str):
+    def __init__(self, message: str, validator_type: ValidatorType):
         self.validator_type = validator_type
         super().__init__(message)
 
 
 class AbstractValidator(abc.ABC):
     """Abstract base class for validators."""
+
+    def __init__(self, logger: logging.Logger):
+        """Initialize validator with self.logger.
+
+        Args:
+            logger: Logger instance for debugging and monitoring
+        """
+        self.logger = logger
 
     @abc.abstractmethod
     def validate(self, context: ValidationContext) -> None:
@@ -49,9 +67,14 @@ class AbstractValidator(abc.ABC):
         pass
 
     @property
-    @abc.abstractmethod
     def validator_name(self) -> str:
         """Return a human-readable name for this validator."""
+        return self.validator_type.value
+
+    @property
+    @abc.abstractmethod
+    def validator_type(self) -> ValidatorType:
+        """Return the validator type enum."""
         pass
 
 
@@ -105,7 +128,7 @@ class ValidationRegistry:
                 # Re-raise with validator type information
                 raise ValidationError(
                     f"Language validation failed for {context.language.value}: {e}",
-                    validator_type=f"language:{context.language.value}",
+                    validator_type=validator.validator_type,
                 ) from e
 
         # Validate service prerequisites
@@ -118,7 +141,7 @@ class ValidationRegistry:
                     # Re-raise with validator type information
                     raise ValidationError(
                         f"Service validation failed for {service}: {e}",
-                        validator_type=f"service:{service}",
+                        validator_type=validator.validator_type,
                     ) from e
 
     @classmethod
