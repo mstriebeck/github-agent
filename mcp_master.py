@@ -40,6 +40,7 @@ from shutdown_simple import (
 from startup_orchestrator import CodebaseStartupOrchestrator
 from symbol_storage import ProductionSymbolStorage, SQLiteSymbolStorage
 from system_utils import MicrosecondFormatter, log_system_state
+from validation_registry import initialize_validation_registry
 
 # Configure logging with enhanced microsecond precision
 
@@ -466,6 +467,9 @@ class MCPMaster:
 
         # Store loop reference for signal handler
         self.loop = asyncio.get_running_loop()
+
+        # Initialize validation registry
+        initialize_validation_registry(logger)
 
         # Initialize repository indexes
         await self.initialize_repository_indexes()
