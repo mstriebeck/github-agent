@@ -379,11 +379,6 @@ jobs:
               echo \"=== NEW RUN TIMESTAMP: \$(date -u +%Y-%m-%dT%H:%M:%S.%6NZ) ===\"
               start_script=\$(date +%s)
 
-              # Install additional dependencies from pyproject.toml if needed
-              echo 'Installing additional dependencies...'
-              pip install --upgrade pip
-              pip install -e .
-              
               # Dependencies are pre-installed in the Docker image via setup script
 
               # Run pytest with coverage on all tests and capture output for build logs
