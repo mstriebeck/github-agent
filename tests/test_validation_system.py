@@ -11,11 +11,11 @@ from unittest.mock import Mock, patch
 import pytest
 
 from constants import Language
+from github_tools import GitHubValidator
+from python_repository_manager import PythonValidator
+from repository_indexer import CodebaseValidator
 from validation_system import (
     AbstractValidator,
-    CodebaseValidator,
-    GitHubValidator,
-    PythonValidator,
     ValidationContext,
     ValidationError,
     ValidationRegistry,
@@ -195,7 +195,7 @@ class TestPythonValidator:
         assert "Python path not configured" in str(exc_info.value)
         assert exc_info.value.validator_type == ValidatorType.PYTHON
 
-    @patch("validation_system.subprocess.run")
+    @patch("python_repository_manager.subprocess.run")
     def test_validate_python_path_success(self, mock_run):
         """Test successful Python path validation."""
         logger = logging.getLogger("test")
@@ -216,9 +216,9 @@ class TestPythonValidator:
         )
 
         with (
-            patch("validation_system.os.path.exists", return_value=True),
-            patch("validation_system.os.access", return_value=True),
-            patch("validation_system.os.path.abspath", return_value="/usr/bin/python3"),
+            patch("python_repository_manager.os.path.exists", return_value=True),
+            patch("python_repository_manager.os.access", return_value=True),
+            patch("python_repository_manager.os.path.abspath", return_value="/usr/bin/python3"),
         ):
             # Should not raise any exception
             validator.validate(context)
@@ -226,7 +226,7 @@ class TestPythonValidator:
             # Verify both Python version and pyright checks were called
             assert mock_run.call_count == 2
 
-    @patch("validation_system.subprocess.run")
+    @patch("python_repository_manager.subprocess.run")
     def test_validate_python_path_nonexistent(self, mock_run):
         """Test validation fails for non-existent Python path."""
         logger = logging.getLogger("test")
@@ -242,9 +242,9 @@ class TestPythonValidator:
         )
 
         with (
-            patch("validation_system.os.path.exists", return_value=False),
+            patch("python_repository_manager.os.path.exists", return_value=False),
             patch(
-                "validation_system.os.path.abspath", return_value="/nonexistent/python"
+                "python_repository_manager.os.path.abspath", return_value="/nonexistent/python"
             ),
         ):
             with pytest.raises(ValidationError) as exc_info:
@@ -253,7 +253,7 @@ class TestPythonValidator:
             assert "Python path validation failed" in str(exc_info.value)
             assert exc_info.value.validator_type == ValidatorType.PYTHON
 
-    @patch("validation_system.subprocess.run")
+    @patch("python_repository_manager.subprocess.run")
     def test_validate_python_version_too_old(self, mock_run):
         """Test validation fails for old Python version."""
         logger = logging.getLogger("test")
@@ -286,9 +286,9 @@ class TestPythonValidator:
         )
 
         with (
-            patch("validation_system.os.path.exists", return_value=True),
-            patch("validation_system.os.access", return_value=True),
-            patch("validation_system.os.path.abspath", return_value="/usr/bin/python3"),
+            patch("python_repository_manager.os.path.exists", return_value=True),
+            patch("python_repository_manager.os.access", return_value=True),
+            patch("python_repository_manager.os.path.abspath", return_value="/usr/bin/python3"),
         ):
             with pytest.raises(ValidationError) as exc_info:
                 validator.validate(context)
@@ -296,7 +296,7 @@ class TestPythonValidator:
             assert "Python path validation failed" in str(exc_info.value)
             assert exc_info.value.validator_type == ValidatorType.PYTHON
 
-    @patch("validation_system.subprocess.run")
+    @patch("python_repository_manager.subprocess.run")
     def test_validate_pyright_not_available(self, mock_run):
         """Test validation fails when pyright is not available."""
         logger = logging.getLogger("test")
@@ -325,9 +325,9 @@ class TestPythonValidator:
         )
 
         with (
-            patch("validation_system.os.path.exists", return_value=True),
-            patch("validation_system.os.access", return_value=True),
-            patch("validation_system.os.path.abspath", return_value="/usr/bin/python3"),
+            patch("python_repository_manager.os.path.exists", return_value=True),
+            patch("python_repository_manager.os.access", return_value=True),
+            patch("python_repository_manager.os.path.abspath", return_value="/usr/bin/python3"),
         ):
             with pytest.raises(ValidationError) as exc_info:
                 validator.validate(context)
@@ -344,10 +344,10 @@ class TestGitHubValidator:
 
         logger = logging.getLogger("test")
         validator = GitHubValidator(logger)
-        assert validator.validator_name == "GitHub Service Validator"
+        assert validator.validator_name == "GitHub Integration Validator"
 
     @patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"})
-    @patch("validation_system.subprocess.run")
+    @patch("github_tools.subprocess.run")
     def test_validate_success(self, mock_run):
         """Test successful GitHub validation."""
         logger = logging.getLogger("test")
@@ -365,7 +365,7 @@ class TestGitHubValidator:
             repository_config=mock_config,
         )
 
-        with patch("validation_system.os.path.exists", return_value=True):
+        with patch("github_tools.os.path.exists", return_value=True):
             # Should not raise any exception
             validator.validate(context)
 
@@ -403,7 +403,7 @@ class TestGitHubValidator:
             repository_config=mock_config,
         )
 
-        with patch("validation_system.os.path.exists", return_value=False):
+        with patch("github_tools.os.path.exists", return_value=False):
             with pytest.raises(ValidationError) as exc_info:
                 validator.validate(context)
 
@@ -428,7 +428,7 @@ class TestGitHubValidator:
         def mock_exists(path):
             return "/test/workspace" in path and ".git" not in path
 
-        with patch("validation_system.os.path.exists", side_effect=mock_exists):
+        with patch("github_tools.os.path.exists", side_effect=mock_exists):
             with pytest.raises(ValidationError) as exc_info:
                 validator.validate(context)
 
@@ -444,9 +444,9 @@ class TestCodebaseValidator:
 
         logger = logging.getLogger("test")
         validator = CodebaseValidator(logger)
-        assert validator.validator_name == "Codebase Service Validator"
+        assert validator.validator_name == "Codebase Index Validator"
 
-    @patch("validation_system.subprocess.run")
+    @patch("repository_indexer.subprocess.run")
     def test_validate_python_success(self, mock_run):
         """Test successful codebase validation for Python."""
         logger = logging.getLogger("test")
@@ -466,9 +466,9 @@ class TestCodebaseValidator:
         )
 
         with (
-            patch("validation_system.os.path.exists", return_value=True),
-            patch("validation_system.os.path.isdir", return_value=True),
-            patch("validation_system.os.access", return_value=True),
+            patch("repository_indexer.os.path.exists", return_value=True),
+            patch("repository_indexer.os.path.isdir", return_value=True),
+            patch("repository_indexer.os.access", return_value=True),
         ):
             # Should not raise any exception
             validator.validate(context)
@@ -486,7 +486,7 @@ class TestCodebaseValidator:
             repository_config=mock_config,
         )
 
-        with patch("validation_system.os.path.exists", return_value=False):
+        with patch("repository_indexer.os.path.exists", return_value=False):
             with pytest.raises(ValidationError) as exc_info:
                 validator.validate(context)
 
@@ -507,8 +507,8 @@ class TestCodebaseValidator:
         )
 
         with (
-            patch("validation_system.os.path.exists", return_value=True),
-            patch("validation_system.os.path.isdir", return_value=False),
+            patch("repository_indexer.os.path.exists", return_value=True),
+            patch("repository_indexer.os.path.isdir", return_value=False),
         ):
             with pytest.raises(ValidationError) as exc_info:
                 validator.validate(context)
@@ -535,9 +535,9 @@ class TestCodebaseValidator:
             return True
 
         with (
-            patch("validation_system.os.path.exists", return_value=True),
-            patch("validation_system.os.path.isdir", return_value=True),
-            patch("validation_system.os.access", side_effect=mock_access),
+            patch("repository_indexer.os.path.exists", return_value=True),
+            patch("repository_indexer.os.path.isdir", return_value=True),
+            patch("repository_indexer.os.access", side_effect=mock_access),
         ):
             with pytest.raises(ValidationError) as exc_info:
                 validator.validate(context)
@@ -545,7 +545,7 @@ class TestCodebaseValidator:
             assert "Workspace access validation failed" in str(exc_info.value)
             assert exc_info.value.validator_type == ValidatorType.CODEBASE
 
-    @patch("validation_system.subprocess.run")
+    @patch("repository_indexer.subprocess.run")
     def test_validate_python_lsp_tools_not_available(self, mock_run):
         """Test validation fails when Python LSP tools are not available."""
         logger = logging.getLogger("test")
@@ -563,9 +563,9 @@ class TestCodebaseValidator:
         )
 
         with (
-            patch("validation_system.os.path.exists", return_value=True),
-            patch("validation_system.os.path.isdir", return_value=True),
-            patch("validation_system.os.access", return_value=True),
+            patch("repository_indexer.os.path.exists", return_value=True),
+            patch("repository_indexer.os.path.isdir", return_value=True),
+            patch("repository_indexer.os.access", return_value=True),
         ):
             with pytest.raises(ValidationError) as exc_info:
                 validator.validate(context)
@@ -578,8 +578,10 @@ class TestValidationIntegration:
     """Integration tests for the validation system."""
 
     @patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"})
-    @patch("validation_system.subprocess.run")
-    def test_full_validation_success(self, mock_run, clean_registry):
+    @patch("repository_indexer.subprocess.run")
+    @patch("github_tools.subprocess.run")
+    @patch("python_repository_manager.subprocess.run")
+    def test_full_validation_success(self, mock_python_run, mock_github_run, mock_codebase_run, clean_registry):
         """Test full validation workflow with all validators."""
         # Register validators
         ValidationRegistry.register_language_validator(
@@ -596,10 +598,26 @@ class TestValidationIntegration:
         mock_config = Mock()
         mock_config.python_path = "/usr/bin/python3"
 
-        # Mock successful subprocess calls
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = "Python 3.9.0"
-        mock_run.return_value.stderr = ""
+        # Mock successful subprocess calls for Python version check  
+        python_result = Mock()
+        python_result.returncode = 0
+        python_result.stdout = "Python 3.9.0"
+        python_result.stderr = ""
+        
+        pyright_result = Mock()
+        pyright_result.returncode = 0
+        pyright_result.stdout = "pyright 1.1.0"
+        pyright_result.stderr = ""
+        
+        mock_python_run.side_effect = [python_result, pyright_result]
+        
+        mock_github_run.return_value.returncode = 0
+        mock_github_run.return_value.stdout = ""
+        mock_github_run.return_value.stderr = ""
+        
+        mock_codebase_run.return_value.returncode = 0
+        mock_codebase_run.return_value.stdout = "pyright 1.1.0"
+        mock_codebase_run.return_value.stderr = ""
 
         context = ValidationContext(
             workspace="/test/workspace",
@@ -609,10 +627,13 @@ class TestValidationIntegration:
         )
 
         with (
-            patch("validation_system.os.path.exists", return_value=True),
-            patch("validation_system.os.access", return_value=True),
-            patch("validation_system.os.path.abspath", return_value="/usr/bin/python3"),
-            patch("validation_system.os.path.isdir", return_value=True),
+            patch("python_repository_manager.os.path.exists", return_value=True),
+            patch("python_repository_manager.os.access", return_value=True),
+            patch("python_repository_manager.os.path.abspath", return_value="/usr/bin/python3"),
+            patch("github_tools.os.path.exists", return_value=True),
+            patch("repository_indexer.os.path.exists", return_value=True),
+            patch("repository_indexer.os.path.isdir", return_value=True),
+            patch("repository_indexer.os.access", return_value=True),
         ):
             # Should not raise any exception
             ValidationRegistry.validate_all(context)
