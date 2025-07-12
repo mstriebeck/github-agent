@@ -158,7 +158,9 @@ class TestCodebaseTools:
     async def test_execute_tool_valid_tool(self, temp_git_repo):
         """Test execute_tool with a valid tool name"""
         result = await codebase_tools.execute_tool(
-            "codebase_health_check", repo_name="test-repo", repo_path=temp_git_repo
+            "codebase_health_check",
+            repo_name="test-repo",
+            repository_workspace=temp_git_repo,
         )
 
         data = json.loads(result)
@@ -532,7 +534,7 @@ class TestCodebaseTools:
             result = await codebase_tools.execute_tool(
                 "search_symbols",
                 repo_name="test-repo",
-                repo_path="/test/path",
+                repository_workspace="/test/path",
                 query="test",
                 symbol_kind="function",
                 limit=10,

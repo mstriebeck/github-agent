@@ -129,7 +129,7 @@ class TestMCPIntegration:
         config, test_port = test_config_with_dynamic_port
         repo_name = "integration-test-repo"
         repo_config = config["repositories"][repo_name]
-        repo_path = repo_config["path"]
+        repo_path = repo_config["workspace"]
 
         # ============================================================================
         # PHASE 1: Master Configuration Loading and Validation
@@ -269,7 +269,7 @@ class TestMCPIntegration:
 
         # Verify health check structure and content
         assert health_data["repo"] == repo_name
-        assert health_data["path"] == repo_path
+        assert health_data["workspace"] == repo_path
         assert health_data["status"] in [
             "healthy",
             "warning",
@@ -293,7 +293,7 @@ class TestMCPIntegration:
 
         # Test tool execution through codebase_tools.execute_tool
         tool_result = await codebase_tools.execute_tool(
-            "codebase_health_check", repo_name=repo_name, repo_path=repo_path
+            "codebase_health_check", repo_name=repo_name, repository_workspace=repo_path
         )
 
         # Verify tool execution succeeded

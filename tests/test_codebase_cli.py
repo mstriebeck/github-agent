@@ -207,7 +207,7 @@ class TestExecuteToolCommand:
             mock_execute.assert_called_once_with(
                 "search_symbols",
                 repo_name="my-repo",
-                repo_path="/path/to/repo",
+                repository_workspace="/path/to/repo",
                 query="test",
                 symbol_storage=mock_symbol_storage,
             )
@@ -228,7 +228,9 @@ class TestExecuteToolCommand:
 
             assert result == {"result": "success", "data": "test"}
             mock_execute.assert_called_once_with(
-                "git_get_current_branch", repo_name="my-repo", repo_path="/path/to/repo"
+                "git_get_current_branch",
+                repo_name="my-repo",
+                repository_workspace="/path/to/repo",
             )
 
     @pytest.mark.asyncio
