@@ -161,7 +161,7 @@ class GitHubAPIContext:
 
     def __init__(self, repo_config: RepositoryConfig):
         logger.debug(
-            f"GitHubAPIContext.__init__: Starting initialization for path: {repo_config.path}"
+            f"GitHubAPIContext.__init__: Starting initialization for workspace: {repo_config.workspace}"
         )
         self.repo_config = repo_config
 
@@ -179,22 +179,22 @@ class GitHubAPIContext:
         logger.debug("GitHubAPIContext.__init__: GitHub client created successfully")
 
         # Get repo name from git config - must succeed or initialization fails
-        if not self.repo_config.path:
-            raise RuntimeError("No repository path provided")
+        if not self.repo_config.workspace:
+            raise RuntimeError("No repository workspace provided")
 
         logger.debug(
-            f"GitHubAPIContext.__init__: Getting git remote from path: {self.repo_config.path}"
+            f"GitHubAPIContext.__init__: Getting git remote from workspace: {self.repo_config.workspace}"
         )
 
         # Get repo name from git remote
         cmd = ["git", "config", "--get", "remote.origin.url"]
         logger.debug(
-            f"GitHubAPIContext.__init__: Running command: {' '.join(cmd)} in {self.repo_config.path}"
+            f"GitHubAPIContext.__init__: Running command: {' '.join(cmd)} in {self.repo_config.workspace}"
         )
 
         try:
             output = (
-                subprocess.check_output(cmd, cwd=self.repo_config.path).decode().strip()
+                subprocess.check_output(cmd, cwd=self.repo_config.workspace).decode().strip()
             )
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to get git remote URL: {e}") from e
@@ -231,7 +231,7 @@ class GitHubAPIContext:
         """Get current branch name"""
         return (
             subprocess.check_output(
-                ["git", "branch", "--show-current"], cwd=self.repo_config.path
+                ["git", "branch", "--show-current"], cwd=self.repo_config.workspace
             )
             .decode()
             .strip()
@@ -241,7 +241,7 @@ class GitHubAPIContext:
         """Get current commit hash"""
         return (
             subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], cwd=self.repo_config.path
+                ["git", "rev-parse", "HEAD"], cwd=self.repo_config.workspace
             )
             .decode()
             .strip()
@@ -273,7 +273,7 @@ def get_github_context(repo_name: str) -> GitHubAPIContext:
         raise ValueError(f"Repository '{repo_name}' not found")
 
     logger.debug(
-        f"get_github_context: Found repo config for '{repo_name}', path: {repo_config.path}"
+        f"get_github_context: Found repo config for '{repo_name}', workspace: {repo_config.workspace}"
     )
     context = GitHubAPIContext(repo_config)
     logger.debug(
@@ -2044,7 +2044,7 @@ def validate(logger: logging.Logger, repositories: dict[str, Any]) -> None:
 
     # Validate each repository is a valid git repository
     for repo_name, repo_config in repositories.items():
-        workspace = getattr(repo_config, "path", None)
+        workspace = getattr(repo_config, "workspace", None)
         if not workspace:
             continue
 

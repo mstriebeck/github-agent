@@ -1,14 +1,14 @@
 {
   "repositories": {
     "github-agent": {
-      "path": "/Volumes/Code/github-agent",
+      "workspace": "/Volumes/Code/github-agent",
       "port": 8081,
       "description": "GitHub Agent repository",
       "language": "python",
       "python_path": "/Volumes/Code/github-agent/.venv/bin/python"
     },
     "news-reader": {
-      "path": "/Volumes/Code/news_reader",
+      "workspace": "/Volumes/Code/news_reader",
       "port": 8082,
       "description": "News Reader repository",
       "language": "swift",

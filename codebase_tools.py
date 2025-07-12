@@ -34,7 +34,7 @@ def validate(logger: logging.Logger, repositories: dict[str, Any]) -> None:
     # Validate language-specific tools for each repository
     for repo_name, repo_config in repositories.items():
         language = getattr(repo_config, "language", None)
-        workspace = getattr(repo_config, "path", None)
+        workspace = getattr(repo_config, "workspace", None)
 
         if not workspace:
             continue
@@ -119,7 +119,7 @@ def _validate_python_lsp_tools(logger: logging.Logger, repo_name: str) -> None:
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         raise RuntimeError(
             f"Python LSP tools not available for repository {repo_name}. "
-            "Please install with: npm install -g pyright"
+            "Please add it to requirements.txt"
         ) from e
     except subprocess.TimeoutExpired:
         raise RuntimeError(

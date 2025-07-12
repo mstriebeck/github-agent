@@ -80,7 +80,7 @@ class TestGitHubValidation(unittest.TestCase):
 
             # Mock repository config
             mock_repo_config = Mock()
-            mock_repo_config.path = temp_dir
+            mock_repo_config.workspace = temp_dir
             repositories = {"test_repo": mock_repo_config}
 
             with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}), patch(
@@ -95,9 +95,9 @@ class TestGitHubValidation(unittest.TestCase):
 
     def test_github_validate_with_invalid_repo(self):
         """Test GitHub validation with invalid repository."""
-        # Mock repository config with non-existent path
+        # Mock repository config with non-existent workspace
         mock_repo_config = Mock()
-        mock_repo_config.path = "/nonexistent/path"
+        mock_repo_config.workspace = "/nonexistent/path"
         repositories = {"test_repo": mock_repo_config}
 
         with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}), patch(
@@ -131,7 +131,7 @@ class TestCodebaseValidation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             # Mock repository config
             mock_repo_config = Mock()
-            mock_repo_config.path = temp_dir
+            mock_repo_config.workspace = temp_dir
             mock_repo_config.language = Language.PYTHON
             repositories = {"test_repo": mock_repo_config}
 
@@ -145,9 +145,9 @@ class TestCodebaseValidation(unittest.TestCase):
 
     def test_codebase_validate_workspace_not_accessible(self):
         """Test codebase validation with inaccessible workspace."""
-        # Mock repository config with non-existent path
+        # Mock repository config with non-existent workspace
         mock_repo_config = Mock()
-        mock_repo_config.path = "/nonexistent/path"
+        mock_repo_config.workspace = "/nonexistent/path"
         mock_repo_config.language = Language.PYTHON
         repositories = {"test_repo": mock_repo_config}
 
@@ -161,7 +161,7 @@ class TestCodebaseValidation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             # Mock repository config
             mock_repo_config = Mock()
-            mock_repo_config.path = temp_dir
+            mock_repo_config.workspace = temp_dir
             mock_repo_config.language = Language.PYTHON
             repositories = {"test_repo": mock_repo_config}
 
@@ -192,7 +192,7 @@ class TestValidationIntegration(unittest.TestCase):
 
             # Mock repository config
             mock_repo_config = Mock()
-            mock_repo_config.path = temp_dir
+            mock_repo_config.workspace = temp_dir
             mock_repo_config.language = Language.PYTHON
             repositories = {"test_repo": mock_repo_config}
 
@@ -218,7 +218,7 @@ class TestValidationIntegration(unittest.TestCase):
 
             # Mock repository config
             mock_repo_config = Mock()
-            mock_repo_config.path = temp_dir
+            mock_repo_config.workspace = temp_dir
             mock_repo_config.language = Language.PYTHON
             repositories = {"test_repo": mock_repo_config}
 

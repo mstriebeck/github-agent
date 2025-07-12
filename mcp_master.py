@@ -120,8 +120,8 @@ class WorkerProcess:
         return self.repository_config.port
 
     @property
-    def path(self) -> str:
-        return self.repository_config.path
+    def workspace(self) -> str:
+        return self.repository_config.workspace
 
     @property
     def description(self) -> str:
@@ -707,7 +707,7 @@ class MCPMaster:
             is_healthy = self.is_worker_healthy(worker)
             status["workers"][repo_name] = {
                 "port": worker.repository_config.port,
-                "path": worker.repository_config.path,
+                "workspace": worker.repository_config.workspace,
                 "description": worker.repository_config.description,
                 "running": is_healthy,
                 "pid": worker.process.pid if worker.process else None,
