@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
+from dotenv import load_dotenv
 
 import codebase_tools
 import github_tools
@@ -721,6 +722,13 @@ class MCPMaster:
 
 async def main() -> None:
     """Main entry point"""
+    # Load environment variables from .env file
+    from constants import DATA_DIR
+    dotenv_path = DATA_DIR / ".env"
+    if dotenv_path.exists():
+        logger.info(f"Loading .env from {dotenv_path}")
+        load_dotenv(dotenv_path)
+    
     config_path = "repositories.json"
 
     # Handle command line arguments
