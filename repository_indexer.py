@@ -14,7 +14,7 @@ from pathlib import Path
 from constants import Language
 from python_symbol_extractor import AbstractSymbolExtractor
 from symbol_storage import AbstractSymbolStorage
-from validation_system import (
+from validation_base import (
     AbstractValidator,
     ValidationContext,
     ValidationError,

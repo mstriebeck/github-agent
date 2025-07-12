@@ -21,7 +21,7 @@ from repository_manager import (
     RepositoryConfig,
     RepositoryManager,
 )
-from validation_system import (
+from validation_base import (
     AbstractValidator,
     ValidationContext,
     ValidationError,

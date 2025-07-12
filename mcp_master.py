@@ -40,7 +40,7 @@ from shutdown_simple import (
 from startup_orchestrator import CodebaseStartupOrchestrator
 from symbol_storage import ProductionSymbolStorage, SQLiteSymbolStorage
 from system_utils import MicrosecondFormatter, log_system_state
-from validation_registry import initialize_validation_registry
+from validation_registry import ValidationRegistry
 
 # Configure logging with enhanced microsecond precision
 
@@ -194,6 +194,7 @@ class MCPMaster:
         symbol_storage: SQLiteSymbolStorage,
         shutdown_coordinator: SimpleShutdownCoordinator,
         health_monitor: SimpleHealthMonitor,
+        validation_registry: ValidationRegistry,
     ):
         self.repository_manager = repository_manager
         self.workers = workers
@@ -201,6 +202,7 @@ class MCPMaster:
         self.symbol_storage = symbol_storage
         self.shutdown_coordinator = shutdown_coordinator
         self.health_monitor = health_monitor
+        self.validation_registry = validation_registry
         self.running = False
 
         # Use system-appropriate log location
@@ -469,7 +471,7 @@ class MCPMaster:
         self.loop = asyncio.get_running_loop()
 
         # Initialize validation registry
-        initialize_validation_registry(logger)
+        self.validation_registry.initialize_validators()
 
         # Initialize repository indexes
         await self.initialize_repository_indexes()
@@ -724,6 +726,9 @@ async def main() -> None:
                 health_monitor = SimpleHealthMonitor(logger)
                 health_monitor.start_monitoring()
 
+                # Create validation registry
+                validation_registry = ValidationRegistry(logger)
+
                 master = MCPMaster(
                     repository_manager=repository_manager,
                     workers=workers,
@@ -731,6 +736,7 @@ async def main() -> None:
                     symbol_storage=symbol_storage,
                     shutdown_coordinator=shutdown_coordinator,
                     health_monitor=health_monitor,
+                    validation_registry=validation_registry,
                 )
 
                 status = master.status()
@@ -777,6 +783,9 @@ async def main() -> None:
         health_monitor = SimpleHealthMonitor(logger)
         health_monitor.start_monitoring()
 
+        # Create validation registry
+        validation_registry = ValidationRegistry(logger)
+
         logger.info("✅ All components created successfully")
 
         master = MCPMaster(
@@ -786,6 +795,7 @@ async def main() -> None:
             symbol_storage=symbol_storage,
             shutdown_coordinator=shutdown_coordinator,
             health_monitor=health_monitor,
+            validation_registry=validation_registry,
         )
 
     except Exception as e:
