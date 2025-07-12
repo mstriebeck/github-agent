@@ -724,11 +724,12 @@ async def main() -> None:
     """Main entry point"""
     # Load environment variables from .env file
     from constants import DATA_DIR
+
     dotenv_path = DATA_DIR / ".env"
     if dotenv_path.exists():
         logger.info(f"Loading .env from {dotenv_path}")
         load_dotenv(dotenv_path)
-    
+
     config_path = "repositories.json"
 
     # Handle command line arguments

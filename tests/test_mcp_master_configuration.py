@@ -160,7 +160,7 @@ class TestRepositoryManagerConfigurationValidation(unittest.TestCase):
     def test_all_required_fields_must_be_present(self):
         """Test that all required fields must be present for successful validation"""
         # Test each field individually by removing it from otherwise valid config
-        required_fields = ["port", "path", "language", "python_path"]
+        required_fields = ["port", "workspace", "language", "python_path"]
 
         for field_to_remove in required_fields:
             with self.subTest(missing_field=field_to_remove):

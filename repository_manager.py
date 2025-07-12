@@ -749,7 +749,7 @@ class RepositoryManager(AbstractRepositoryManager):
             name = repo_info["name"]
             # Copy all provided fields, providing defaults for required fields if missing
             repo_config = {
-                "path": repo_info["path"],
+                "workspace": repo_info["workspace"],
                 "description": repo_info.get("description", ""),
                 "language": repo_info.get("language", "python"),
             }

@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
@@ -110,8 +111,18 @@ def _validate_python_lsp_tools(logger: logging.Logger, repo_name: str) -> None:
     """
     # Validate pyright is available since that's the main LSP tool for Python
     try:
+        # Try to use pyright from virtual environment first, then system PATH
+        pyright_cmd = "pyright"
+        if hasattr(sys, "real_prefix") or (
+            hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
+        ):
+            # We're in a virtual environment, try the venv path first
+            venv_pyright = Path(sys.prefix) / "bin" / "pyright"
+            if venv_pyright.exists():
+                pyright_cmd = str(venv_pyright)
+
         result = subprocess.run(
-            ["pyright", "--version"],
+            [pyright_cmd, "--version"],
             capture_output=True,
             text=True,
             check=True,
@@ -181,14 +192,12 @@ def get_tools(repo_name: str, repository_workspace: str) -> list[dict]:
     ]
 
 
-async def execute_codebase_health_check(
-    repo_name: str, repository_workspace: str
-) -> str:
+async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
     """Execute basic health check for the repository
 
     Args:
         repo_name: Repository name to check
-        repository_workspace: Path to the repository
+        repo_path: Path to the repository
 
     Returns:
         JSON string with health check results
@@ -196,7 +205,7 @@ async def execute_codebase_health_check(
     logger.info(f"Performing health check for repository: {repo_name}")
 
     try:
-        repository_workspace_obj = Path(repository_workspace)
+        repository_workspace_obj = Path(repo_path)
 
         health_status: dict[str, Any] = {
             "repo": repo_name,
@@ -297,7 +306,7 @@ async def execute_codebase_health_check(
         logger.exception(f"Error during health check for {repo_name}")
         error_response = {
             "repo": repo_name,
-            "workspace": repository_workspace,
+            "workspace": repo_path,
             "status": "error",
             "errors": [f"Health check failed: {e!s}"],
             "checks": {},
