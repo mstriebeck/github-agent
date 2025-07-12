@@ -66,7 +66,7 @@ class TestCodebaseTools:
         data = json.loads(result)
         assert data["repo"] == "test-repo"
         assert data["status"] == "unhealthy"
-        assert data["path"] == "/nonexistent/path"
+        assert data["workspace"] == "/nonexistent/path"
         assert len(data["errors"]) > 0
         assert "does not exist" in data["errors"][0]
         assert data["checks"]["path_exists"] is False
@@ -105,7 +105,7 @@ class TestCodebaseTools:
 
         data = json.loads(result)
         assert data["repo"] == "test-repo"
-        assert data["path"] == temp_git_repo
+        assert data["workspace"] == temp_git_repo
         assert data["status"] in [
             "healthy",
             "warning",
@@ -253,7 +253,7 @@ class TestCodebaseTools:
         data = json.loads(result)
 
         # Required top-level fields
-        required_fields = ["repo", "path", "status", "checks", "warnings", "errors"]
+        required_fields = ["repo", "workspace", "status", "checks", "warnings", "errors"]
         for field in required_fields:
             assert field in data
 
@@ -265,9 +265,9 @@ class TestCodebaseTools:
         assert isinstance(data["warnings"], list)
         assert isinstance(data["errors"], list)
 
-        # Repo and path should match input
+        # Repo and workspace should match input
         assert data["repo"] == "test-repo"
-        assert data["path"] == temp_git_repo
+        assert data["workspace"] == temp_git_repo
 
     @pytest.mark.asyncio
     async def test_health_check_error_handling_edge_cases(self, temp_git_repo):
