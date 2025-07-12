@@ -235,7 +235,9 @@ class CodebaseStartupOrchestrator(AbstractStartupOrchestrator):
 
             # Index the repository
             logger.debug(f"Indexing repository at {repo_config.workspace}")
-            result = self.indexer.index_repository(repo_config.workspace, repo_config.name)
+            result = self.indexer.index_repository(
+                repo_config.workspace, repo_config.name
+            )
 
             # Update status
             status.status = IndexingStatusEnum.COMPLETED

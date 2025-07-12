@@ -261,11 +261,11 @@ class TestRepositoryManager(unittest.TestCase):
         os.system(f"cd {repo_path} && git init --quiet")
         os.system(f"cd {repo_path} && git config user.email 'test@example.com'")
         os.system(f"cd {repo_path} && git config user.name 'Test User'")
-        
+
         # Add Python file for Python repositories
         if "repo1" in str(repo_path):  # repo1 is configured as Python
             os.system(f"cd {repo_path} && echo 'print(\"hello\")' > test.py")
-        
+
         os.system(
             f"cd {repo_path} && touch README.md && git add . && git commit -m 'Initial commit' --quiet"
         )

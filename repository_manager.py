@@ -89,7 +89,9 @@ class RepositoryConfig:
 
         # Require absolute paths
         if not os.path.isabs(self.workspace):
-            raise ValueError(f"Repository workspace must be absolute, got: {self.workspace}")
+            raise ValueError(
+                f"Repository workspace must be absolute, got: {self.workspace}"
+            )
 
         # Expand user home if needed and normalize
         self.workspace = os.path.abspath(os.path.expanduser(self.workspace))
@@ -139,7 +141,9 @@ class RepositoryConfig:
 
         # Extract GitHub information
         logger.debug(f"Extracting GitHub information for repository '{name}'")
-        github_owner, github_repo = cls._extract_github_info(normalized_workspace, logger)
+        github_owner, github_repo = cls._extract_github_info(
+            normalized_workspace, logger
+        )
 
         # Validate and get Python path
         if python_path is None:

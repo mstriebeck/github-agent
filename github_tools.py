@@ -194,7 +194,9 @@ class GitHubAPIContext:
 
         try:
             output = (
-                subprocess.check_output(cmd, cwd=self.repo_config.workspace).decode().strip()
+                subprocess.check_output(cmd, cwd=self.repo_config.workspace)
+                .decode()
+                .strip()
             )
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to get git remote URL: {e}") from e
