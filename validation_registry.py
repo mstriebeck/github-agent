@@ -15,7 +15,6 @@ from validation_base import (
     AbstractValidator,
     ValidationContext,
     ValidationError,
-    ValidatorType,
 )
 
 
@@ -24,7 +23,7 @@ class ValidationRegistry:
 
     def __init__(self, logger: logging.Logger):
         """Initialize the validation registry.
-        
+
         Args:
             logger: Logger instance for debugging and monitoring
         """
@@ -103,7 +102,7 @@ class ValidationRegistry:
     def initialize_validators(self) -> None:
         """
         Initialize the validation registry with all available validators.
-        
+
         This method registers all language and service validators that are available
         in the system.
         """
@@ -111,46 +110,56 @@ class ValidationRegistry:
         from github_tools import GitHubValidator
         from python_repository_manager import PythonValidator
         from repository_indexer import CodebaseValidator
-        
+
         self.logger.info("Initializing validation registry...")
-        
+
         # Clear any existing validators (primarily for testing)
         self.clear_all_validators()
-        
+
         # Register language validators
         python_validator = PythonValidator(self.logger)
         self.register_language_validator(Language.PYTHON, python_validator)
-        self.logger.debug(f"Registered Python validator: {python_validator.validator_name}")
-        
+        self.logger.debug(
+            f"Registered Python validator: {python_validator.validator_name}"
+        )
+
         # Register service validators
         github_validator = GitHubValidator(self.logger)
         self.register_service_validator("github", github_validator)
-        self.logger.debug(f"Registered GitHub validator: {github_validator.validator_name}")
-        
+        self.logger.debug(
+            f"Registered GitHub validator: {github_validator.validator_name}"
+        )
+
         codebase_validator = CodebaseValidator(self.logger)
         self.register_service_validator("codebase", codebase_validator)
-        self.logger.debug(f"Registered Codebase validator: {codebase_validator.validator_name}")
-        
+        self.logger.debug(
+            f"Registered Codebase validator: {codebase_validator.validator_name}"
+        )
+
         # Log summary
         registered_languages = self.get_registered_languages()
         registered_services = self.get_registered_services()
-        
-        self.logger.info(f"Validation registry initialized with {len(registered_languages)} language validators and {len(registered_services)} service validators")
-        self.logger.info(f"Registered languages: {[lang.value for lang in registered_languages]}")
+
+        self.logger.info(
+            f"Validation registry initialized with {len(registered_languages)} language validators and {len(registered_services)} service validators"
+        )
+        self.logger.info(
+            f"Registered languages: {[lang.value for lang in registered_languages]}"
+        )
         self.logger.info(f"Registered services: {registered_services}")
 
     def get_status(self) -> dict[str, Any]:
         """
         Get the current status of the validation registry.
-        
+
         Returns:
             Dictionary containing the current state of the validation registry
         """
         registered_languages = self.get_registered_languages()
         registered_services = self.get_registered_services()
-        
+
         return {
             "languages": [lang.value for lang in registered_languages],
             "services": registered_services,
-            "total_validators": len(registered_languages) + len(registered_services)
+            "total_validators": len(registered_languages) + len(registered_services),
         }

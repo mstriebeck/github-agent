@@ -8,10 +8,3 @@ The main ValidationRegistry is now in validation_registry.py to avoid circular i
 """
 
 # Re-export classes to maintain compatibility
-from validation_base import (
-    AbstractValidator,
-    ValidationContext,
-    ValidationError,
-    ValidatorType,
-)
-from validation_registry import ValidationRegistry
