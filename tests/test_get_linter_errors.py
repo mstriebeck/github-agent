@@ -61,7 +61,7 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
         # Mock repository configurations
         self.python_repo_config = self._create_test_config(
             name="python-repo",
-            path="/path/to/python/repo",
+            workspace="/path/to/python/repo",
             description="Python repository",
             language=Language.PYTHON,
             port=8081,
@@ -70,7 +70,7 @@ tests/test_resource_manager.py:391: error: Cannot assign to a method  [method-as
 
         self.swift_repo_config = self._create_test_config(
             name="swift-repo",
-            path="/path/to/swift/repo",
+            workspace="/path/to/swift/repo",
             description="Swift repository",
             language=Language.SWIFT,
             port=8082,

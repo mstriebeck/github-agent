@@ -196,7 +196,7 @@ class TestCodebaseStartupOrchestrator:
             # Create Swift repository config
             swift_repo = RepositoryConfig(
                 name="swift-repo",
-                path="/path/to/swift",
+                workspace="/path/to/swift",
                 description="Swift repository",
                 language=Language.SWIFT,
                 port=8080,
@@ -234,7 +234,7 @@ class TestCodebaseStartupOrchestrator:
             # Create Python repository config
             python_repo = RepositoryConfig(
                 name="python-repo",
-                path=str(repo_dir),
+                workspace=str(repo_dir),
                 description="Python repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -270,7 +270,7 @@ class TestCodebaseStartupOrchestrator:
             # Create Python repository config with invalid path
             python_repo = RepositoryConfig(
                 name="python-repo",
-                path="/nonexistent/path",
+                workspace="/nonexistent/path",
                 description="Python repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -313,7 +313,7 @@ class TestCodebaseStartupOrchestrator:
             # Create mixed repository configs
             python_repo = RepositoryConfig(
                 name="python-repo",
-                path=str(repo_dir),
+                workspace=str(repo_dir),
                 description="Python repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -324,7 +324,7 @@ class TestCodebaseStartupOrchestrator:
 
             swift_repo = RepositoryConfig(
                 name="swift-repo",
-                path="/path/to/swift",
+                workspace="/path/to/swift",
                 description="Swift repository",
                 language=Language.SWIFT,
                 port=8081,
@@ -391,7 +391,7 @@ class TestCodebaseStartupOrchestrator:
             # Create repository config and status
             repo_config = RepositoryConfig(
                 name="test-repo",
-                path=str(repo_dir),
+                workspace=str(repo_dir),
                 description="Test repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -431,7 +431,7 @@ class TestCodebaseStartupOrchestrator:
             # Create repository config with invalid path
             repo_config = RepositoryConfig(
                 name="test-repo",
-                path="/nonexistent/path",
+                workspace="/nonexistent/path",
                 description="Test repository",
                 language=Language.PYTHON,
                 port=8080,

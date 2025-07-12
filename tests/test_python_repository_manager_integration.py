@@ -318,13 +318,13 @@ class TestPythonRepositoryManagerIntegration:
                 # Check repo1
                 assert repo1_config is not None
                 assert repo1_config.name == "repo1"
-                assert repo1_config.path == repo1_dir
+                assert repo1_config.workspace == repo1_dir
                 assert repo1_config.description == "Test repository 1"
 
                 # Check repo2
                 assert repo2_config is not None
                 assert repo2_config.name == "repo2"
-                assert repo2_config.path == repo2_dir
+                assert repo2_config.workspace == repo2_dir
                 assert repo2_config.description == "Test repository 2"
 
                 # Check non-existent
