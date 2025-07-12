@@ -192,7 +192,9 @@ def get_tools(repo_name: str, repository_workspace: str) -> list[dict]:
     ]
 
 
-async def execute_codebase_health_check(repo_name: str, repository_workspace: str) -> str:
+async def execute_codebase_health_check(
+    repo_name: str, repository_workspace: str
+) -> str:
     """Execute basic health check for the repository
 
     Args:

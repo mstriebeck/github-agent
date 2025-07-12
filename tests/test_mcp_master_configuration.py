@@ -32,6 +32,8 @@ class TestRepositoryManagerConfigurationValidation(unittest.TestCase):
         subprocess.run(
             ["git", "init"], cwd=self.test_repo_path, check=True, capture_output=True
         )
+        # Create a Python file to satisfy repository validation
+        (self.test_repo_path / "main.py").write_text('print("Hello World")')
 
         # Valid complete configuration for reference
         # Use sys.executable to get a valid Python path that works in any environment

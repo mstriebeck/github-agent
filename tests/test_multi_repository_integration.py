@@ -69,6 +69,8 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
         os.system(f"cd {repo_path} && git init --quiet")
         os.system(f"cd {repo_path} && git config user.email 'test@example.com'")
         os.system(f"cd {repo_path} && git config user.name 'Test User'")
+        # Create a Python file to satisfy repository validation
+        os.system(f"cd {repo_path} && echo 'print(\"Hello World\")' > main.py")
         os.system(
             f"cd {repo_path} && touch README.md && git add . && git commit -m 'Initial commit' --quiet"
         )
