@@ -132,12 +132,12 @@ def _validate_python_lsp_tools(logger: logging.Logger, repo_name: str) -> None:
         ) from None
 
 
-def get_tools(repo_name: str, repo_path: str) -> list[dict]:
+def get_tools(repo_name: str, repository_workspace: str) -> list[dict]:
     """Get codebase tool definitions for MCP registration
 
     Args:
         repo_name: Repository name for display purposes
-        repo_path: Repository path for tool descriptions
+        repository_workspace: Repository path for tool descriptions
 
     Returns:
         List of tool definitions in MCP format
@@ -145,7 +145,7 @@ def get_tools(repo_name: str, repo_path: str) -> list[dict]:
     return [
         {
             "name": "codebase_health_check",
-            "description": f"Perform a basic health check of the repository at {repo_path}. Validates that the path exists, is accessible, and is a valid Git repository with readable metadata.",
+            "description": f"Perform a basic health check of the repository at {repository_workspace}. Validates that the path exists, is accessible, and is a valid Git repository with readable metadata.",
             "inputSchema": {
                 "type": "object",
                 "properties": {},
@@ -181,12 +181,12 @@ def get_tools(repo_name: str, repo_path: str) -> list[dict]:
     ]
 
 
-async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
+async def execute_codebase_health_check(repo_name: str, repository_workspace: str) -> str:
     """Execute basic health check for the repository
 
     Args:
         repo_name: Repository name to check
-        repo_path: Path to the repository
+        repository_workspace: Path to the repository
 
     Returns:
         JSON string with health check results
@@ -194,11 +194,11 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
     logger.info(f"Performing health check for repository: {repo_name}")
 
     try:
-        repo_path_obj = Path(repo_path)
+        repository_workspace_obj = Path(repository_workspace)
 
         health_status: dict[str, Any] = {
             "repo": repo_name,
-            "workspace": str(repo_path_obj),
+            "workspace": str(repository_workspace_obj),
             "status": "healthy",
             "checks": {},
             "warnings": [],
@@ -206,20 +206,20 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
         }
 
         # Check 1: Repository exists and is accessible
-        if not repo_path_obj.exists():
+        if not repository_workspace_obj.exists():
             health_status["status"] = "unhealthy"
             health_status["checks"]["path_exists"] = False
             health_status["errors"].append(
-                f"Repository path does not exist: {repo_path_obj}"
+                f"Repository path does not exist: {repository_workspace_obj}"
             )
             return json.dumps(health_status)
 
-        if not repo_path_obj.is_dir():
+        if not repository_workspace_obj.is_dir():
             health_status["status"] = "unhealthy"
             health_status["checks"]["path_exists"] = True
             health_status["checks"]["is_directory"] = False
             health_status["errors"].append(
-                f"Repository path is not a directory: {repo_path_obj}"
+                f"Repository path is not a directory: {repository_workspace_obj}"
             )
             return json.dumps(health_status)
 
@@ -227,7 +227,7 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
         health_status["checks"]["is_directory"] = True
 
         # Check 2: Git repository validation
-        git_dir = repo_path_obj / ".git"
+        git_dir = repository_workspace_obj / ".git"
         if not git_dir.exists():
             health_status["status"] = "unhealthy"
             health_status["checks"]["is_git_repo"] = False
@@ -243,7 +243,7 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
             # Get current branch
             result = subprocess.run(
                 ["git", "branch", "--show-current"],
-                cwd=repo_path_obj,
+                cwd=repository_workspace_obj,
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -259,7 +259,7 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
             # Get remote origin URL
             result = subprocess.run(
                 ["git", "config", "--get", "remote.origin.url"],
-                cwd=repo_path_obj,
+                cwd=repository_workspace_obj,
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -295,7 +295,7 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
         logger.exception(f"Error during health check for {repo_name}")
         error_response = {
             "repo": repo_name,
-            "workspace": repo_path,
+            "workspace": repository_workspace,
             "status": "error",
             "errors": [f"Health check failed: {e!s}"],
             "checks": {},
@@ -306,7 +306,7 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
 
 async def execute_search_symbols(
     repo_name: str,
-    repo_path: str,
+    repository_workspace: str,
     query: str,
     symbol_storage: AbstractSymbolStorage,
     symbol_kind: str | None = None,
@@ -316,7 +316,7 @@ async def execute_search_symbols(
 
     Args:
         repo_name: Repository name to search
-        repo_path: Path to the repository
+        repository_workspace: Path to the repository
         query: Search query for symbol names
         symbol_storage: Symbol storage instance for search operations
         symbol_kind: Optional filter by symbol kind (function, class, variable)

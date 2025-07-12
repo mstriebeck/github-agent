@@ -155,7 +155,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
 
         repo_config_a = self._create_test_config(
             name="project-a",
-            path=str(self.repo1_path),
+            workspace=str(self.repo1_path),
             description="Project A",
             language=Language.SWIFT,
             port=8081,
@@ -164,7 +164,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
 
         repo_config_b = self._create_test_config(
             name="project-b",
-            path=str(self.repo2_path),
+            workspace=str(self.repo2_path),
             description="Project B",
             language=Language.SWIFT,
             port=8082,
