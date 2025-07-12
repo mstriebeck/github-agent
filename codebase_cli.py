@@ -158,11 +158,17 @@ async def execute_tool_command(
             if tool_name == "search_symbols":
                 tool_args["symbol_storage"] = symbol_storage
             result = await codebase_tools.execute_tool(
-                tool_name, repo_name=repo_name, repo_path=repo_workspace, **tool_args
+                tool_name,
+                repo_name=repo_name,
+                repository_workspace=repo_workspace,
+                **tool_args,
             )
         elif tool_name in github_tools.TOOL_HANDLERS:
             result = await github_tools.execute_tool(
-                tool_name, repo_name=repo_name, repo_path=repo_workspace, **tool_args
+                tool_name,
+                repo_name=repo_name,
+                repository_workspace=repo_workspace,
+                **tool_args,
             )
         else:
             return {

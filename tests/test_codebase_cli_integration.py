@@ -118,7 +118,7 @@ class TestCodebaseCLIIntegration:
             assert "status" in result
             assert "checks" in result
             assert result["repo"] == "test-repo"
-            assert result["path"] == str(repo_path)
+            assert result["workspace"] == str(repo_path)
 
             # Verify checks passed
             checks = result["checks"]
