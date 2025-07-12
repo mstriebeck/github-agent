@@ -5,24 +5,150 @@ Codebase Tools for MCP Server
 Contains codebase-related tool implementations for repository analysis and management.
 """
 
+import importlib.util
 import json
 import logging
+import os
 import subprocess
+import sys
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
+from constants import Language
 from symbol_storage import AbstractSymbolStorage
 
 logger = logging.getLogger(__name__)
 
 
-def get_tools(repo_name: str, repo_path: str) -> list[dict]:
+def validate(logger: logging.Logger, repositories: dict[str, Any]) -> None:
+    """
+    Validate codebase service prerequisites.
+
+    Args:
+        logger: Logger instance for debugging and monitoring
+        repositories: Dictionary of repository configurations
+
+    Raises:
+        RuntimeError: If codebase prerequisites are not met
+    """
+    logger.info("Validating codebase service prerequisites...")
+
+    # Validate symbol storage service
+    _validate_symbol_storage(logger)
+
+    # Validate language-specific tools for each repository
+    for repo_name, repo_config in repositories.items():
+        language = getattr(repo_config, "language", None)
+        workspace = getattr(repo_config, "workspace", None)
+
+        if not workspace:
+            continue
+
+        # Validate workspace accessibility
+        _validate_workspace_access(logger, workspace, repo_name)
+
+        # Validate language-specific LSP tools
+        if language == Language.PYTHON:
+            _validate_python_lsp_tools(logger, repo_name)
+
+    logger.info(
+        f"✅ Codebase service validation passed for {len(repositories)} repositories"
+    )
+
+
+def _validate_workspace_access(
+    logger: logging.Logger, workspace: str, repo_name: str
+) -> None:
+    """
+    Validate that the workspace is accessible for reading/writing.
+    """
+    if not os.path.exists(workspace):
+        raise RuntimeError(
+            f"Repository workspace does not exist: {workspace} (repo: {repo_name})"
+        )
+
+    if not os.path.isdir(workspace):
+        raise RuntimeError(
+            f"Repository workspace is not a directory: {workspace} (repo: {repo_name})"
+        )
+
+    if not os.access(workspace, os.R_OK):
+        raise RuntimeError(
+            f"Repository workspace is not readable: {workspace} (repo: {repo_name})"
+        )
+
+    if not os.access(workspace, os.W_OK):
+        raise RuntimeError(
+            f"Repository workspace is not writable: {workspace} (repo: {repo_name})"
+        )
+
+    logger.debug(f"Workspace access validation passed: {workspace} (repo: {repo_name})")
+
+
+def _validate_symbol_storage(logger: logging.Logger) -> None:
+    """
+    Validate that symbol storage service is available and configured.
+    """
+    try:
+        # Check if symbol_storage module is available
+        if importlib.util.find_spec("symbol_storage") is None:
+            raise ImportError("symbol_storage module not found")
+
+        # Try to import the main storage class
+        import symbol_storage  # noqa: F401
+
+        logger.debug("Symbol storage validation passed: SQLiteSymbolStorage available")
+    except ImportError as e:
+        raise RuntimeError(
+            f"Symbol storage not available: {e}. Required for codebase indexing."
+        ) from e
+
+
+def _validate_python_lsp_tools(logger: logging.Logger, repo_name: str) -> None:
+    """
+    Validate Python-specific LSP tools for codebase service.
+    """
+    # Validate pyright is available since that's the main LSP tool for Python
+    try:
+        # Try to use pyright from virtual environment first, then system PATH
+        pyright_cmd = "pyright"
+        if hasattr(sys, "real_prefix") or (
+            hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
+        ):
+            # We're in a virtual environment, try the venv path first
+            venv_pyright = Path(sys.prefix) / "bin" / "pyright"
+            if venv_pyright.exists():
+                pyright_cmd = str(venv_pyright)
+
+        result = subprocess.run(
+            [pyright_cmd, "--version"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+        version = result.stdout.strip()
+        logger.debug(
+            f"Python LSP tools validation passed for {repo_name}: pyright {version}"
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        raise RuntimeError(
+            f"Python LSP tools not available for repository {repo_name}. "
+            "Please add it to requirements.txt"
+        ) from e
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            f"Pyright command timed out for repository {repo_name}"
+        ) from None
+
+
+def get_tools(repo_name: str, repository_workspace: str) -> list[dict]:
     """Get codebase tool definitions for MCP registration
 
     Args:
         repo_name: Repository name for display purposes
-        repo_path: Repository path for tool descriptions
+        repository_workspace: Repository path for tool descriptions
 
     Returns:
         List of tool definitions in MCP format
@@ -30,7 +156,7 @@ def get_tools(repo_name: str, repo_path: str) -> list[dict]:
     return [
         {
             "name": "codebase_health_check",
-            "description": f"Perform a basic health check of the repository at {repo_path}. Validates that the path exists, is accessible, and is a valid Git repository with readable metadata.",
+            "description": f"Perform a basic health check of the repository at {repository_workspace}. Validates that the path exists, is accessible, and is a valid Git repository with readable metadata.",
             "inputSchema": {
                 "type": "object",
                 "properties": {},
@@ -66,12 +192,14 @@ def get_tools(repo_name: str, repo_path: str) -> list[dict]:
     ]
 
 
-async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
+async def execute_codebase_health_check(
+    repo_name: str, repository_workspace: str
+) -> str:
     """Execute basic health check for the repository
 
     Args:
         repo_name: Repository name to check
-        repo_path: Path to the repository
+        repository_workspace: Path to the repository
 
     Returns:
         JSON string with health check results
@@ -79,11 +207,11 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
     logger.info(f"Performing health check for repository: {repo_name}")
 
     try:
-        repo_path_obj = Path(repo_path)
+        repository_workspace_obj = Path(repository_workspace)
 
         health_status: dict[str, Any] = {
             "repo": repo_name,
-            "path": str(repo_path_obj),
+            "workspace": str(repository_workspace_obj),
             "status": "healthy",
             "checks": {},
             "warnings": [],
@@ -91,20 +219,20 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
         }
 
         # Check 1: Repository exists and is accessible
-        if not repo_path_obj.exists():
+        if not repository_workspace_obj.exists():
             health_status["status"] = "unhealthy"
             health_status["checks"]["path_exists"] = False
             health_status["errors"].append(
-                f"Repository path does not exist: {repo_path_obj}"
+                f"Repository path does not exist: {repository_workspace_obj}"
             )
             return json.dumps(health_status)
 
-        if not repo_path_obj.is_dir():
+        if not repository_workspace_obj.is_dir():
             health_status["status"] = "unhealthy"
             health_status["checks"]["path_exists"] = True
             health_status["checks"]["is_directory"] = False
             health_status["errors"].append(
-                f"Repository path is not a directory: {repo_path_obj}"
+                f"Repository path is not a directory: {repository_workspace_obj}"
             )
             return json.dumps(health_status)
 
@@ -112,7 +240,7 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
         health_status["checks"]["is_directory"] = True
 
         # Check 2: Git repository validation
-        git_dir = repo_path_obj / ".git"
+        git_dir = repository_workspace_obj / ".git"
         if not git_dir.exists():
             health_status["status"] = "unhealthy"
             health_status["checks"]["is_git_repo"] = False
@@ -128,7 +256,7 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
             # Get current branch
             result = subprocess.run(
                 ["git", "branch", "--show-current"],
-                cwd=repo_path_obj,
+                cwd=repository_workspace_obj,
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -144,7 +272,7 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
             # Get remote origin URL
             result = subprocess.run(
                 ["git", "config", "--get", "remote.origin.url"],
-                cwd=repo_path_obj,
+                cwd=repository_workspace_obj,
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -180,7 +308,7 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
         logger.exception(f"Error during health check for {repo_name}")
         error_response = {
             "repo": repo_name,
-            "path": repo_path,
+            "workspace": repository_workspace,
             "status": "error",
             "errors": [f"Health check failed: {e!s}"],
             "checks": {},
@@ -191,7 +319,7 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
 
 async def execute_search_symbols(
     repo_name: str,
-    repo_path: str,
+    repository_workspace: str,
     query: str,
     symbol_storage: AbstractSymbolStorage,
     symbol_kind: str | None = None,
@@ -201,7 +329,7 @@ async def execute_search_symbols(
 
     Args:
         repo_name: Repository name to search
-        repo_path: Path to the repository
+        repository_workspace: Path to the repository
         query: Search query for symbol names
         symbol_storage: Symbol storage instance for search operations
         symbol_kind: Optional filter by symbol kind (function, class, variable)

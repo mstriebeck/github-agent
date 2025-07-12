@@ -164,7 +164,7 @@ class CodebaseStartupOrchestrator(AbstractStartupOrchestrator):
         for repo in python_repos:
             status = IndexingStatus(
                 repository_id=repo.name,
-                repository_path=repo.path,
+                repository_path=repo.workspace,
                 status=IndexingStatusEnum.PENDING,
             )
             indexing_statuses.append(status)
@@ -234,8 +234,10 @@ class CodebaseStartupOrchestrator(AbstractStartupOrchestrator):
             self.indexer.clear_repository_index(repo_config.name)
 
             # Index the repository
-            logger.debug(f"Indexing repository at {repo_config.path}")
-            result = self.indexer.index_repository(repo_config.path, repo_config.name)
+            logger.debug(f"Indexing repository at {repo_config.workspace}")
+            result = self.indexer.index_repository(
+                repo_config.workspace, repo_config.name
+            )
 
             # Update status
             status.status = IndexingStatusEnum.COMPLETED

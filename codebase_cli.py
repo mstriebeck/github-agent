@@ -147,7 +147,7 @@ async def execute_tool_command(
     tool_name: str,
     tool_args: dict[str, Any],
     repo_name: str,
-    repo_path: str,
+    repo_workspace: str,
     symbol_storage: AbstractSymbolStorage,
 ) -> dict[str, Any]:
     """Execute a tool command and return the results."""
@@ -158,11 +158,17 @@ async def execute_tool_command(
             if tool_name == "search_symbols":
                 tool_args["symbol_storage"] = symbol_storage
             result = await codebase_tools.execute_tool(
-                tool_name, repo_name=repo_name, repo_path=repo_path, **tool_args
+                tool_name,
+                repo_name=repo_name,
+                repository_workspace=repo_workspace,
+                **tool_args,
             )
         elif tool_name in github_tools.TOOL_HANDLERS:
             result = await github_tools.execute_tool(
-                tool_name, repo_name=repo_name, repo_path=repo_path, **tool_args
+                tool_name,
+                repo_name=repo_name,
+                repository_workspace=repo_workspace,
+                **tool_args,
             )
         else:
             return {
@@ -207,9 +213,9 @@ async def execute_cli(
 
         # Handle both RepositoryConfig object and dict for testing
         if isinstance(repo_config, RepositoryConfig):
-            repo_path = repo_config.path
+            repo_path = repo_config.workspace
         else:
-            repo_path = repo_config["path"]
+            repo_path = repo_config["workspace"]
 
         # Validate repository path
         if not Path(repo_path).exists():

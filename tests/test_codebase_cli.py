@@ -108,7 +108,7 @@ class TestOutputFormatter:
         """Test table formatting for health check results."""
         data = {
             "repo": "my-repo",
-            "path": "/path/to/repo",
+            "workspace": "/path/to/repo",
             "status": "healthy",
             "checks": {
                 "path_exists": True,
@@ -207,7 +207,7 @@ class TestExecuteToolCommand:
             mock_execute.assert_called_once_with(
                 "search_symbols",
                 repo_name="my-repo",
-                repo_path="/path/to/repo",
+                repository_workspace="/path/to/repo",
                 query="test",
                 symbol_storage=mock_symbol_storage,
             )
@@ -228,7 +228,9 @@ class TestExecuteToolCommand:
 
             assert result == {"result": "success", "data": "test"}
             mock_execute.assert_called_once_with(
-                "git_get_current_branch", repo_name="my-repo", repo_path="/path/to/repo"
+                "git_get_current_branch",
+                repo_name="my-repo",
+                repository_workspace="/path/to/repo",
             )
 
     @pytest.mark.asyncio
@@ -295,7 +297,7 @@ class TestExecuteCLI:
 
         # Setup mock repository manager
         mock_repo_manager = MockRepositoryManager()
-        mock_repo_manager.add_repository("test-repo", {"path": "/path/to/repo"})
+        mock_repo_manager.add_repository("test-repo", {"workspace": "/path/to/repo"})
 
         # Setup formatter and symbol storage
         formatter = OutputFormatter()
@@ -337,7 +339,7 @@ class TestExecuteCLI:
 
         # Setup mock repository manager
         mock_repo_manager = MockRepositoryManager()
-        mock_repo_manager.add_repository("test-repo", {"path": "/path/to/repo"})
+        mock_repo_manager.add_repository("test-repo", {"workspace": "/path/to/repo"})
 
         # Setup formatter and symbol storage
         formatter = OutputFormatter()
@@ -423,7 +425,7 @@ class TestExecuteCLI:
 
         # Setup mock repository manager
         mock_repo_manager = MockRepositoryManager()
-        mock_repo_manager.add_repository("test-repo", {"path": "/path/to/repo"})
+        mock_repo_manager.add_repository("test-repo", {"workspace": "/path/to/repo"})
         formatter = OutputFormatter()
 
         mock_result = {"error": "Tool failed"}

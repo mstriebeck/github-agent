@@ -77,7 +77,7 @@ def test_config_with_dynamic_port(temp_git_repo):
         "repositories": {
             "integration-test-repo": {
                 "port": test_port,
-                "path": temp_git_repo,
+                "workspace": temp_git_repo,
                 "language": Language.PYTHON.value,  # Required field
                 "python_path": "/usr/bin/python3",  # Required field for US001-12
                 "description": "Integration test repository",
@@ -129,7 +129,7 @@ class TestMCPIntegration:
         config, test_port = test_config_with_dynamic_port
         repo_name = "integration-test-repo"
         repo_config = config["repositories"][repo_name]
-        repo_path = repo_config["path"]
+        repo_path = repo_config["workspace"]
 
         # ============================================================================
         # PHASE 1: Master Configuration Loading and Validation
@@ -182,7 +182,7 @@ class TestMCPIntegration:
 
             test_repo_config = RepositoryConfig(
                 name=repo_name,
-                path=repo_path,
+                workspace=repo_path,
                 description="Integration test repo",
                 language=Language.PYTHON,
                 port=test_port,
@@ -269,7 +269,7 @@ class TestMCPIntegration:
 
         # Verify health check structure and content
         assert health_data["repo"] == repo_name
-        assert health_data["path"] == repo_path
+        assert health_data["workspace"] == repo_path
         assert health_data["status"] in [
             "healthy",
             "warning",
@@ -293,7 +293,7 @@ class TestMCPIntegration:
 
         # Test tool execution through codebase_tools.execute_tool
         tool_result = await codebase_tools.execute_tool(
-            "codebase_health_check", repo_name=repo_name, repo_path=repo_path
+            "codebase_health_check", repo_name=repo_name, repository_workspace=repo_path
         )
 
         # Verify tool execution succeeded
@@ -342,7 +342,7 @@ class TestMCPIntegration:
 
             # Verify all required fields are present
             assert loaded_config.port == test_port
-            assert loaded_config.path == repo_config["path"]
+            assert loaded_config.workspace == repo_config["workspace"]
             assert loaded_config.language == Language.PYTHON
             assert loaded_config.python_path == "/usr/bin/python3"
 
@@ -392,7 +392,7 @@ class TestMCPIntegration:
             "repositories": {
                 "valid-repo": {
                     "port": find_free_port(),
-                    "path": temp_git_repo,
+                    "workspace": temp_git_repo,
                     "language": Language.PYTHON.value,
                     "python_path": "/usr/bin/python3",
                 }
@@ -416,7 +416,7 @@ class TestMCPIntegration:
             "repositories": {
                 "invalid-repo": {
                     "port": find_free_port(),
-                    "path": temp_git_repo,
+                    "workspace": temp_git_repo,
                     # Missing language and python_path
                 }
             }

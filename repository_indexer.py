@@ -7,19 +7,11 @@ for Python files, extracting symbols, and storing them in the database.
 
 import logging
 import os
-import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from constants import Language
 from python_symbol_extractor import AbstractSymbolExtractor
 from symbol_storage import AbstractSymbolStorage
-from validation_system import (
-    AbstractValidator,
-    ValidationContext,
-    ValidationError,
-    ValidatorType,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -351,107 +343,3 @@ class PythonRepositoryIndexer(AbstractRepositoryIndexer):
             error_msg = f"Processing error: {e}"
             logger.error(f"Error processing {file_str}: {e}")
             result.add_failed_file(file_str, error_msg)
-
-
-class CodebaseValidator(AbstractValidator):
-    """Validator for codebase service prerequisites."""
-
-    @property
-    def validator_type(self) -> ValidatorType:
-        return ValidatorType.CODEBASE
-
-    def validate(self, context: ValidationContext) -> None:
-        """
-        Validate codebase service prerequisites.
-
-        Args:
-            context: ValidationContext containing workspace, language, services, and config
-
-        Raises:
-            ValidationError: If codebase prerequisites are not met
-        """
-        # Validate workspace accessibility
-        try:
-            self._validate_workspace_access(context.workspace)
-        except Exception as e:
-            raise ValidationError(
-                f"Workspace access validation failed: {e}",
-                validator_type=ValidatorType.CODEBASE,
-            ) from e
-
-        # Validate symbol storage service
-        try:
-            self._validate_symbol_storage()
-        except Exception as e:
-            raise ValidationError(
-                f"Symbol storage validation failed: {e}",
-                validator_type=ValidatorType.CODEBASE,
-            ) from e
-
-        # Validate language-specific LSP tools if applicable
-        if context.language == Language.PYTHON:
-            try:
-                self._validate_python_lsp_tools()
-            except Exception as e:
-                raise ValidationError(
-                    f"Python LSP tools validation failed: {e}",
-                    validator_type=ValidatorType.CODEBASE,
-                ) from e
-
-    def _validate_workspace_access(self, workspace: str) -> None:
-        """
-        Validate that the workspace is accessible for reading/writing.
-        """
-        if not os.path.exists(workspace):
-            raise RuntimeError(f"Workspace directory does not exist: {workspace}")
-
-        if not os.path.isdir(workspace):
-            raise RuntimeError(f"Workspace path is not a directory: {workspace}")
-
-        if not os.access(workspace, os.R_OK):
-            raise RuntimeError(f"Workspace directory is not readable: {workspace}")
-
-        if not os.access(workspace, os.W_OK):
-            raise RuntimeError(f"Workspace directory is not writable: {workspace}")
-
-        self.logger.debug(f"Workspace access validation passed: {workspace}")
-
-    def _validate_symbol_storage(self) -> None:
-        """
-        Validate that symbol storage service is available and configured.
-        """
-        try:
-            # Check if symbol_storage module is available
-            import importlib.util
-
-            if importlib.util.find_spec("symbol_storage") is None:
-                raise ImportError("symbol_storage module not found")
-
-            # Test basic symbol storage functionality
-            # This is a basic check - in production, you might want to test database connectivity
-            if importlib.util.find_spec("symbol_storage") is None:
-                raise ImportError("SQLiteSymbolStorage not found")
-
-            self.logger.debug(
-                "Symbol storage validation passed: SQLiteSymbolStorage available"
-            )
-        except ImportError as e:
-            raise RuntimeError(
-                f"Symbol storage not available: {e}. Required for codebase indexing."
-            ) from e
-
-    def _validate_python_lsp_tools(self) -> None:
-        """
-        Validate Python-specific LSP tools for codebase service.
-        """
-        # Validate pyright is available since that's the main LSP tool for Python
-        try:
-            result = subprocess.run(
-                ["pyright", "--version"], capture_output=True, text=True, check=True
-            )
-            version = result.stdout.strip()
-            self.logger.debug(f"Python LSP tools validation passed: pyright {version}")
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            raise RuntimeError(
-                "Python LSP tools not available. Please install with: npm install -g pyright"
-            ) from e

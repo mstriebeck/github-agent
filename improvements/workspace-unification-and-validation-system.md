@@ -46,7 +46,7 @@ Currently, some validations (like pyright installation) only happen when the LSP
 ### 1. Unified Workspace Terminology
 
 Standardize on `workspace` terminology throughout the codebase:
-- **repositories.json**: `workspace` field (with backward compatibility)
+- **repositories.json**: `workspace` field
 - **All classes**: Use `workspace` property/parameter names
 - **LSP integration**: Use repository workspace instead of separate workspace concept
 
@@ -104,7 +104,7 @@ Move all validations to worker initialization:
    - `AbstractValidator` base class
    - `ValidationRegistry` with plugin registration
 
-2. **Extract existing validators**:
+2. **Extract existing validators**: - DONE
    - `PythonValidator`: Extract from `pyright_lsp_manager._check_pyright_availability()` and `repository_manager._validate_python_path()`
    - `GitHubValidator`: Validate GitHub token, git repository
    - `CodebaseValidator`: Validate symbol storage, language-specific LSP tools
@@ -119,7 +119,6 @@ Move all validations to worker initialization:
 
 5. **Update RepositoryConfig class**:
    - Change internal field from `path` to `workspace`
-   - Add `path` property for backward compatibility
    - Update validation messages
 
 6. **Update MCP files**:
@@ -162,9 +161,7 @@ Move all validations to worker initialization:
     - Document validation system for new language/service additions
     - Create migration guide for existing configurations
 
-12. **Verify backward compatibility**:
-    - Test existing `repositories.json` files still work
-    - Ensure graceful error messages for old terminology
+12. **We don't need to worry about backwards compatibility**:
 
 ## Alternative Approaches Considered
 

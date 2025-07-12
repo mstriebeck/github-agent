@@ -98,7 +98,7 @@ class MCPWorker:
 
         # Extract fields for easier access
         self.repo_name = repository_config.name
-        self.repo_path = repository_config.path
+        self.repo_path = repository_config.workspace
         self.port = repository_config.port
         self.description = repository_config.description
         self.language = repository_config.language
@@ -580,7 +580,7 @@ class MCPWorker:
                                     result = await module.execute_tool(
                                         tool_name,
                                         repo_name=self.repo_name,
-                                        repo_path=self.repo_path,
+                                        repository_workspace=self.repo_path,
                                         **tool_args,
                                     )
                                 elif tool_name == "github_post_pr_reply":

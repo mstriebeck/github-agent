@@ -26,7 +26,10 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
+from dotenv import load_dotenv
 
+import codebase_tools
+import github_tools
 from constants import LOGS_DIR, Language
 from python_symbol_extractor import PythonSymbolExtractor
 from repository_indexer import PythonRepositoryIndexer
@@ -118,8 +121,8 @@ class WorkerProcess:
         return self.repository_config.port
 
     @property
-    def path(self) -> str:
-        return self.repository_config.path
+    def workspace(self) -> str:
+        return self.repository_config.workspace
 
     @property
     def description(self) -> str:
@@ -245,6 +248,31 @@ class MCPMaster:
         except Exception as e:
             logger.error(f"Failed to initialize repository indexes: {e}")
             # Don't fail the entire startup - continue without indexing
+
+    def _validate_all_services(self) -> None:
+        """Validate all service prerequisites before starting workers."""
+        logger.info("🔍 Validating all service prerequisites...")
+
+        try:
+            # Get repository configurations
+            repositories = self.repository_manager.repositories
+
+            # Repository validation is already done by RepositoryManager.create_from_config()
+            logger.info(
+                "✅ Repository validation completed during configuration loading"
+            )
+
+            # Validate GitHub service prerequisites
+            github_tools.validate(logger, repositories)
+
+            # Validate codebase service prerequisites
+            codebase_tools.validate(logger, repositories)
+
+            logger.info("✅ All service prerequisite validation completed successfully")
+
+        except Exception as e:
+            logger.error(f"❌ Service validation failed: {e}")
+            raise RuntimeError(f"Service validation failed: {e}") from e
 
     def start_worker(self, worker: WorkerProcess) -> bool:
         """Start a worker process for a repository"""
@@ -467,6 +495,9 @@ class MCPMaster:
         # Store loop reference for signal handler
         self.loop = asyncio.get_running_loop()
 
+        # Validate all service prerequisites before starting workers
+        self._validate_all_services()
+
         # Initialize repository indexes
         await self.initialize_repository_indexes()
 
@@ -677,7 +708,7 @@ class MCPMaster:
             is_healthy = self.is_worker_healthy(worker)
             status["workers"][repo_name] = {
                 "port": worker.repository_config.port,
-                "path": worker.repository_config.path,
+                "workspace": worker.repository_config.workspace,
                 "description": worker.repository_config.description,
                 "running": is_healthy,
                 "pid": worker.process.pid if worker.process else None,
@@ -691,6 +722,14 @@ class MCPMaster:
 
 async def main() -> None:
     """Main entry point"""
+    # Load environment variables from .env file
+    from constants import DATA_DIR
+
+    dotenv_path = DATA_DIR / ".env"
+    if dotenv_path.exists():
+        logger.info(f"Loading .env from {dotenv_path}")
+        load_dotenv(dotenv_path)
+
     config_path = "repositories.json"
 
     # Handle command line arguments

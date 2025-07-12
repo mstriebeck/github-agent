@@ -43,7 +43,7 @@ class TestPythonRepositoryManager:
         # Create RepositoryConfig directly for testing
         swift_repo_config = RepositoryConfig(
             name="swift-repo",
-            path="/tmp/test-swift-repo",
+            workspace="/tmp/test-swift-repo",
             description="Test Swift repository",
             language=Language.SWIFT,
             port=8082,
@@ -69,7 +69,7 @@ class TestPythonRepositoryManager:
         # Create RepositoryConfig directly for testing
         python_repo_config = RepositoryConfig(
             name="python-repo",
-            path="/tmp/test-repo",
+            workspace="/tmp/test-repo",
             description="Test Python repository",
             language=Language.PYTHON,
             port=8081,
@@ -86,7 +86,7 @@ class TestPythonRepositoryManager:
 
         assert len(python_repos) == 1
         assert python_repos[0].name == "python-repo"
-        assert python_repos[0].path == "/tmp/test-repo"
+        assert python_repos[0].workspace == "/tmp/test-repo"
         assert python_repos[0].description == "Test Python repository"
         assert python_repos[0].python_path == "/usr/bin/python3"
 
@@ -95,7 +95,7 @@ class TestPythonRepositoryManager:
         # Create RepositoryConfig directly for testing
         python_repo_config = RepositoryConfig(
             name="python-repo",
-            path="/tmp/test-repo",
+            workspace="/tmp/test-repo",
             description="Test Python repository",
             language=Language.PYTHON,
             port=8081,
@@ -209,7 +209,7 @@ class TestPythonRepositoryManager:
         # Create proper RepositoryConfig object for Swift repository
         swift_repo_config = RepositoryConfig(
             name="swift-repo",
-            path="/tmp/test-swift-repo",
+            workspace="/tmp/test-swift-repo",
             description="Test Swift repository",
             language=Language.SWIFT,
             port=8082,
@@ -229,7 +229,7 @@ class TestPythonRepositoryManager:
         # Create proper RepositoryConfig object for Python repository
         python_repo_config = RepositoryConfig(
             name="python-repo",
-            path="/tmp/test-repo",
+            workspace="/tmp/test-repo",
             description="Test repository",
             language=Language.PYTHON,
             port=8081,
@@ -256,7 +256,7 @@ class TestPythonRepositoryManager:
         # Create proper RepositoryConfig object for Python repository
         python_repo_config = RepositoryConfig(
             name="python-repo",
-            path="/tmp/test-repo",
+            workspace="/tmp/test-repo",
             description="Test repository",
             language=Language.PYTHON,
             port=8081,
@@ -274,7 +274,7 @@ class TestPythonRepositoryManager:
 
             assert result is not None
             assert result.name == "python-repo"
-            assert result.path == "/tmp/test-repo"
+            assert result.workspace == "/tmp/test-repo"
             assert result.description == "Test repository"
             assert result.python_path == "/usr/bin/python3"
 
@@ -299,7 +299,7 @@ class TestPythonRepositoryManager:
         # Create proper RepositoryConfig object
         python_repo_config = RepositoryConfig(
             name="test-repo",
-            path="/tmp/test-repo",
+            workspace="/tmp/test-repo",
             description="Test repository",
             language=Language.PYTHON,
             port=8081,

@@ -62,7 +62,7 @@ class TestMCPWorker:
 
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
-                path=temp_repo,
+                workspace=temp_repo,
                 description="Test repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -83,7 +83,7 @@ class TestMCPWorker:
 
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
-                path="/nonexistent/path",
+                workspace="/nonexistent/path",
                 description="Test repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -98,7 +98,7 @@ class TestMCPWorker:
 
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
-                path=temp_repo,
+                workspace=temp_repo,
                 description="Test repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -116,7 +116,7 @@ class TestMCPWorker:
 
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
-                path=temp_repo,
+                workspace=temp_repo,
                 description="Test repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -143,7 +143,7 @@ class TestMCPWorker:
 
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
-                path=temp_repo,
+                workspace=temp_repo,
                 description="Test repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -170,7 +170,7 @@ class TestMCPWorker:
 
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
-                path=temp_repo,
+                workspace=temp_repo,
                 description="Test repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -206,7 +206,7 @@ class TestMCPWorker:
 
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
-                path=temp_repo,
+                workspace=temp_repo,
                 description="Test repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -259,7 +259,7 @@ class TestMCPWorker:
 
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
-                path=temp_repo,
+                workspace=temp_repo,
                 description="Test repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -299,7 +299,7 @@ class TestMCPWorker:
 
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
-                path=temp_repo,
+                workspace=temp_repo,
                 description="Test repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -335,7 +335,7 @@ class TestMCPWorker:
 
             repo_config = RepositoryConfig.create_repository_config(
                 name="test-repo",
-                path=temp_repo,
+                workspace=temp_repo,
                 description="Test repository",
                 language=Language.PYTHON,
                 port=8080,

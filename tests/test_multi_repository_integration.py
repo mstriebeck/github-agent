@@ -36,7 +36,7 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
         self.test_config = {
             "repositories": {
                 "project-a": {
-                    "path": str(self.repo1_path),
+                    "workspace": str(self.repo1_path),
                     "description": "Project A repository",
                     "language": "python",
                     "port": 8081,
@@ -45,7 +45,7 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
                     "github_repo": "project-a",
                 },
                 "project-b": {
-                    "path": str(self.repo2_path),
+                    "workspace": str(self.repo2_path),
                     "description": "Project B repository",
                     "language": "swift",
                     "port": 8082,
@@ -69,6 +69,8 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
         os.system(f"cd {repo_path} && git init --quiet")
         os.system(f"cd {repo_path} && git config user.email 'test@example.com'")
         os.system(f"cd {repo_path} && git config user.name 'Test User'")
+        # Create a Python file to satisfy repository validation
+        os.system(f"cd {repo_path} && echo 'print(\"Hello World\")' > main.py")
         os.system(
             f"cd {repo_path} && touch README.md && git add . && git commit -m 'Initial commit' --quiet"
         )
@@ -101,14 +103,14 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
         self.assertIsNotNone(repo_a, "Should find project-a")
         assert repo_a
         self.assertEqual(repo_a.name, "project-a")
-        self.assertEqual(repo_a.path, str(self.repo1_path))
+        self.assertEqual(repo_a.workspace, str(self.repo1_path))
         self.assertEqual(repo_a.description, "Project A repository")
 
         repo_b = manager.get_repository("project-b")
         self.assertIsNotNone(repo_b, "Should find project-b")
         assert repo_b
         self.assertEqual(repo_b.name, "project-b")
-        self.assertEqual(repo_b.path, str(self.repo2_path))
+        self.assertEqual(repo_b.workspace, str(self.repo2_path))
 
         # 6. Test non-existent repository
         non_existent = manager.get_repository("non-existent")
@@ -146,7 +148,7 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
         repo_configs = [
             {
                 "name": "repo1",
-                "path": str(self.repo1_path),
+                "workspace": str(self.repo1_path),
                 "description": "Repository 1",
                 "language": "python",
                 "port": 8081,
@@ -156,7 +158,7 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
             },
             {
                 "name": "repo2",
-                "path": str(self.repo2_path),
+                "workspace": str(self.repo2_path),
                 "description": "Repository 2",
                 "language": "swift",
                 "port": 8082,

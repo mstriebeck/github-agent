@@ -66,7 +66,7 @@ class RepositoryConfig:
     """Configuration for a single repository"""
 
     name: str
-    path: str
+    workspace: str
     description: str
     language: Language
     port: int
@@ -82,27 +82,29 @@ class RepositoryConfig:
 
         if not self.name:
             raise ValueError("Repository name cannot be empty")
-        if not self.path:
-            raise ValueError("Repository path cannot be empty")
+        if not self.workspace:
+            raise ValueError("Repository workspace cannot be empty")
 
         # Language validation is handled by the Language enum type
 
         # Require absolute paths
-        if not os.path.isabs(self.path):
-            raise ValueError(f"Repository path must be absolute, got: {self.path}")
+        if not os.path.isabs(self.workspace):
+            raise ValueError(
+                f"Repository workspace must be absolute, got: {self.workspace}"
+            )
 
         # Expand user home if needed and normalize
-        self.path = os.path.abspath(os.path.expanduser(self.path))
+        self.workspace = os.path.abspath(os.path.expanduser(self.workspace))
 
         logger.debug(
-            f"Basic validation completed for repository '{self.name}' at {self.path}"
+            f"Basic validation completed for repository '{self.name}' at {self.workspace}"
         )
 
     @classmethod
     def create_repository_config(
         cls,
         name: str,
-        path: str,
+        workspace: str,
         description: str,
         language: Language,
         port: int,
@@ -113,7 +115,7 @@ class RepositoryConfig:
 
         Args:
             name: Repository name
-            path: Repository path
+            workspace: Repository workspace path
             description: Repository description
             language: Programming language (defaults to python)
             port: MCP server port (required)
@@ -126,27 +128,29 @@ class RepositoryConfig:
             ValueError: If validation fails
         """
         logger = logging.getLogger(__name__)
-        logger.info(f"Creating repository configuration for '{name}' at {path}")
+        logger.info(f"Creating repository configuration for '{name}' at {workspace}")
 
-        # Validate path before normalization
-        if not path:
-            raise ValueError("Repository path cannot be empty")
-        if not os.path.isabs(path):
-            raise ValueError(f"Repository path must be absolute, got: {path}")
+        # Validate workspace before normalization
+        if not workspace:
+            raise ValueError("Repository workspace cannot be empty")
+        if not os.path.isabs(workspace):
+            raise ValueError(f"Repository workspace must be absolute, got: {workspace}")
 
-        # Normalize path after validation
-        normalized_path = os.path.abspath(os.path.expanduser(path))
+        # Normalize workspace after validation
+        normalized_workspace = os.path.abspath(os.path.expanduser(workspace))
 
         # Extract GitHub information
         logger.debug(f"Extracting GitHub information for repository '{name}'")
-        github_owner, github_repo = cls._extract_github_info(normalized_path, logger)
+        github_owner, github_repo = cls._extract_github_info(
+            normalized_workspace, logger
+        )
 
         # Validate and get Python path
         if python_path is None:
             logger.debug(f"Auto-detecting Python path for repository '{name}'")
             if language == Language.PYTHON:
                 # For Python repos, try to find a suitable Python executable
-                python_path = cls._find_python_executable(normalized_path, logger)
+                python_path = cls._find_python_executable(normalized_workspace, logger)
             else:
                 # For non-Python repos, use system Python
                 import sys
@@ -169,7 +173,7 @@ class RepositoryConfig:
 
         return cls(
             name=name,
-            path=normalized_path,
+            workspace=normalized_workspace,
             description=description,
             language=language,
             port=port,
@@ -180,18 +184,18 @@ class RepositoryConfig:
 
     @staticmethod
     def _extract_github_info(
-        repo_path: str, logger: logging.Logger
+        workspace: str, logger: logging.Logger
     ) -> tuple[str | None, str | None]:
         """Extract GitHub owner/repo from git remote origin"""
         try:
-            logger.debug(f"Running git config command in {repo_path}")
+            logger.debug(f"Running git config command in {workspace}")
             cmd = ["git", "config", "--get", "remote.origin.url"]
-            output = subprocess.check_output(cmd, cwd=repo_path).decode().strip()
+            output = subprocess.check_output(cmd, cwd=workspace).decode().strip()
 
             logger.debug(f"Git remote URL: {output}")
 
             if not output:
-                logger.warning(f"No git remote URL found for {repo_path}")
+                logger.warning(f"No git remote URL found for {workspace}")
                 return None, None
 
             if output.startswith(GITHUB_SSH_PREFIX):
@@ -228,22 +232,22 @@ class RepositoryConfig:
             return owner, repo
 
         except subprocess.CalledProcessError as e:
-            logger.debug(f"No git remote configured for {repo_path}: {e}")
+            logger.debug(f"No git remote configured for {workspace}: {e}")
             return None, None
         except Exception as e:
-            logger.warning(f"Failed to extract GitHub info from {repo_path}: {e}")
+            logger.warning(f"Failed to extract GitHub info from {workspace}: {e}")
             return None, None
 
     @staticmethod
-    def _find_python_executable(repo_path: str, logger: logging.Logger) -> str:
+    def _find_python_executable(workspace: str, logger: logging.Logger) -> str:
         """Find the best Python executable for a repository"""
-        logger.debug(f"Searching for Python executable for repository at {repo_path}")
+        logger.debug(f"Searching for Python executable for repository at {workspace}")
 
         # Check for virtual environment in the repository
         venv_paths = [
-            os.path.join(repo_path, ".venv", "bin", "python"),
-            os.path.join(repo_path, "venv", "bin", "python"),
-            os.path.join(repo_path, ".env", "bin", "python"),
+            os.path.join(workspace, ".venv", "bin", "python"),
+            os.path.join(workspace, "venv", "bin", "python"),
+            os.path.join(workspace, ".env", "bin", "python"),
         ]
 
         for venv_path in venv_paths:
@@ -369,7 +373,7 @@ class RepositoryConfig:
             "--repo-name",
             self.name,
             "--repo-path",
-            self.path,
+            self.workspace,
             "--port",
             str(self.port),
             "--description",
@@ -395,7 +399,7 @@ class RepositoryConfig:
 
         return cls.create_repository_config(
             name=args.repo_name,
-            path=args.repo_path,
+            workspace=args.repo_path,
             description=args.description,
             language=language_enum,
             port=args.port,
@@ -517,7 +521,7 @@ class RepositoryManager(AbstractRepositoryManager):
                     f"Repository '{name}' configuration must be a dictionary"
                 )
 
-            required_fields = ["path", "language", "port", "python_path"]
+            required_fields = ["workspace", "language", "port", "python_path"]
             for field in required_fields:
                 if field not in repo_data:
                     raise ValueError(
@@ -539,7 +543,7 @@ class RepositoryManager(AbstractRepositoryManager):
 
             repo_config = RepositoryConfig.create_repository_config(
                 name=name,
-                path=repo_data["path"],
+                workspace=repo_data["workspace"],
                 description=repo_data.get("description", ""),
                 language=language_enum,
                 port=repo_data["port"],
@@ -558,37 +562,41 @@ class RepositoryManager(AbstractRepositoryManager):
         for name, repo_config in self._repositories.items():
             try:
                 self.logger.debug(
-                    f"Validating repository '{name}' at {repo_config.path}"
+                    f"Validating repository '{name}' at {repo_config.workspace}"
                 )
 
-                # Check if path exists
-                if not os.path.exists(repo_config.path):
+                # Check if workspace exists
+                if not os.path.exists(repo_config.workspace):
                     raise ValueError(
-                        f"Repository path does not exist: {repo_config.path}"
+                        f"Repository workspace does not exist: {repo_config.workspace}"
                     )
 
                 # Check if it's a directory
-                if not os.path.isdir(repo_config.path):
+                if not os.path.isdir(repo_config.workspace):
                     raise ValueError(
-                        f"Repository path is not a directory: {repo_config.path}"
+                        f"Repository workspace is not a directory: {repo_config.workspace}"
                     )
 
                 # Check if it's a git repository
                 try:
-                    Repo(repo_config.path)
+                    Repo(repo_config.workspace)
                 except InvalidGitRepositoryError:
                     raise ValueError(
-                        f"Path is not a git repository: {repo_config.path}"
+                        f"Workspace is not a git repository: {repo_config.workspace}"
                     ) from None
 
                 # Check read permissions
-                if not os.access(repo_config.path, os.R_OK):
+                if not os.access(repo_config.workspace, os.R_OK):
                     raise ValueError(
-                        f"No read access to repository: {repo_config.path}"
+                        f"No read access to repository: {repo_config.workspace}"
                     )
 
+                # Language-specific validation
+                if repo_config.language == Language.PYTHON:
+                    self._validate_python_repository(name, repo_config)
+
                 self.logger.info(
-                    f"✅ Validated repository '{name}' at {repo_config.path} "
+                    f"✅ Validated repository '{name}' at {repo_config.workspace} "
                     f"(GitHub: {repo_config.github_owner}/{repo_config.github_repo}, "
                     f"Python: {repo_config.python_path}, Port: {repo_config.port})"
                 )
@@ -613,6 +621,53 @@ class RepositoryManager(AbstractRepositoryManager):
         self.logger.debug(
             f"✅ No port conflicts found among {len(self._repositories)} repositories"
         )
+
+    def _validate_python_repository(
+        self, name: str, repo_config: RepositoryConfig
+    ) -> None:
+        """Validate Python-specific repository requirements."""
+        # Validate Python path is configured and valid
+        try:
+            validated_path = RepositoryConfig._validate_python_path(
+                repo_config.python_path, self.logger
+            )
+            self.logger.debug(
+                f"Python path validation passed for {name}: {validated_path}"
+            )
+        except Exception as e:
+            raise ValueError(
+                f"Python path validation failed for repository '{name}': {e}"
+            ) from e
+
+        # Validate repository contains Python files
+        python_files_found = False
+        try:
+            for _root, dirs, files in os.walk(repo_config.workspace):
+                # Skip hidden directories like .git, .venv, etc.
+                dirs[:] = [d for d in dirs if not d.startswith(".")]
+
+                for file in files:
+                    if file.endswith(".py"):
+                        python_files_found = True
+                        break
+
+                if python_files_found:
+                    break
+
+            if not python_files_found:
+                raise ValueError(
+                    f"No Python files found in repository '{name}' at {repo_config.workspace}. "
+                    "This repository is configured as a Python repository but contains no .py files."
+                )
+
+            self.logger.debug(f"Python files found in repository '{name}'")
+
+        except Exception as e:
+            if "No Python files found" in str(e):
+                raise
+            raise ValueError(
+                f"Error scanning for Python files in repository '{name}': {e}"
+            ) from e
 
     def get_repository(self, repo_name: str) -> RepositoryConfig | None:
         """
@@ -666,14 +721,14 @@ class RepositoryManager(AbstractRepositoryManager):
 
         return {
             "name": repo_config.name,
-            "path": repo_config.path,
+            "workspace": repo_config.workspace,
             "description": repo_config.description,
             "port": repo_config.port,
             "language": repo_config.language,
             "python_path": repo_config.python_path,
             "github_owner": repo_config.github_owner,
             "github_repo": repo_config.github_repo,
-            "exists": os.path.exists(repo_config.path),
+            "exists": os.path.exists(repo_config.workspace),
         }
 
     def is_multi_repo_mode(self) -> bool:
@@ -694,7 +749,7 @@ class RepositoryManager(AbstractRepositoryManager):
             name = repo_info["name"]
             # Copy all provided fields, providing defaults for required fields if missing
             repo_config = {
-                "path": repo_info["path"],
+                "workspace": repo_info["workspace"],
                 "description": repo_info.get("description", ""),
                 "language": repo_info.get("language", "python"),
             }

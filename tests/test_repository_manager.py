@@ -30,7 +30,7 @@ class TestRepositoryConfig(unittest.TestCase):
         """Helper method to create RepositoryConfig with defaults"""
         defaults = {
             "name": "test-repo",
-            "path": "/path/to/repo",
+            "workspace": "/path/to/repo",
             "description": "Test repository",
             "language": Language.SWIFT,
             "port": 8000,
@@ -39,7 +39,7 @@ class TestRepositoryConfig(unittest.TestCase):
         defaults.update(kwargs)
         return RepositoryConfig.create_repository_config(
             name=str(defaults["name"]),
-            path=str(defaults["path"]),
+            workspace=str(defaults["workspace"]),
             description=str(defaults["description"]),
             language=cast(Language, defaults["language"]),
             port=cast(int, defaults["port"]),
@@ -53,7 +53,7 @@ class TestRepositoryConfig(unittest.TestCase):
         config = self.create_test_repository_config()
 
         self.assertEqual(config.name, "test-repo")
-        self.assertEqual(config.path, os.path.abspath("/path/to/repo"))
+        self.assertEqual(config.workspace, os.path.abspath("/path/to/repo"))
         self.assertEqual(config.description, "Test repository")
 
     def test_empty_name_raises_error(self):
@@ -64,27 +64,27 @@ class TestRepositoryConfig(unittest.TestCase):
         self.assertIn("Repository name cannot be empty", str(context.exception))
 
     def test_empty_path_raises_error(self):
-        """Test that empty path raises ValueError"""
+        """Test that empty workspace raises ValueError"""
         with self.assertRaises(ValueError) as context:
-            self.create_test_repository_config(path="")
+            self.create_test_repository_config(workspace="")
 
-        self.assertIn("Repository path cannot be empty", str(context.exception))
+        self.assertIn("Repository workspace cannot be empty", str(context.exception))
 
     def test_path_normalization(self):
         """Test that absolute paths are normalized and expanded"""
         config = self.create_test_repository_config(
-            name="test", path="/home/user/test-repo", description="Test"
+            name="test", workspace="/home/user/test-repo", description="Test"
         )
 
         expected_path = os.path.abspath("/home/user/test-repo")
-        self.assertEqual(config.path, expected_path)
+        self.assertEqual(config.workspace, expected_path)
 
     def test_relative_path_raises_error(self):
         """Test that relative paths raise ValueError"""
         with self.assertRaises(ValueError) as context:
-            self.create_test_repository_config(path="relative/path")
+            self.create_test_repository_config(workspace="relative/path")
 
-        self.assertIn("Repository path must be absolute", str(context.exception))
+        self.assertIn("Repository workspace must be absolute", str(context.exception))
 
     def test_valid_language_python(self):
         """Test that 'python' language is accepted"""
@@ -131,7 +131,7 @@ class TestRepositoryConfig(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             RepositoryConfig.create_repository_config(
                 name="test",
-                path=os.path.abspath("/tmp/test"),
+                workspace=os.path.abspath("/tmp/test"),
                 description="Test",
                 language=Language.PYTHON,
                 port=8080,
@@ -144,7 +144,7 @@ class TestRepositoryConfig(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             RepositoryConfig.create_repository_config(
                 name="test",
-                path=os.path.abspath("/tmp/test"),
+                workspace=os.path.abspath("/tmp/test"),
                 description="Test",
                 language=Language.PYTHON,
                 port=8080,
@@ -157,7 +157,7 @@ class TestRepositoryConfig(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             RepositoryConfig.create_repository_config(
                 name="test",
-                path=os.path.abspath("/tmp/test"),
+                workspace=os.path.abspath("/tmp/test"),
                 description="Test",
                 language=Language.PYTHON,
                 port=8080,
@@ -178,7 +178,7 @@ class TestRepositoryConfig(unittest.TestCase):
             with self.assertRaises(ValueError) as context:
                 RepositoryConfig.create_repository_config(
                     name="test",
-                    path=os.path.abspath("/tmp/test"),
+                    workspace=os.path.abspath("/tmp/test"),
                     description="Test",
                     language=Language.PYTHON,
                     port=8080,
@@ -201,7 +201,7 @@ class TestRepositoryConfig(unittest.TestCase):
             with self.assertRaises(ValueError) as context:
                 RepositoryConfig.create_repository_config(
                     name="test",
-                    path=os.path.abspath("/tmp/test"),
+                    workspace=os.path.abspath("/tmp/test"),
                     description="Test",
                     language=Language.PYTHON,
                     port=8080,
@@ -234,14 +234,14 @@ class TestRepositoryManager(unittest.TestCase):
         self.test_config = {
             "repositories": {
                 "repo1": {
-                    "path": str(self.repo1_path),
+                    "workspace": str(self.repo1_path),
                     "description": "Test repository 1",
                     "language": Language.PYTHON.value,
                     "port": 8080,
                     "python_path": sys.executable,
                 },
                 "repo2": {
-                    "path": str(self.repo2_path),
+                    "workspace": str(self.repo2_path),
                     "description": "Test repository 2",
                     "language": Language.SWIFT.value,
                     "port": 8081,
@@ -261,6 +261,11 @@ class TestRepositoryManager(unittest.TestCase):
         os.system(f"cd {repo_path} && git init --quiet")
         os.system(f"cd {repo_path} && git config user.email 'test@example.com'")
         os.system(f"cd {repo_path} && git config user.name 'Test User'")
+
+        # Add Python file for Python repositories
+        if "repo1" in str(repo_path):  # repo1 is configured as Python
+            os.system(f"cd {repo_path} && echo 'print(\"hello\")' > test.py")
+
         os.system(
             f"cd {repo_path} && touch README.md && git add . && git commit -m 'Initial commit' --quiet"
         )
@@ -297,7 +302,7 @@ class TestRepositoryManager(unittest.TestCase):
 
         repo1_config = manager.repositories["repo1"]
         self.assertEqual(repo1_config.name, "repo1")
-        self.assertEqual(repo1_config.path, str(self.repo1_path))
+        self.assertEqual(repo1_config.workspace, str(self.repo1_path))
         self.assertEqual(repo1_config.description, "Test repository 1")
 
     def test_load_configuration_missing_file(self):
@@ -340,7 +345,7 @@ class TestRepositoryManager(unittest.TestCase):
         invalid_config = {
             "repositories": {
                 "repo1": {
-                    "path": "/nonexistent/path",
+                    "workspace": "/nonexistent/path",
                     "description": "Non-existent repo",
                     "language": Language.PYTHON.value,
                 }
@@ -362,7 +367,7 @@ class TestRepositoryManager(unittest.TestCase):
         invalid_config = {
             "repositories": {
                 "not_git": {
-                    "path": str(non_git_path),
+                    "workspace": str(non_git_path),
                     "description": "Not a git repo",
                     "language": Language.PYTHON.value,
                     "port": 8080,
@@ -382,13 +387,13 @@ class TestRepositoryManager(unittest.TestCase):
         config_with_port_conflict = {
             "repositories": {
                 "repo1": {
-                    "path": str(self.repo1_path),
+                    "workspace": str(self.repo1_path),
                     "description": "Test repository 1",
                     "language": Language.PYTHON.value,
                     "port": 8080,
                 },
                 "repo2": {
-                    "path": str(self.repo2_path),
+                    "workspace": str(self.repo2_path),
                     "description": "Test repository 2",
                     "language": Language.SWIFT.value,
                     "port": 8080,  # Same port as repo1 - should fail
@@ -438,7 +443,7 @@ class TestRepositoryManager(unittest.TestCase):
         self.assertIsNotNone(info)
         assert info
         self.assertEqual(info["name"], "repo1")
-        self.assertEqual(info["path"], str(self.repo1_path))
+        self.assertEqual(info["workspace"], str(self.repo1_path))
         self.assertEqual(info["description"], "Test repository 1")
         self.assertTrue(info["exists"])
 
@@ -466,12 +471,12 @@ class TestRepositoryManager(unittest.TestCase):
         repo_configs = [
             {
                 "name": "test1",
-                "path": str(self.repo1_path),
+                "workspace": str(self.repo1_path),
                 "description": "Test repo 1",
             },
             {
                 "name": "test2",
-                "path": str(self.repo2_path),
+                "workspace": str(self.repo2_path),
                 "description": "Test repo 2",
             },
         ]
@@ -719,7 +724,7 @@ class TestErrorMessageClarity(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             RepositoryConfig.create_repository_config(
                 name="test",
-                path=os.path.abspath("/tmp/test"),
+                workspace=os.path.abspath("/tmp/test"),
                 description="Test",
                 language=Language.PYTHON,
                 port=8080,
@@ -744,14 +749,14 @@ class TestErrorMessageClarity(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             RepositoryConfig.create_repository_config(
                 name="test",
-                path="relative/path",
+                workspace="relative/path",
                 description="Test",
                 language=Language.PYTHON,
                 port=8080,
             )
 
         error_msg = str(context.exception)
-        self.assertIn("Repository path must be absolute", error_msg)
+        self.assertIn("Repository workspace must be absolute", error_msg)
         self.assertIn("relative/path", error_msg)
 
     def test_empty_name_error_message_clarity(self):
@@ -759,7 +764,7 @@ class TestErrorMessageClarity(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             RepositoryConfig.create_repository_config(
                 name="",
-                path=os.path.abspath("/tmp/test"),
+                workspace=os.path.abspath("/tmp/test"),
                 description="Test",
                 language=Language.PYTHON,
                 port=8080,

@@ -13,7 +13,7 @@ import re
 import subprocess
 import zipfile
 from collections.abc import Awaitable, Callable
-from typing import cast
+from typing import Any, cast
 
 import requests
 from github import Github
@@ -23,12 +23,6 @@ from repository_manager import (
     AbstractRepositoryManager,
     RepositoryConfig,
     RepositoryManager,
-)
-from validation_system import (
-    AbstractValidator,
-    ValidationContext,
-    ValidationError,
-    ValidatorType,
 )
 
 logger = logging.getLogger(__name__)
@@ -167,7 +161,7 @@ class GitHubAPIContext:
 
     def __init__(self, repo_config: RepositoryConfig):
         logger.debug(
-            f"GitHubAPIContext.__init__: Starting initialization for path: {repo_config.path}"
+            f"GitHubAPIContext.__init__: Starting initialization for workspace: {repo_config.workspace}"
         )
         self.repo_config = repo_config
 
@@ -185,22 +179,24 @@ class GitHubAPIContext:
         logger.debug("GitHubAPIContext.__init__: GitHub client created successfully")
 
         # Get repo name from git config - must succeed or initialization fails
-        if not self.repo_config.path:
-            raise RuntimeError("No repository path provided")
+        if not self.repo_config.workspace:
+            raise RuntimeError("No repository workspace provided")
 
         logger.debug(
-            f"GitHubAPIContext.__init__: Getting git remote from path: {self.repo_config.path}"
+            f"GitHubAPIContext.__init__: Getting git remote from workspace: {self.repo_config.workspace}"
         )
 
         # Get repo name from git remote
         cmd = ["git", "config", "--get", "remote.origin.url"]
         logger.debug(
-            f"GitHubAPIContext.__init__: Running command: {' '.join(cmd)} in {self.repo_config.path}"
+            f"GitHubAPIContext.__init__: Running command: {' '.join(cmd)} in {self.repo_config.workspace}"
         )
 
         try:
             output = (
-                subprocess.check_output(cmd, cwd=self.repo_config.path).decode().strip()
+                subprocess.check_output(cmd, cwd=self.repo_config.workspace)
+                .decode()
+                .strip()
             )
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to get git remote URL: {e}") from e
@@ -237,7 +233,7 @@ class GitHubAPIContext:
         """Get current branch name"""
         return (
             subprocess.check_output(
-                ["git", "branch", "--show-current"], cwd=self.repo_config.path
+                ["git", "branch", "--show-current"], cwd=self.repo_config.workspace
             )
             .decode()
             .strip()
@@ -247,7 +243,7 @@ class GitHubAPIContext:
         """Get current commit hash"""
         return (
             subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], cwd=self.repo_config.path
+                ["git", "rev-parse", "HEAD"], cwd=self.repo_config.workspace
             )
             .decode()
             .strip()
@@ -279,7 +275,7 @@ def get_github_context(repo_name: str) -> GitHubAPIContext:
         raise ValueError(f"Repository '{repo_name}' not found")
 
     logger.debug(
-        f"get_github_context: Found repo config for '{repo_name}', path: {repo_config.path}"
+        f"get_github_context: Found repo config for '{repo_name}', workspace: {repo_config.workspace}"
     )
     context = GitHubAPIContext(repo_config)
     logger.debug(
@@ -2007,67 +2003,63 @@ async def execute_tool(tool_name: str, **kwargs) -> str:
         return json.dumps({"error": f"Tool execution failed: {e!s}", "tool": tool_name})
 
 
-class GitHubValidator(AbstractValidator):
-    """Validator for GitHub service prerequisites."""
+def validate(logger: logging.Logger, repositories: dict[str, Any]) -> None:
+    """
+    Validate GitHub service prerequisites.
 
-    @property
-    def validator_type(self) -> ValidatorType:
-        return ValidatorType.GITHUB
+    Args:
+        logger: Logger instance for debugging and monitoring
+        repositories: Dictionary of repository configurations
 
-    def validate(self, context: ValidationContext) -> None:
-        """
-        Validate GitHub service prerequisites.
+    Raises:
+        RuntimeError: If GitHub prerequisites are not met
+    """
+    logger.info("Validating GitHub service prerequisites...")
 
-        Args:
-            context: ValidationContext containing workspace, language, services, and config
+    # Validate GitHub token
+    github_token = os.getenv("GITHUB_TOKEN")
+    if not github_token:
+        raise RuntimeError("GITHUB_TOKEN environment variable not set")
 
-        Raises:
-            ValidationError: If GitHub token is not available or git repository is invalid
-        """
-        # Validate GitHub token
-        try:
-            self._validate_github_token()
-        except Exception as e:
-            raise ValidationError(
-                f"GitHub token validation failed: {e}",
-                validator_type=ValidatorType.GITHUB,
-            ) from e
+    if not github_token.strip():
+        raise RuntimeError("GITHUB_TOKEN environment variable is empty")
 
-        # Validate git repository
-        try:
-            self._validate_git_repository(context.workspace)
-        except Exception as e:
-            raise ValidationError(
-                f"Git repository validation failed: {e}",
-                validator_type=ValidatorType.GITHUB,
-            ) from e
+    logger.debug(f"GitHub token found (length: {len(github_token)})")
 
-    def _validate_github_token(self) -> str:
-        """
-        Validate GitHub token environment variable.
+    # Validate git is available
+    try:
+        result = subprocess.run(
+            ["git", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            raise RuntimeError("Git command is not available or not working")
+        logger.debug(f"Git available: {result.stdout.strip()}")
+    except (
+        subprocess.TimeoutExpired,
+        subprocess.SubprocessError,
+        FileNotFoundError,
+    ) as e:
+        raise RuntimeError(f"Git command not available: {e}") from e
 
-        Extracted from github_tools.py
-        """
-        github_token = os.getenv("GITHUB_TOKEN")
-        if not github_token:
-            raise RuntimeError("GITHUB_TOKEN environment variable not set")
+    # Validate each repository is a valid git repository
+    for repo_name, repo_config in repositories.items():
+        workspace = getattr(repo_config, "workspace", None)
+        if not workspace:
+            continue
 
-        if not github_token.strip():
-            raise RuntimeError("GITHUB_TOKEN environment variable is empty")
-
-        self.logger.debug(f"GitHub token found (length: {len(github_token)})")
-        return github_token
-
-    def _validate_git_repository(self, workspace: str) -> None:
-        """
-        Validate that the workspace is a valid git repository.
-        """
         if not os.path.exists(workspace):
-            raise RuntimeError(f"Workspace directory does not exist: {workspace}")
+            raise RuntimeError(
+                f"Repository workspace does not exist: {workspace} (repo: {repo_name})"
+            )
 
         git_dir = os.path.join(workspace, ".git")
         if not os.path.exists(git_dir):
-            raise RuntimeError(f"Workspace is not a git repository: {workspace}")
+            raise RuntimeError(
+                f"Repository is not a git repository: {workspace} (repo: {repo_name})"
+            )
 
         # Check if git is functional in this directory
         try:
@@ -2080,15 +2072,17 @@ class GitHubValidator(AbstractValidator):
             )
             if result.returncode != 0:
                 raise RuntimeError(
-                    f"Git command failed in workspace {workspace}: {result.stderr}"
+                    f"Git command failed in repository {repo_name} at {workspace}: {result.stderr}"
                 )
         except subprocess.TimeoutExpired:
             raise RuntimeError(
-                f"Git command timed out in workspace: {workspace}"
+                f"Git command timed out in repository: {workspace} (repo: {repo_name})"
             ) from None
         except subprocess.SubprocessError as e:
             raise RuntimeError(
-                f"Failed to run git command in workspace {workspace}: {e}"
+                f"Failed to run git command in repository {repo_name} at {workspace}: {e}"
             ) from e
 
-        self.logger.debug(f"Git repository validation passed: {workspace}")
+    logger.info(
+        f"✅ GitHub service validation passed for {len(repositories)} repositories"
+    )

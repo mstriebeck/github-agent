@@ -98,7 +98,7 @@ class DataProcessor:
             # Create repository config
             python_repo = RepositoryConfig(
                 name="test-repo",
-                path=str(repo_dir),
+                workspace=str(repo_dir),
                 description="Test Python repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -194,7 +194,7 @@ class SwiftClass {
             # Create repository configs
             python_repo1 = RepositoryConfig(
                 name="python-repo-1",
-                path=str(repo1_dir),
+                workspace=str(repo1_dir),
                 description="First Python repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -205,7 +205,7 @@ class SwiftClass {
 
             python_repo2 = RepositoryConfig(
                 name="python-repo-2",
-                path=str(repo2_dir),
+                workspace=str(repo2_dir),
                 description="Second Python repository",
                 language=Language.PYTHON,
                 port=8081,
@@ -216,7 +216,7 @@ class SwiftClass {
 
             swift_repo = RepositoryConfig(
                 name="swift-repo",
-                path=str(repo3_dir),
+                workspace=str(repo3_dir),
                 description="Swift repository",
                 language=Language.SWIFT,
                 port=8082,
@@ -283,7 +283,7 @@ def working_function():
             # Create mixed repository configs
             good_repo = RepositoryConfig(
                 name="good-repo",
-                path=str(good_repo_dir),
+                workspace=str(good_repo_dir),
                 description="Working repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -294,7 +294,7 @@ def working_function():
 
             bad_repo = RepositoryConfig(
                 name="bad-repo",
-                path="/nonexistent/path",
+                workspace="/nonexistent/path",
                 description="Non-existent repository",
                 language=Language.PYTHON,
                 port=8081,
@@ -373,7 +373,7 @@ class Class_{i}_{j}:
             # Create repository config
             large_repo = RepositoryConfig(
                 name="large-repo",
-                path=str(repo_dir),
+                workspace=str(repo_dir),
                 description="Large test repository",
                 language=Language.PYTHON,
                 port=8080,
@@ -449,7 +449,7 @@ class PersistentClass:
 
             repo_config = RepositoryConfig(
                 name="persistent-repo",
-                path=str(repo_dir),
+                workspace=str(repo_dir),
                 description="Persistent repository",
                 language=Language.PYTHON,
                 port=8080,

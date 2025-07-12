@@ -22,7 +22,7 @@ def mock_repo_config(temp_repo_path):
     """Create a mock repository configuration for testing"""
     return RepositoryConfig(
         name="test-repo",
-        path=temp_repo_path,
+        workspace=temp_repo_path,
         port=9999,
         description="Test repository for search_symbols integration tests",
         language=Language.PYTHON,
@@ -123,7 +123,7 @@ class TestSearchSymbolsMCPIntegration:
         result = await self.execute_search_with_mock(
             mock_symbol_storage,
             repo_name="test-repo",
-            repo_path="/test/path",
+            repository_workspace="/test/path",
             query="test",
         )
 
@@ -178,7 +178,7 @@ class TestSearchSymbolsMCPIntegration:
         result = await self.execute_search_with_mock(
             mock_symbol_storage,
             repo_name="test-repo",
-            repo_path="/test/path",
+            repository_workspace="/test/path",
             query="search",
         )
         data = json.loads(result)
@@ -190,7 +190,7 @@ class TestSearchSymbolsMCPIntegration:
         result = await self.execute_search_with_mock(
             mock_symbol_storage,
             repo_name="test-repo",
-            repo_path="/test/path",
+            repository_workspace="/test/path",
             query="search",
             symbol_kind="function",
         )
@@ -202,7 +202,7 @@ class TestSearchSymbolsMCPIntegration:
         result = await self.execute_search_with_mock(
             mock_symbol_storage,
             repo_name="test-repo",
-            repo_path="/test/path",
+            repository_workspace="/test/path",
             query="search",
             limit=10,
         )
@@ -214,7 +214,7 @@ class TestSearchSymbolsMCPIntegration:
         result = await self.execute_search_with_mock(
             mock_symbol_storage,
             repo_name="test-repo",
-            repo_path="/test/path",
+            repository_workspace="/test/path",
             query="search",
             symbol_kind="class",
             limit=5,
@@ -231,7 +231,7 @@ class TestSearchSymbolsMCPIntegration:
         result = await codebase_tools.execute_tool(
             "search_symbols",
             repo_name="test-repo",
-            repo_path="/test/path",
+            repository_workspace="/test/path",
             # Missing query parameter
         )
 
@@ -243,7 +243,7 @@ class TestSearchSymbolsMCPIntegration:
         result = await codebase_tools.execute_tool(
             "search_symbols",
             repo_name="test-repo",
-            repo_path="/test/path",
+            repository_workspace="/test/path",
             query="test",
             limit=0,  # Invalid limit
         )
@@ -265,7 +265,7 @@ class TestSearchSymbolsMCPIntegration:
         result = await codebase_tools.execute_tool(
             "search_symbols",
             repo_name="test-repo",
-            repo_path="/test/path",
+            repository_workspace="/test/path",
             query="",
             symbol_storage=mock_symbol_storage,
         )
@@ -279,7 +279,7 @@ class TestSearchSymbolsMCPIntegration:
         result = await codebase_tools.execute_tool(
             "search_symbols",
             repo_name="test-repo",
-            repo_path="/test/path",
+            repository_workspace="/test/path",
             query="   ",
             symbol_storage=mock_symbol_storage,
         )
@@ -319,7 +319,7 @@ class TestSearchSymbolsMCPIntegration:
         result = await codebase_tools.execute_tool(
             "search_symbols",
             repo_name="test-repo",
-            repo_path="/test/path",
+            repository_workspace="/test/path",
             query="__init__",
             symbol_storage=mock_symbol_storage,
         )
@@ -332,7 +332,7 @@ class TestSearchSymbolsMCPIntegration:
         result = await codebase_tools.execute_tool(
             "search_symbols",
             repo_name="test-repo",
-            repo_path="/test/path",
+            repository_workspace="/test/path",
             query="_",
             symbol_storage=mock_symbol_storage,
         )
@@ -371,7 +371,7 @@ class TestSearchSymbolsMCPIntegration:
         result = await codebase_tools.execute_tool(
             "search_symbols",
             repo_name="test-repo",
-            repo_path="/test/path",
+            repository_workspace="/test/path",
             query="test",
             symbol_storage=mock_symbol_storage,
         )
@@ -412,7 +412,7 @@ class TestSearchSymbolsMCPIntegration:
         result = await codebase_tools.execute_tool(
             "search_symbols",
             repo_name="test-repo",
-            repo_path="/test/path",
+            repository_workspace="/test/path",
             query="function",
             symbol_storage=mock_symbol_storage,
         )

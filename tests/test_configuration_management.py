@@ -45,6 +45,8 @@ class TestRepositoryCLI(unittest.TestCase):
         os.system(f"cd {repo_path} && git init --quiet")
         os.system(f"cd {repo_path} && git config user.email 'test@example.com'")
         os.system(f"cd {repo_path} && git config user.name 'Test User'")
+        # Create a Python file to satisfy repository validation
+        os.system(f"cd {repo_path} && echo 'print(\"Hello World\")' > main.py")
         os.system(
             f"cd {repo_path} && touch README.md && git add . && git commit -m 'Initial commit' --quiet"
         )
@@ -81,7 +83,7 @@ class TestConfigurationHotReload(unittest.TestCase):
         self.initial_config = {
             "repositories": {
                 "initial-repo": {
-                    "path": str(self.repo_path),
+                    "workspace": str(self.repo_path),
                     "description": "Initial repository",
                     "language": "python",
                     "port": 8081,
@@ -106,6 +108,8 @@ class TestConfigurationHotReload(unittest.TestCase):
         os.system(f"cd {repo_path} && git init --quiet")
         os.system(f"cd {repo_path} && git config user.email 'test@example.com'")
         os.system(f"cd {repo_path} && git config user.name 'Test User'")
+        # Create a Python file to satisfy repository validation
+        os.system(f"cd {repo_path} && echo 'print(\"Hello World\")' > main.py")
         os.system(
             f"cd {repo_path} && touch README.md && git add . && git commit -m 'Initial commit' --quiet"
         )
@@ -129,7 +133,7 @@ class TestConfigurationHotReload(unittest.TestCase):
         updated_config = {
             "repositories": {
                 "initial-repo": {
-                    "path": str(self.repo_path),
+                    "workspace": str(self.repo_path),
                     "description": "Initial repository",
                     "language": "python",
                     "port": 8083,
@@ -138,7 +142,7 @@ class TestConfigurationHotReload(unittest.TestCase):
                     "github_repo": "initial-repo",
                 },
                 "new-repo": {
-                    "path": str(self.repo_path),
+                    "workspace": str(self.repo_path),
                     "description": "New repository",
                     "language": "swift",
                     "port": 8084,
@@ -189,7 +193,7 @@ class TestConfigurationHotReload(unittest.TestCase):
         updated_config = {
             "repositories": {
                 "different-repo": {
-                    "path": str(self.repo_path),
+                    "workspace": str(self.repo_path),
                     "description": "Different repository",
                     "language": "python",
                     "port": 8085,
@@ -248,7 +252,7 @@ class TestConfigurationHotReload(unittest.TestCase):
         updated_config = {
             "repositories": {
                 "watched-repo": {
-                    "path": str(self.repo_path),
+                    "workspace": str(self.repo_path),
                     "description": "Watched repository",
                     "language": "python",
                     "port": 8087,
