@@ -27,6 +27,8 @@ from typing import Any
 
 import aiohttp
 
+import codebase_tools
+import github_tools
 from constants import LOGS_DIR, Language
 from python_symbol_extractor import PythonSymbolExtractor
 from repository_indexer import PythonRepositoryIndexer
@@ -40,8 +42,6 @@ from shutdown_simple import (
 from startup_orchestrator import CodebaseStartupOrchestrator
 from symbol_storage import ProductionSymbolStorage, SQLiteSymbolStorage
 from system_utils import MicrosecondFormatter, log_system_state
-import github_tools
-import codebase_tools
 
 # Configure logging with enhanced microsecond precision
 
@@ -251,22 +251,24 @@ class MCPMaster:
     def _validate_all_services(self) -> None:
         """Validate all service prerequisites before starting workers."""
         logger.info("🔍 Validating all service prerequisites...")
-        
+
         try:
             # Get repository configurations
             repositories = self.repository_manager.repositories
-            
+
             # Repository validation is already done by RepositoryManager.create_from_config()
-            logger.info("✅ Repository validation completed during configuration loading")
-            
+            logger.info(
+                "✅ Repository validation completed during configuration loading"
+            )
+
             # Validate GitHub service prerequisites
             github_tools.validate(logger, repositories)
-            
+
             # Validate codebase service prerequisites
             codebase_tools.validate(logger, repositories)
-            
+
             logger.info("✅ All service prerequisite validation completed successfully")
-            
+
         except Exception as e:
             logger.error(f"❌ Service validation failed: {e}")
             raise RuntimeError(f"Service validation failed: {e}") from e
@@ -748,8 +750,6 @@ async def main() -> None:
                 health_monitor = SimpleHealthMonitor(logger)
                 health_monitor.start_monitoring()
 
-
-
                 master = MCPMaster(
                     repository_manager=repository_manager,
                     workers=workers,
@@ -757,7 +757,6 @@ async def main() -> None:
                     symbol_storage=symbol_storage,
                     shutdown_coordinator=shutdown_coordinator,
                     health_monitor=health_monitor,
-
                 )
 
                 status = master.status()
@@ -804,8 +803,6 @@ async def main() -> None:
         health_monitor = SimpleHealthMonitor(logger)
         health_monitor.start_monitoring()
 
-
-
         logger.info("✅ All components created successfully")
 
         master = MCPMaster(
@@ -815,7 +812,6 @@ async def main() -> None:
             symbol_storage=symbol_storage,
             shutdown_coordinator=shutdown_coordinator,
             health_monitor=health_monitor,
-
         )
 
     except Exception as e:

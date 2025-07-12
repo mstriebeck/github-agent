@@ -13,8 +13,8 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-import github_tools
 import codebase_tools
+import github_tools
 from constants import Language
 
 
@@ -28,13 +28,13 @@ class TestGitHubValidation(unittest.TestCase):
 
     def test_github_validate_empty_repos(self):
         """Test GitHub validation with empty repositories."""
-        with patch.dict(os.environ, {'GITHUB_TOKEN': 'test_token'}), \
-             patch('subprocess.run') as mock_run:
-            
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}), patch(
+            "subprocess.run"
+        ) as mock_run:
             # Mock git --version command
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = "git version 2.39.0"
-            
+
             # Should pass with empty repositories
             github_tools.validate(self.logger, {})
 
@@ -43,28 +43,32 @@ class TestGitHubValidation(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(RuntimeError) as context:
                 github_tools.validate(self.logger, {})
-            
-            self.assertIn("GITHUB_TOKEN environment variable not set", str(context.exception))
+
+            self.assertIn(
+                "GITHUB_TOKEN environment variable not set", str(context.exception)
+            )
 
     def test_github_validate_empty_token(self):
         """Test GitHub validation with empty token."""
-        with patch.dict(os.environ, {'GITHUB_TOKEN': '  '}):
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "  "}):
             with self.assertRaises(RuntimeError) as context:
                 github_tools.validate(self.logger, {})
-            
-            self.assertIn("GITHUB_TOKEN environment variable is empty", str(context.exception))
+
+            self.assertIn(
+                "GITHUB_TOKEN environment variable is empty", str(context.exception)
+            )
 
     def test_github_validate_git_not_available(self):
         """Test GitHub validation when git is not available."""
-        with patch.dict(os.environ, {'GITHUB_TOKEN': 'test_token'}), \
-             patch('subprocess.run') as mock_run:
-            
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}), patch(
+            "subprocess.run"
+        ) as mock_run:
             # Mock git command failure
             mock_run.side_effect = FileNotFoundError("git not found")
-            
+
             with self.assertRaises(RuntimeError) as context:
                 github_tools.validate(self.logger, {})
-            
+
             self.assertIn("Git command not available", str(context.exception))
 
     def test_github_validate_with_valid_repo(self):
@@ -73,19 +77,19 @@ class TestGitHubValidation(unittest.TestCase):
             # Create a mock git repository
             git_dir = os.path.join(temp_dir, ".git")
             os.makedirs(git_dir)
-            
+
             # Mock repository config
             mock_repo_config = Mock()
             mock_repo_config.path = temp_dir
             repositories = {"test_repo": mock_repo_config}
-            
-            with patch.dict(os.environ, {'GITHUB_TOKEN': 'test_token'}), \
-                 patch('subprocess.run') as mock_run:
-                
+
+            with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}), patch(
+                "subprocess.run"
+            ) as mock_run:
                 # Mock git commands
                 mock_run.return_value.returncode = 0
                 mock_run.return_value.stdout = "git version 2.39.0"
-                
+
                 # Should pass
                 github_tools.validate(self.logger, repositories)
 
@@ -95,17 +99,17 @@ class TestGitHubValidation(unittest.TestCase):
         mock_repo_config = Mock()
         mock_repo_config.path = "/nonexistent/path"
         repositories = {"test_repo": mock_repo_config}
-        
-        with patch.dict(os.environ, {'GITHUB_TOKEN': 'test_token'}), \
-             patch('subprocess.run') as mock_run:
-            
+
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}), patch(
+            "subprocess.run"
+        ) as mock_run:
             # Mock git --version command
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = "git version 2.39.0"
-            
+
             with self.assertRaises(RuntimeError) as context:
                 github_tools.validate(self.logger, repositories)
-            
+
             self.assertIn("Repository workspace does not exist", str(context.exception))
 
 
@@ -130,12 +134,12 @@ class TestCodebaseValidation(unittest.TestCase):
             mock_repo_config.path = temp_dir
             mock_repo_config.language = Language.PYTHON
             repositories = {"test_repo": mock_repo_config}
-            
-            with patch('subprocess.run') as mock_run:
+
+            with patch("subprocess.run") as mock_run:
                 # Mock pyright command
                 mock_run.return_value.returncode = 0
                 mock_run.return_value.stdout = "pyright 1.1.0"
-                
+
                 # Should pass
                 codebase_tools.validate(self.logger, repositories)
 
@@ -146,10 +150,10 @@ class TestCodebaseValidation(unittest.TestCase):
         mock_repo_config.path = "/nonexistent/path"
         mock_repo_config.language = Language.PYTHON
         repositories = {"test_repo": mock_repo_config}
-        
+
         with self.assertRaises(RuntimeError) as context:
             codebase_tools.validate(self.logger, repositories)
-        
+
         self.assertIn("Repository workspace does not exist", str(context.exception))
 
     def test_codebase_validate_pyright_not_available(self):
@@ -160,14 +164,14 @@ class TestCodebaseValidation(unittest.TestCase):
             mock_repo_config.path = temp_dir
             mock_repo_config.language = Language.PYTHON
             repositories = {"test_repo": mock_repo_config}
-            
-            with patch('subprocess.run') as mock_run:
+
+            with patch("subprocess.run") as mock_run:
                 # Mock pyright command failure
                 mock_run.side_effect = FileNotFoundError("pyright not found")
-                
+
                 with self.assertRaises(RuntimeError) as context:
                     codebase_tools.validate(self.logger, repositories)
-                
+
                 self.assertIn("Python LSP tools not available", str(context.exception))
 
 
@@ -185,24 +189,24 @@ class TestValidationIntegration(unittest.TestCase):
             # Create a mock git repository
             git_dir = os.path.join(temp_dir, ".git")
             os.makedirs(git_dir)
-            
+
             # Mock repository config
             mock_repo_config = Mock()
             mock_repo_config.path = temp_dir
             mock_repo_config.language = Language.PYTHON
             repositories = {"test_repo": mock_repo_config}
-            
-            with patch.dict(os.environ, {'GITHUB_TOKEN': 'test_token'}), \
-                 patch('subprocess.run') as mock_run:
-                
+
+            with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}), patch(
+                "subprocess.run"
+            ) as mock_run:
                 # Mock all subprocess calls
                 mock_run.return_value.returncode = 0
                 mock_run.return_value.stdout = "git version 2.39.0"
-                
+
                 # Test GitHub validation
                 github_tools.validate(self.logger, repositories)
-                
-                # Test codebase validation  
+
+                # Test codebase validation
                 codebase_tools.validate(self.logger, repositories)
 
     def test_validation_order_independence(self):
@@ -211,24 +215,24 @@ class TestValidationIntegration(unittest.TestCase):
             # Create a mock git repository
             git_dir = os.path.join(temp_dir, ".git")
             os.makedirs(git_dir)
-            
+
             # Mock repository config
             mock_repo_config = Mock()
             mock_repo_config.path = temp_dir
             mock_repo_config.language = Language.PYTHON
             repositories = {"test_repo": mock_repo_config}
-            
-            with patch.dict(os.environ, {'GITHUB_TOKEN': 'test_token'}), \
-                 patch('subprocess.run') as mock_run:
-                
+
+            with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}), patch(
+                "subprocess.run"
+            ) as mock_run:
                 # Mock all subprocess calls
                 mock_run.return_value.returncode = 0
                 mock_run.return_value.stdout = "git version 2.39.0"
-                
+
                 # Test different order
                 codebase_tools.validate(self.logger, repositories)
                 github_tools.validate(self.logger, repositories)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

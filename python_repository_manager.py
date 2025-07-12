@@ -10,18 +10,12 @@ Python repositories from the main repository configuration.
 import glob
 import logging
 import os
-import re
-import subprocess
 
 from constants import Language
 from repository_manager import (
-    MINIMUM_PYTHON_MAJOR,
-    MINIMUM_PYTHON_MINOR,
-    MINIMUM_PYTHON_VERSION,
     RepositoryConfig,
     RepositoryManager,
 )
-
 
 # Dedicated Python repository manager using composition with RepositoryManager
 
@@ -173,6 +167,3 @@ def create_python_repository_manager(
         raise RuntimeError("Failed to load repository configuration")
 
     return PythonRepositoryManager(repository_manager)
-
-
-

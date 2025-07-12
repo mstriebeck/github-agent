@@ -7,14 +7,11 @@ for Python files, extracting symbols, and storing them in the database.
 
 import logging
 import os
-import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from constants import Language
 from python_symbol_extractor import AbstractSymbolExtractor
 from symbol_storage import AbstractSymbolStorage
-
 
 logger = logging.getLogger(__name__)
 
@@ -346,6 +343,3 @@ class PythonRepositoryIndexer(AbstractRepositoryIndexer):
             error_msg = f"Processing error: {e}"
             logger.error(f"Error processing {file_str}: {e}")
             result.add_failed_file(file_str, error_msg)
-
-
-

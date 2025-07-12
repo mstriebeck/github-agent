@@ -2004,26 +2004,26 @@ async def execute_tool(tool_name: str, **kwargs) -> str:
 def validate(logger: logging.Logger, repositories: dict[str, Any]) -> None:
     """
     Validate GitHub service prerequisites.
-    
+
     Args:
         logger: Logger instance for debugging and monitoring
         repositories: Dictionary of repository configurations
-        
+
     Raises:
         RuntimeError: If GitHub prerequisites are not met
     """
     logger.info("Validating GitHub service prerequisites...")
-    
+
     # Validate GitHub token
     github_token = os.getenv("GITHUB_TOKEN")
     if not github_token:
         raise RuntimeError("GITHUB_TOKEN environment variable not set")
-    
+
     if not github_token.strip():
         raise RuntimeError("GITHUB_TOKEN environment variable is empty")
-    
+
     logger.debug(f"GitHub token found (length: {len(github_token)})")
-    
+
     # Validate git is available
     try:
         result = subprocess.run(
@@ -2035,22 +2035,30 @@ def validate(logger: logging.Logger, repositories: dict[str, Any]) -> None:
         if result.returncode != 0:
             raise RuntimeError("Git command is not available or not working")
         logger.debug(f"Git available: {result.stdout.strip()}")
-    except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
+    except (
+        subprocess.TimeoutExpired,
+        subprocess.SubprocessError,
+        FileNotFoundError,
+    ) as e:
         raise RuntimeError(f"Git command not available: {e}") from e
-    
+
     # Validate each repository is a valid git repository
     for repo_name, repo_config in repositories.items():
-        workspace = getattr(repo_config, 'path', None)
+        workspace = getattr(repo_config, "path", None)
         if not workspace:
             continue
-            
+
         if not os.path.exists(workspace):
-            raise RuntimeError(f"Repository workspace does not exist: {workspace} (repo: {repo_name})")
-        
+            raise RuntimeError(
+                f"Repository workspace does not exist: {workspace} (repo: {repo_name})"
+            )
+
         git_dir = os.path.join(workspace, ".git")
         if not os.path.exists(git_dir):
-            raise RuntimeError(f"Repository is not a git repository: {workspace} (repo: {repo_name})")
-        
+            raise RuntimeError(
+                f"Repository is not a git repository: {workspace} (repo: {repo_name})"
+            )
+
         # Check if git is functional in this directory
         try:
             result = subprocess.run(
@@ -2072,8 +2080,7 @@ def validate(logger: logging.Logger, repositories: dict[str, Any]) -> None:
             raise RuntimeError(
                 f"Failed to run git command in repository {repo_name} at {workspace}: {e}"
             ) from e
-    
-    logger.info(f"✅ GitHub service validation passed for {len(repositories)} repositories")
 
-
-
+    logger.info(
+        f"✅ GitHub service validation passed for {len(repositories)} repositories"
+    )
