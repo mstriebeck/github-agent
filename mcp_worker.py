@@ -580,7 +580,7 @@ class MCPWorker:
                                     result = await module.execute_tool(
                                         tool_name,
                                         repo_name=self.repo_name,
-                                        repo_path=self.repo_path,
+                                        repository_workspace=self.repo_path,
                                         **tool_args,
                                     )
                                 elif tool_name == "github_post_pr_reply":

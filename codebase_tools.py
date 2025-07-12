@@ -192,12 +192,12 @@ def get_tools(repo_name: str, repository_workspace: str) -> list[dict]:
     ]
 
 
-async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
+async def execute_codebase_health_check(repo_name: str, repository_workspace: str) -> str:
     """Execute basic health check for the repository
 
     Args:
         repo_name: Repository name to check
-        repo_path: Path to the repository
+        repository_workspace: Path to the repository
 
     Returns:
         JSON string with health check results
@@ -205,7 +205,7 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
     logger.info(f"Performing health check for repository: {repo_name}")
 
     try:
-        repository_workspace_obj = Path(repo_path)
+        repository_workspace_obj = Path(repository_workspace)
 
         health_status: dict[str, Any] = {
             "repo": repo_name,
@@ -306,7 +306,7 @@ async def execute_codebase_health_check(repo_name: str, repo_path: str) -> str:
         logger.exception(f"Error during health check for {repo_name}")
         error_response = {
             "repo": repo_name,
-            "workspace": repo_path,
+            "workspace": repository_workspace,
             "status": "error",
             "errors": [f"Health check failed: {e!s}"],
             "checks": {},
