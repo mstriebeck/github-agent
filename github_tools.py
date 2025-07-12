@@ -13,7 +13,7 @@ import re
 import subprocess
 import zipfile
 from collections.abc import Awaitable, Callable
-from typing import cast
+from typing import Any, cast
 
 import requests
 from github import Github
@@ -23,12 +23,6 @@ from repository_manager import (
     AbstractRepositoryManager,
     RepositoryConfig,
     RepositoryManager,
-)
-from validation_base import (
-    AbstractValidator,
-    ValidationContext,
-    ValidationError,
-    ValidatorType,
 )
 
 logger = logging.getLogger(__name__)
@@ -2007,68 +2001,56 @@ async def execute_tool(tool_name: str, **kwargs) -> str:
         return json.dumps({"error": f"Tool execution failed: {e!s}", "tool": tool_name})
 
 
-class GitHubValidator(AbstractValidator):
-    """Validator for GitHub service prerequisites."""
-
-    @property
-    def validator_type(self) -> ValidatorType:
-        return ValidatorType.GITHUB
-
-    def validate(self, context: ValidationContext) -> None:
-        """
-        Validate GitHub service prerequisites.
-
-        Args:
-            context: ValidationContext containing workspace, language, services, and config
-
-        Raises:
-            ValidationError: If GitHub token is not available or git repository is invalid
-        """
-        # Validate GitHub token
-        try:
-            self._validate_github_token()
-        except Exception as e:
-            raise ValidationError(
-                f"GitHub token validation failed: {e}",
-                validator_type=ValidatorType.GITHUB,
-            ) from e
-
-        # Validate git repository
-        try:
-            self._validate_git_repository(context.workspace)
-        except Exception as e:
-            raise ValidationError(
-                f"Git repository validation failed: {e}",
-                validator_type=ValidatorType.GITHUB,
-            ) from e
-
-    def _validate_github_token(self) -> str:
-        """
-        Validate GitHub token environment variable.
-
-        Extracted from github_tools.py
-        """
-        github_token = os.getenv("GITHUB_TOKEN")
-        if not github_token:
-            raise RuntimeError("GITHUB_TOKEN environment variable not set")
-
-        if not github_token.strip():
-            raise RuntimeError("GITHUB_TOKEN environment variable is empty")
-
-        self.logger.debug(f"GitHub token found (length: {len(github_token)})")
-        return github_token
-
-    def _validate_git_repository(self, workspace: str) -> None:
-        """
-        Validate that the workspace is a valid git repository.
-        """
+def validate(logger: logging.Logger, repositories: dict[str, Any]) -> None:
+    """
+    Validate GitHub service prerequisites.
+    
+    Args:
+        logger: Logger instance for debugging and monitoring
+        repositories: Dictionary of repository configurations
+        
+    Raises:
+        RuntimeError: If GitHub prerequisites are not met
+    """
+    logger.info("Validating GitHub service prerequisites...")
+    
+    # Validate GitHub token
+    github_token = os.getenv("GITHUB_TOKEN")
+    if not github_token:
+        raise RuntimeError("GITHUB_TOKEN environment variable not set")
+    
+    if not github_token.strip():
+        raise RuntimeError("GITHUB_TOKEN environment variable is empty")
+    
+    logger.debug(f"GitHub token found (length: {len(github_token)})")
+    
+    # Validate git is available
+    try:
+        result = subprocess.run(
+            ["git", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            raise RuntimeError("Git command is not available or not working")
+        logger.debug(f"Git available: {result.stdout.strip()}")
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
+        raise RuntimeError(f"Git command not available: {e}") from e
+    
+    # Validate each repository is a valid git repository
+    for repo_name, repo_config in repositories.items():
+        workspace = getattr(repo_config, 'path', None)
+        if not workspace:
+            continue
+            
         if not os.path.exists(workspace):
-            raise RuntimeError(f"Workspace directory does not exist: {workspace}")
-
+            raise RuntimeError(f"Repository workspace does not exist: {workspace} (repo: {repo_name})")
+        
         git_dir = os.path.join(workspace, ".git")
         if not os.path.exists(git_dir):
-            raise RuntimeError(f"Workspace is not a git repository: {workspace}")
-
+            raise RuntimeError(f"Repository is not a git repository: {workspace} (repo: {repo_name})")
+        
         # Check if git is functional in this directory
         try:
             result = subprocess.run(
@@ -2080,15 +2062,18 @@ class GitHubValidator(AbstractValidator):
             )
             if result.returncode != 0:
                 raise RuntimeError(
-                    f"Git command failed in workspace {workspace}: {result.stderr}"
+                    f"Git command failed in repository {repo_name} at {workspace}: {result.stderr}"
                 )
         except subprocess.TimeoutExpired:
             raise RuntimeError(
-                f"Git command timed out in workspace: {workspace}"
+                f"Git command timed out in repository: {workspace} (repo: {repo_name})"
             ) from None
         except subprocess.SubprocessError as e:
             raise RuntimeError(
-                f"Failed to run git command in workspace {workspace}: {e}"
+                f"Failed to run git command in repository {repo_name} at {workspace}: {e}"
             ) from e
+    
+    logger.info(f"✅ GitHub service validation passed for {len(repositories)} repositories")
 
-        self.logger.debug(f"Git repository validation passed: {workspace}")
+
+

@@ -587,6 +587,10 @@ class RepositoryManager(AbstractRepositoryManager):
                         f"No read access to repository: {repo_config.path}"
                     )
 
+                # Language-specific validation
+                if repo_config.language == Language.PYTHON:
+                    self._validate_python_repository(name, repo_config)
+
                 self.logger.info(
                     f"✅ Validated repository '{name}' at {repo_config.path} "
                     f"(GitHub: {repo_config.github_owner}/{repo_config.github_repo}, "
@@ -613,6 +617,43 @@ class RepositoryManager(AbstractRepositoryManager):
         self.logger.debug(
             f"✅ No port conflicts found among {len(self._repositories)} repositories"
         )
+
+    def _validate_python_repository(self, name: str, repo_config: RepositoryConfig) -> None:
+        """Validate Python-specific repository requirements."""
+        # Validate Python path is configured and valid
+        try:
+            validated_path = self._validate_python_path(repo_config.python_path, self.logger)
+            self.logger.debug(f"Python path validation passed for {name}: {validated_path}")
+        except Exception as e:
+            raise ValueError(f"Python path validation failed for repository '{name}': {e}") from e
+        
+        # Validate repository contains Python files
+        python_files_found = False
+        try:
+            for root, dirs, files in os.walk(repo_config.path):
+                # Skip hidden directories like .git, .venv, etc.
+                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                
+                for file in files:
+                    if file.endswith('.py'):
+                        python_files_found = True
+                        break
+                
+                if python_files_found:
+                    break
+            
+            if not python_files_found:
+                raise ValueError(
+                    f"No Python files found in repository '{name}' at {repo_config.path}. "
+                    "This repository is configured as a Python repository but contains no .py files."
+                )
+            
+            self.logger.debug(f"Python files found in repository '{name}'")
+            
+        except Exception as e:
+            if "No Python files found" in str(e):
+                raise
+            raise ValueError(f"Error scanning for Python files in repository '{name}': {e}") from e
 
     def get_repository(self, repo_name: str) -> RepositoryConfig | None:
         """
