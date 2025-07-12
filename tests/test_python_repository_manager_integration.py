@@ -187,7 +187,7 @@ class TestPythonRepositoryManagerIntegration:
                 # Create Python stub file and regular Python file
                 with open(os.path.join(repo_dir, "types.pyi"), "w") as f:
                     f.write("def test_function() -> None: ...")
-                
+
                 # Need at least one .py file for Python repository validation
                 with open(os.path.join(repo_dir, "main.py"), "w") as f:
                     f.write("from types import test_function")

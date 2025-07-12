@@ -253,7 +253,14 @@ class TestCodebaseTools:
         data = json.loads(result)
 
         # Required top-level fields
-        required_fields = ["repo", "workspace", "status", "checks", "warnings", "errors"]
+        required_fields = [
+            "repo",
+            "workspace",
+            "status",
+            "checks",
+            "warnings",
+            "errors",
+        ]
         for field in required_fields:
             assert field in data
 

@@ -28,9 +28,10 @@ class TestGitHubValidation(unittest.TestCase):
 
     def test_github_validate_empty_repos(self):
         """Test GitHub validation with empty repositories."""
-        with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}), patch(
-            "subprocess.run"
-        ) as mock_run:
+        with (
+            patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}),
+            patch("subprocess.run") as mock_run,
+        ):
             # Mock git --version command
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = "git version 2.39.0"
@@ -60,9 +61,10 @@ class TestGitHubValidation(unittest.TestCase):
 
     def test_github_validate_git_not_available(self):
         """Test GitHub validation when git is not available."""
-        with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}), patch(
-            "subprocess.run"
-        ) as mock_run:
+        with (
+            patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}),
+            patch("subprocess.run") as mock_run,
+        ):
             # Mock git command failure
             mock_run.side_effect = FileNotFoundError("git not found")
 
@@ -83,9 +85,10 @@ class TestGitHubValidation(unittest.TestCase):
             mock_repo_config.workspace = temp_dir
             repositories = {"test_repo": mock_repo_config}
 
-            with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}), patch(
-                "subprocess.run"
-            ) as mock_run:
+            with (
+                patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}),
+                patch("subprocess.run") as mock_run,
+            ):
                 # Mock git commands
                 mock_run.return_value.returncode = 0
                 mock_run.return_value.stdout = "git version 2.39.0"
@@ -100,9 +103,10 @@ class TestGitHubValidation(unittest.TestCase):
         mock_repo_config.workspace = "/nonexistent/path"
         repositories = {"test_repo": mock_repo_config}
 
-        with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}), patch(
-            "subprocess.run"
-        ) as mock_run:
+        with (
+            patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}),
+            patch("subprocess.run") as mock_run,
+        ):
             # Mock git --version command
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = "git version 2.39.0"
@@ -196,9 +200,10 @@ class TestValidationIntegration(unittest.TestCase):
             mock_repo_config.language = Language.PYTHON
             repositories = {"test_repo": mock_repo_config}
 
-            with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}), patch(
-                "subprocess.run"
-            ) as mock_run:
+            with (
+                patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}),
+                patch("subprocess.run") as mock_run,
+            ):
                 # Mock all subprocess calls
                 mock_run.return_value.returncode = 0
                 mock_run.return_value.stdout = "git version 2.39.0"
@@ -222,9 +227,10 @@ class TestValidationIntegration(unittest.TestCase):
             mock_repo_config.language = Language.PYTHON
             repositories = {"test_repo": mock_repo_config}
 
-            with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}), patch(
-                "subprocess.run"
-            ) as mock_run:
+            with (
+                patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}),
+                patch("subprocess.run") as mock_run,
+            ):
                 # Mock all subprocess calls
                 mock_run.return_value.returncode = 0
                 mock_run.return_value.stdout = "git version 2.39.0"

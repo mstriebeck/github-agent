@@ -642,7 +642,7 @@ class RepositoryManager(AbstractRepositoryManager):
         # Validate repository contains Python files
         python_files_found = False
         try:
-            for root, dirs, files in os.walk(repo_config.workspace):
+            for _root, dirs, files in os.walk(repo_config.workspace):
                 # Skip hidden directories like .git, .venv, etc.
                 dirs[:] = [d for d in dirs if not d.startswith(".")]
 
