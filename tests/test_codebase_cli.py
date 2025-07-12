@@ -108,7 +108,7 @@ class TestOutputFormatter:
         """Test table formatting for health check results."""
         data = {
             "repo": "my-repo",
-            "path": "/path/to/repo",
+            "workspace": "/path/to/repo",
             "status": "healthy",
             "checks": {
                 "path_exists": True,
@@ -295,7 +295,7 @@ class TestExecuteCLI:
 
         # Setup mock repository manager
         mock_repo_manager = MockRepositoryManager()
-        mock_repo_manager.add_repository("test-repo", {"path": "/path/to/repo"})
+        mock_repo_manager.add_repository("test-repo", {"workspace": "/path/to/repo"})
 
         # Setup formatter and symbol storage
         formatter = OutputFormatter()
@@ -337,7 +337,7 @@ class TestExecuteCLI:
 
         # Setup mock repository manager
         mock_repo_manager = MockRepositoryManager()
-        mock_repo_manager.add_repository("test-repo", {"path": "/path/to/repo"})
+        mock_repo_manager.add_repository("test-repo", {"workspace": "/path/to/repo"})
 
         # Setup formatter and symbol storage
         formatter = OutputFormatter()
@@ -423,7 +423,7 @@ class TestExecuteCLI:
 
         # Setup mock repository manager
         mock_repo_manager = MockRepositoryManager()
-        mock_repo_manager.add_repository("test-repo", {"path": "/path/to/repo"})
+        mock_repo_manager.add_repository("test-repo", {"workspace": "/path/to/repo"})
         formatter = OutputFormatter()
 
         mock_result = {"error": "Tool failed"}

@@ -36,7 +36,7 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
         self.test_config = {
             "repositories": {
                 "project-a": {
-                    "path": str(self.repo1_path),
+                    "workspace": str(self.repo1_path),
                     "description": "Project A repository",
                     "language": "python",
                     "port": 8081,
@@ -45,7 +45,7 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
                     "github_repo": "project-a",
                 },
                 "project-b": {
-                    "path": str(self.repo2_path),
+                    "workspace": str(self.repo2_path),
                     "description": "Project B repository",
                     "language": "swift",
                     "port": 8082,
@@ -146,7 +146,7 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
         repo_configs = [
             {
                 "name": "repo1",
-                "path": str(self.repo1_path),
+                "workspace": str(self.repo1_path),
                 "description": "Repository 1",
                 "language": "python",
                 "port": 8081,
@@ -156,7 +156,7 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
             },
             {
                 "name": "repo2",
-                "path": str(self.repo2_path),
+                "workspace": str(self.repo2_path),
                 "description": "Repository 2",
                 "language": "swift",
                 "port": 8082,

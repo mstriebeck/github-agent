@@ -25,7 +25,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
         """Helper method to create RepositoryConfig with defaults"""
         defaults = {
             "name": "test-repo",
-            "path": "/path/to/repo",
+            "workspace": "/path/to/repo",
             "description": "Test repository",
             "language": Language.SWIFT,
             "port": 8081,
@@ -34,7 +34,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
         defaults.update(kwargs)
         return RepositoryConfig.create_repository_config(
             name=str(defaults["name"]),
-            path=str(defaults["path"]),
+            workspace=str(defaults["workspace"]),
             description=str(defaults["description"]),
             language=cast(Language, defaults["language"]),
             port=cast(int, defaults["port"]),
@@ -62,7 +62,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
         self.test_config = {
             "repositories": {
                 "project-a": {
-                    "path": str(self.repo1_path),
+                    "workspace": str(self.repo1_path),
                     "description": "Project A repository",
                     "language": Language.PYTHON.value,
                     "port": 8081,
@@ -71,7 +71,7 @@ class TestRepositoryAwareTools(unittest.TestCase):
                     "github_repo": "project-a",
                 },
                 "project-b": {
-                    "path": str(self.repo2_path),
+                    "workspace": str(self.repo2_path),
                     "description": "Project B repository",
                     "language": Language.SWIFT.value,
                     "port": 8082,

@@ -345,7 +345,7 @@ class TestRepositoryManager(unittest.TestCase):
         invalid_config = {
             "repositories": {
                 "repo1": {
-                    "path": "/nonexistent/path",
+                    "workspace": "/nonexistent/path",
                     "description": "Non-existent repo",
                     "language": Language.PYTHON.value,
                 }
@@ -367,7 +367,7 @@ class TestRepositoryManager(unittest.TestCase):
         invalid_config = {
             "repositories": {
                 "not_git": {
-                    "path": str(non_git_path),
+                    "workspace": str(non_git_path),
                     "description": "Not a git repo",
                     "language": Language.PYTHON.value,
                     "port": 8080,
@@ -387,13 +387,13 @@ class TestRepositoryManager(unittest.TestCase):
         config_with_port_conflict = {
             "repositories": {
                 "repo1": {
-                    "path": str(self.repo1_path),
+                    "workspace": str(self.repo1_path),
                     "description": "Test repository 1",
                     "language": Language.PYTHON.value,
                     "port": 8080,
                 },
                 "repo2": {
-                    "path": str(self.repo2_path),
+                    "workspace": str(self.repo2_path),
                     "description": "Test repository 2",
                     "language": Language.SWIFT.value,
                     "port": 8080,  # Same port as repo1 - should fail
@@ -471,12 +471,12 @@ class TestRepositoryManager(unittest.TestCase):
         repo_configs = [
             {
                 "name": "test1",
-                "path": str(self.repo1_path),
+                "workspace": str(self.repo1_path),
                 "description": "Test repo 1",
             },
             {
                 "name": "test2",
-                "path": str(self.repo2_path),
+                "workspace": str(self.repo2_path),
                 "description": "Test repo 2",
             },
         ]

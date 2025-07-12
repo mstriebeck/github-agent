@@ -25,7 +25,7 @@ class TestGetLinterErrors(unittest.TestCase):
         """Helper method to create RepositoryConfig with defaults"""
         defaults = {
             "name": "test-repo",
-            "path": "/path/to/repo",
+            "workspace": "/path/to/repo",
             "description": "Test repository",
             "language": Language.PYTHON,
             "port": 8081,
@@ -34,7 +34,7 @@ class TestGetLinterErrors(unittest.TestCase):
         defaults.update(kwargs)
         return RepositoryConfig.create_repository_config(
             name=str(defaults["name"]),
-            path=str(defaults["path"]),
+            workspace=str(defaults["workspace"]),
             description=str(defaults["description"]),
             language=cast(Language, defaults["language"]),
             port=cast(int, defaults["port"]),

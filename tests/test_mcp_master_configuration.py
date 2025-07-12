@@ -39,7 +39,7 @@ class TestRepositoryManagerConfigurationValidation(unittest.TestCase):
         self.valid_config = {
             "repositories": {
                 "test-repo": {
-                    "path": str(self.test_repo_path),
+                    "workspace": str(self.test_repo_path),
                     "port": 8081,
                     "description": "Test repository",
                     "language": "python",
@@ -74,7 +74,7 @@ class TestRepositoryManagerConfigurationValidation(unittest.TestCase):
         config_missing_port = {
             "repositories": {
                 "test-repo": {
-                    "path": str(self.test_repo_path),
+                    "workspace": str(self.test_repo_path),
                     "description": "Test repository",
                     "language": "python",
                     "python_path": "/Volumes/Code/github-agent/.venv/bin/python",
@@ -110,7 +110,7 @@ class TestRepositoryManagerConfigurationValidation(unittest.TestCase):
         config_missing_language = {
             "repositories": {
                 "test-repo": {
-                    "path": str(self.test_repo_path),
+                    "workspace": str(self.test_repo_path),
                     "port": 8081,
                     "description": "Test repository",
                     "python_path": "/Volumes/Code/github-agent/.venv/bin/python",
@@ -128,7 +128,7 @@ class TestRepositoryManagerConfigurationValidation(unittest.TestCase):
         config_missing_python_path = {
             "repositories": {
                 "test-repo": {
-                    "path": str(self.test_repo_path),
+                    "workspace": str(self.test_repo_path),
                     "port": 8081,
                     "description": "Test repository",
                     "language": "python",
@@ -146,7 +146,7 @@ class TestRepositoryManagerConfigurationValidation(unittest.TestCase):
         config_multiple_missing = {
             "repositories": {
                 "test-repo": {
-                    "path": str(self.test_repo_path),
+                    "workspace": str(self.test_repo_path),
                     "description": "Test repository",
                     # Missing port, language, and python_path fields
                 }
@@ -178,7 +178,7 @@ class TestRepositoryManagerConfigurationValidation(unittest.TestCase):
         config_missing_port = {
             "repositories": {
                 "test-repo": {
-                    "path": str(self.test_repo_path),
+                    "workspace": str(self.test_repo_path),
                     "description": "Test repository",
                     "language": "python",
                     "python_path": "/Volumes/Code/github-agent/.venv/bin/python",
@@ -217,14 +217,14 @@ class TestRepositoryManagerConfigurationValidation(unittest.TestCase):
         config_with_multiple_repos = {
             "repositories": {
                 "repo1": {
-                    "path": str(self.test_repo_path),
+                    "workspace": str(self.test_repo_path),
                     "port": 8081,
                     "description": "Test repository 1",
                     "language": "python",
                     "python_path": "/Volumes/Code/github-agent/.venv/bin/python",
                 },
                 "repo2": {
-                    "path": str(self.test_repo_path),
+                    "workspace": str(self.test_repo_path),
                     "port": 8082,
                     "description": "Test repository 2",
                     "language": "swift",

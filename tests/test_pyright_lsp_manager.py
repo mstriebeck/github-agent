@@ -166,24 +166,24 @@ class TestPyrightLSPManager(unittest.TestCase):
         self.assertEqual(config, existing_config)
 
     @patch("pyright_lsp_manager.subprocess.run")
-    def test_is_valid_python_path(self, mock_run):
+    def test_is_valid_python_workspace(self, mock_run):
         """Test Python workspace validation."""
         mock_run.return_value = Mock(stdout="pyright 1.1.0", returncode=0)
 
         manager = PyrightLSPManager(str(self.workspace_path), self.python_path)
 
         # Already has main.py from setUp
-        self.assertTrue(manager._is_valid_python_path())
+        self.assertTrue(manager._is_valid_python_workspace())
 
         # Test with setup.py
         (self.workspace_path / "main.py").unlink()
         (self.workspace_path / "setup.py").write_text("from setuptools import setup")
-        self.assertTrue(manager._is_valid_python_path())
+        self.assertTrue(manager._is_valid_python_workspace())
 
         # Test with requirements.txt
         (self.workspace_path / "setup.py").unlink()
         (self.workspace_path / "requirements.txt").write_text("requests==2.25.1")
-        self.assertTrue(manager._is_valid_python_path())
+        self.assertTrue(manager._is_valid_python_workspace())
 
     @patch("pyright_lsp_manager.subprocess.run")
     def test_validate_configuration_success(self, mock_run):

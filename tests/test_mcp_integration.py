@@ -77,7 +77,7 @@ def test_config_with_dynamic_port(temp_git_repo):
         "repositories": {
             "integration-test-repo": {
                 "port": test_port,
-                "path": temp_git_repo,
+                "workspace": temp_git_repo,
                 "language": Language.PYTHON.value,  # Required field
                 "python_path": "/usr/bin/python3",  # Required field for US001-12
                 "description": "Integration test repository",
@@ -182,7 +182,7 @@ class TestMCPIntegration:
 
             test_repo_config = RepositoryConfig(
                 name=repo_name,
-                path=repo_path,
+                workspace=repo_path,
                 description="Integration test repo",
                 language=Language.PYTHON,
                 port=test_port,
@@ -392,7 +392,7 @@ class TestMCPIntegration:
             "repositories": {
                 "valid-repo": {
                     "port": find_free_port(),
-                    "path": temp_git_repo,
+                    "workspace": temp_git_repo,
                     "language": Language.PYTHON.value,
                     "python_path": "/usr/bin/python3",
                 }
@@ -416,7 +416,7 @@ class TestMCPIntegration:
             "repositories": {
                 "invalid-repo": {
                     "port": find_free_port(),
-                    "path": temp_git_repo,
+                    "workspace": temp_git_repo,
                     # Missing language and python_path
                 }
             }
