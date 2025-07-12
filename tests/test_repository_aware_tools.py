@@ -183,8 +183,8 @@ class TestRepositoryAwareTools(unittest.TestCase):
             context_b = GitHubAPIContext(repo_config_b)
 
             # Verify they have different repository paths
-            self.assertEqual(context_a.repo_config.path, str(self.repo1_path))
-            self.assertEqual(context_b.repo_config.path, str(self.repo2_path))
+            self.assertEqual(context_a.repo_config.workspace, str(self.repo1_path))
+            self.assertEqual(context_b.repo_config.workspace, str(self.repo2_path))
 
             # Verify they can get different branch info
             branch_a = context_a.get_current_branch()

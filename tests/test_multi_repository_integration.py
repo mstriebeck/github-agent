@@ -101,14 +101,14 @@ class TestMultiRepositoryIntegration(unittest.TestCase):
         self.assertIsNotNone(repo_a, "Should find project-a")
         assert repo_a
         self.assertEqual(repo_a.name, "project-a")
-        self.assertEqual(repo_a.path, str(self.repo1_path))
+        self.assertEqual(repo_a.workspace, str(self.repo1_path))
         self.assertEqual(repo_a.description, "Project A repository")
 
         repo_b = manager.get_repository("project-b")
         self.assertIsNotNone(repo_b, "Should find project-b")
         assert repo_b
         self.assertEqual(repo_b.name, "project-b")
-        self.assertEqual(repo_b.path, str(self.repo2_path))
+        self.assertEqual(repo_b.workspace, str(self.repo2_path))
 
         # 6. Test non-existent repository
         non_existent = manager.get_repository("non-existent")

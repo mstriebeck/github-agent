@@ -207,7 +207,7 @@ async def execute_cli(
 
         # Handle both RepositoryConfig object and dict for testing
         if isinstance(repo_config, RepositoryConfig):
-            repo_path = repo_config.path
+            repo_path = repo_config.workspace
         else:
             repo_path = repo_config["path"]
 

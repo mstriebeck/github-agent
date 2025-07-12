@@ -88,7 +88,7 @@ class TestPythonRepositoryManagerIntegration:
                 # Should find only the Python repository
                 assert len(python_repos) == 1
                 assert python_repos[0].name == "python-repo"
-                assert python_repos[0].path == python_repo_dir
+                assert python_repos[0].workspace == python_repo_dir
                 assert python_repos[0].description == "Test Python repository"
                 assert python_repos[0].python_path == "/usr/bin/python3"
 
@@ -150,7 +150,7 @@ class TestPythonRepositoryManagerIntegration:
                 # Should find the repository with nested Python files
                 assert len(python_repos) == 1
                 assert python_repos[0].name == "nested-python-repo"
-                assert python_repos[0].path == repo_dir
+                assert python_repos[0].workspace == repo_dir
 
             finally:
                 # Clean up test directory
@@ -201,7 +201,7 @@ class TestPythonRepositoryManagerIntegration:
                 # Should find the repository with stub files
                 assert len(python_repos) == 1
                 assert python_repos[0].name == "stub-python-repo"
-                assert python_repos[0].path == repo_dir
+                assert python_repos[0].workspace == repo_dir
 
             finally:
                 # Clean up test directory

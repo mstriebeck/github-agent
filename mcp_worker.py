@@ -98,7 +98,7 @@ class MCPWorker:
 
         # Extract fields for easier access
         self.repo_name = repository_config.name
-        self.repo_path = repository_config.path
+        self.repo_path = repository_config.workspace
         self.port = repository_config.port
         self.description = repository_config.description
         self.language = repository_config.language

@@ -47,7 +47,7 @@ class PythonRepositoryManager:
 
                 try:
                     # Validate repository path and Python files
-                    self._validate_python_repository(repo_config.path)
+                    self._validate_python_repository(repo_config.workspace)
 
                     # Use the RepositoryConfig directly (already validated and configured)
                     python_repos.append(repo_config)
@@ -121,7 +121,7 @@ class PythonRepositoryManager:
             return None
 
         try:
-            self._validate_python_repository(repo_config.path)
+            self._validate_python_repository(repo_config.workspace)
             return repo_config
         except Exception as e:
             self.logger.warning(f"Repository {name} validation failed: {e}")

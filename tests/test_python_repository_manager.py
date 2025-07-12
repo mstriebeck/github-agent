@@ -86,7 +86,7 @@ class TestPythonRepositoryManager:
 
         assert len(python_repos) == 1
         assert python_repos[0].name == "python-repo"
-        assert python_repos[0].path == "/tmp/test-repo"
+        assert python_repos[0].workspace == "/tmp/test-repo"
         assert python_repos[0].description == "Test Python repository"
         assert python_repos[0].python_path == "/usr/bin/python3"
 
@@ -274,7 +274,7 @@ class TestPythonRepositoryManager:
 
             assert result is not None
             assert result.name == "python-repo"
-            assert result.path == "/tmp/test-repo"
+            assert result.workspace == "/tmp/test-repo"
             assert result.description == "Test repository"
             assert result.python_path == "/usr/bin/python3"
 

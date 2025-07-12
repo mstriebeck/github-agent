@@ -342,7 +342,7 @@ class TestMCPIntegration:
 
             # Verify all required fields are present
             assert loaded_config.port == test_port
-            assert loaded_config.path == repo_config["path"]
+            assert loaded_config.workspace == repo_config["workspace"]
             assert loaded_config.language == Language.PYTHON
             assert loaded_config.python_path == "/usr/bin/python3"
 

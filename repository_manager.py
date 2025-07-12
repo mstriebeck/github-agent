@@ -717,14 +717,14 @@ class RepositoryManager(AbstractRepositoryManager):
 
         return {
             "name": repo_config.name,
-            "path": repo_config.path,
+            "workspace": repo_config.workspace,
             "description": repo_config.description,
             "port": repo_config.port,
             "language": repo_config.language,
             "python_path": repo_config.python_path,
             "github_owner": repo_config.github_owner,
             "github_repo": repo_config.github_repo,
-            "exists": os.path.exists(repo_config.path),
+            "exists": os.path.exists(repo_config.workspace),
         }
 
     def is_multi_repo_mode(self) -> bool:
